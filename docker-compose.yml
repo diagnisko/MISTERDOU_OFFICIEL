@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: misterdou-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mdou}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mdou_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-misterdou}
+    ports:
+      # 5433 host → 5432 container : le port 5432 est souvent déjà utilisé (WSL/postgres local)
+      - "5433:5432"
+    volumes:
+      - misterdou_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mdou} -d ${POSTGRES_DB:-misterdou}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  misterdou_pgdata:

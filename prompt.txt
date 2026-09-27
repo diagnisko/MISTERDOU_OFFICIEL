@@ -1,0 +1,1894 @@
+PROJET : PLATEFORME DE VENTE DE COMPTES eFOOTBALL
+
+1. OBJECTIF DU PROJET
+
+Je veux développer une plateforme web moderne, rapide, sécurisée et évolutive permettant d’acheter et de vendre des comptes eFootball.
+
+La plateforme doit gérer trois types d’utilisateurs :
+
+1. Client
+2. Vendeur
+3. Administrateur
+
+L’objectif est de créer d’abord une excellente plateforme web, avec une architecture suffisamment propre et évolutive pour permettre ensuite de développer une application mobile iOS et Android utilisant le même backend et les mêmes API.
+
+⸻
+
+2. CHOIX TECHNOLOGIQUE
+
+Avant de commencer le développement, choisis une stack moderne privilégiant :
+
+* vitesse d’exécution ;
+* rapidité de chargement ;
+* bonnes performances sur mobile ;
+* sécurité ;
+* évolutivité ;
+* facilité de maintenance ;
+* possibilité de créer plus tard une application mobile avec les mêmes API.
+
+Propose une architecture moderne avec, par exemple :
+
+Frontend
+
+Une technologie performante permettant une excellente expérience utilisateur.
+
+Backend
+
+Une technologie rapide et adaptée à une plateforme transactionnelle.
+
+Base de données
+
+Une base de données relationnelle robuste permettant de gérer :
+
+* utilisateurs ;
+* comptes eFootball ;
+* commandes ;
+* paiements ;
+* échéances ;
+* vendeurs ;
+* commissions ;
+* promotions ;
+* vérifications KYC ;
+* transactions ;
+* notifications ;
+* historique des actions.
+
+Stockage
+
+Les documents d’identité, photos et autres fichiers sensibles doivent être stockés de manière sécurisée et ne doivent jamais être publiquement accessibles.
+
+Architecture
+
+Construire le projet avec une séparation claire :
+
+Frontend → API sécurisée → Backend → Base de données / stockage / paiement.
+
+Prévoir dès le départ une API propre afin de pouvoir réutiliser le backend pour l’application mobile future.
+
+⸻
+
+3. TYPES DE COMPTES
+
+3.1 CLIENT
+
+Un utilisateur peut créer un compte client :
+
+* avec Google ;
+* ou avec une inscription classique.
+
+Lors de son inscription, son compte doit rester limité tant que son identité n’a pas été vérifiée.
+
+⸻
+
+4. VÉRIFICATION D’IDENTITÉ OBLIGATOIRE
+
+Avant de pouvoir acheter un compte eFootball, le client doit obligatoirement être vérifié.
+
+Le client doit fournir :
+
+* recto de sa pièce d’identité ;
+* verso de sa pièce d’identité ;
+* OU passeport ;
+* photo de son visage.
+
+Le système doit avoir plusieurs statuts :
+
+* Non vérifié
+* Vérification en attente
+* Vérifié
+* Refusé
+
+Un client non vérifié ne doit pas pouvoir finaliser l’achat d’un compte.
+
+L’administrateur doit pouvoir :
+
+* consulter les demandes de vérification ;
+* accepter une vérification ;
+* refuser une vérification ;
+* demander une nouvelle soumission ;
+* consulter l’historique de vérification;
+consulter les clients et vendeur et leur informations
+ajouter des manager et leur permission .
+
+Les documents sensibles ne doivent jamais être visibles publiquement.
+
+⸻
+
+5. COMPTE VENDEUR
+
+Un client vérifié peut demander à devenir vendeur.
+
+Pour devenir vendeur, il doit payer des frais d’inscription de :
+
+1 000 FCFA
+
+Ces frais sont définitifs et ne constituent pas un abonnement mensuel.
+
+Prévoir éventuellement une configuration administrateur permettant de modifier ce montant.
+
+Une fois le paiement confirmé :
+
+* le compte client obtient le statut vendeur ;
+* le vendeur peut publier des comptes eFootball ;
+* le vendeur peut gérer ses propres annonces ;
+* le vendeur peut suivre ses ventes et ses revenus donc les compte vendeur doit avoir un tableau  de bord.
+
+Un vendeur reste également un utilisateur client et peut donc acheter des comptes.
+
+⸻
+
+6. VENTE DES COMPTES PAR LES VENDEURS
+
+Les comptes publiés par les vendeurs sont vendus en un seul paiement.
+
+Il n’y a pas de paiement en plusieurs fois pour les produits des vendeurs.
+
+Lorsqu’un vendeur crée une annonce, il doit renseigner au minimum :
+
+* nom/titre du compte ;
+* description ;
+* prix ;
+* puissaner de l’équipe ;
+* nombre de pièces ;
+* division ;
+* informations complémentaires ;
+* captures d’écran du compte ;
+* e-mail du compte eFootball ;
+* mot de passe du compte eFootball.
+
+IMPORTANT — DONNÉES CONFIDENTIELLES
+
+L’e-mail et le mot de passe du compte eFootball sont des informations extrêmement sensibles.
+
+Ils ne doivent :
+
+* jamais apparaître dans la page publique du produit ;
+* jamais apparaître dans les résultats de recherche ;
+* jamais être visibles par les autres utilisateurs ;
+* jamais être envoyés au frontend inutilement.
+
+Ils doivent être stockés de manière sécurisée et chiffrée.
+
+Seuls les utilisateurs autorisés doivent pouvoir accéder à ces informations selon les règles définies par l’administrateur.
+
+⸻
+
+7. COMMISSION SUR LES VENTES VENDEURS
+
+Lorsqu’un compte est vendu par un vendeur :
+
+15 % du montant de la vente revient à l’administrateur.
+
+Le reste revient au vendeur, sous réserve des éventuels frais de paiement.
+
+Exemple :
+
+Compte vendu à 20 000 FCFA.
+
+Commission administrateur :
+
+20 000 × 15 % = 3 000 FCFA
+
+Montant vendeur :
+
+17 000 FCFA
+
+Le système doit automatiquement calculer :
+
+* prix de vente ;
+* commission ;
+* montant vendeur ;
+* frais éventuels ;
+* montant net.
+
+Chaque transaction doit être enregistrée dans l’historique financier.
+
+⸻
+
+8. VENTE DES COMPTES DE L’ADMINISTRATEUR
+
+L’administrateur possède également ses propres comptes eFootball.
+
+Contrairement aux vendeurs, l’administrateur peut proposer ses comptes avec un paiement en plusieurs fois.
+
+Lors de la création du produit, l’administrateur doit pouvoir définir :
+
+* prix total ;
+* montant de l’apport initial ;
+* nombre de mensualités.
+
+Le nombre de mensualités doit être configurable.
+
+Maximum :
+
+8 mois.
+
+Exemple :
+
+Prix : 80 000 FCFA
+
+Apport initial : 20 000 FCFA
+
+Reste : 60 000 FCFA
+
+Nombre de mensualités : 6
+
+Le système calcule automatiquement :
+
+60 000 / 6 = 10 000 FCFA par mois.
+
+Prévoir également la gestion des arrondis afin qu’il n’y ait jamais de différence entre le total payé et le prix réel du produit.
+
+⸻
+
+9. SYSTÈME DE PAIEMENT EN PLUSIEURS FOIS
+
+Pour les produits de l’administrateur, le système doit créer automatiquement un échéancier.
+
+Exemple :
+
+* Paiement initial : 20 000 FCFA
+* Mois 1 : 10 000 FCFA
+* Mois 2 : 10 000 FCFA
+* Mois 3 : 10 000 FCFA
+* etc.
+
+Le système doit suivre :
+
+* montant payé ;
+* montant restant ;
+* prochaines échéances ;
+* échéances payées ;
+* échéances en retard ;
+* date de chaque paiement ;
+* statut de chaque paiement.
+
+Le client doit pouvoir voir clairement son échéancier depuis son espace personnel.
+
+⸻
+
+10. CATALOGUE DES PRODUITS
+
+Les produits doivent avoir une présentation professionnelle et attractive.
+
+Chaque carte produit doit afficher notamment :
+
+* nom du compte ;
+* puissance de l’équipe ;
+* nombre de pièces ;
+* division ;
+* prix ;
+* vendeur ou indication “Administrateur” ;
+* badge promotionnel si applicable ;
+* badge “Mis en avant” si applicable.
+
+Ne jamais afficher publiquement :
+
+* e-mail du compte ;
+* mot de passe ;
+* informations privées ;
+* documents du vendeur.
+
+⸻
+
+11. PAGE DÉTAIL DU PRODUIT
+
+Chaque produit doit avoir une page détaillée.
+
+Afficher :
+
+* images/captures ;
+* nom du compte ;
+* puissance de l’équipe ;
+* nombre de pièces ;
+* division ;
+* description ;
+* prix ;
+* mode de paiement ;
+* vendeur ;
+* disponibilité ;
+* informations importantes.
+
+Pour les produits de l’administrateur :
+
+Afficher clairement :
+
+* apport initial ;
+* nombre de mensualités ;
+* montant de chaque mensualité ;
+* total à payer.
+
+Pour les produits des vendeurs :
+
+Afficher :
+
+Paiement en une seule fois.
+
+⸻
+
+12. SYSTÈME DE PROMOTION
+
+L’administrateur doit pouvoir créer et gérer des promotions.
+
+Il doit pouvoir :
+
+* modifier le prix ;
+* appliquer une réduction ;
+* programmer une promotion ;
+* définir une date de début ;
+* définir une date de fin ;
+* mettre certains produits en avant.
+
+L’interface doit afficher clairement le prix normal et le prix promotionnel lorsqu’une réduction est active.
+
+⸻
+
+13. PRODUITS MIS EN AVANT
+
+Les vendeurs doivent pouvoir payer pour mettre leurs produits en avant.
+
+Tarification prévue :
+
+200 FCFA par jour.
+
+Le vendeur choisit :
+
+* le produit ;
+* le nombre de jours ;
+* paie le montant correspondant.
+
+Exemple :
+
+1 jour = 200 FCFA
+
+5 jours = 1 000 FCFA
+
+10 jours = 2 000 FCFA
+
+30 jours = 6 000 FCFA
+
+Le système doit calculer automatiquement le prix.
+
+Après paiement confirmé :
+
+* le produit devient “mis en avant” ;
+* il apparaît dans les emplacements prévus ;
+* la durée commence ;
+* le système désactive automatiquement la mise en avant à expiration.
+
+L’administrateur doit pouvoir contrôler les produits mis en avant.
+
+⸻
+
+14. PAIEMENTS
+
+Tous les paiements de la plateforme doivent passer par PayTech.
+
+Prévoir les moyens de paiement disponibles sur PayTech, notamment les moyens compatibles avec le marché ciblé.
+
+Lorsqu’un utilisateur clique sur “Payer”, il doit pouvoir choisir le moyen de paiement disponible via PayTech.
+
+Tous les paiements doivent être confirmés côté serveur.
+
+IMPORTANT :
+
+Ne jamais considérer simplement une redirection frontend comme preuve qu’un paiement est réussi.
+
+Utiliser les mécanismes de confirmation/webhook de PayTech afin de vérifier réellement le statut de la transaction.
+
+Chaque paiement doit avoir :
+
+* identifiant unique ;
+* utilisateur ;
+* commande ;
+* montant ;
+* type de paiement ;
+* fournisseur ;
+* statut ;
+* date ;
+* référence ;
+* historique.
+
+Statuts possibles :
+
+* pending
+* processing
+* success
+* failed
+* cancelled
+* refunded
+
+⸻
+
+15. PROCESSUS APRÈS ACHAT
+
+Lorsqu’un client achète un compte :
+
+1. Le paiement est confirmé.
+2. La commande passe à “Payée”.
+3. Le système récupère les informations privées du compte.
+4. Le client reçoit les informations nécessaires pour accéder au compte.
+5. Les informations sensibles doivent être transmises par un mécanisme sécurisé.
+
+L’e-mail et le mot de passe du compte ne doivent jamais être affichés dans le catalogue avant l’achat.
+
+⸻
+
+16. CODE DE VÉRIFICATION / AIDE À LA CONNEXION
+
+Si eFootball demande un code de vérification lors de la connexion au compte acheté, le client doit pouvoir demander de l’aide depuis sa commande.
+
+Créer un système de support permettant de suivre cette procédure.
+
+Acteurs pouvant aider :
+
+* administrateur ;
+* membre du personnel autorisé.
+
+Le client doit pouvoir créer une demande :
+
+“J’ai besoin du code de vérification.”
+
+Le personnel autorisé traite ensuite la demande.
+
+Prévoir un système de statut :
+
+* demande créée ;
+* en attente ;
+* en cours de traitement ;
+* code fourni / procédure terminée ;
+* terminé.
+
+Toutes les actions doivent être enregistrées dans un journal d’activité.
+
+⸻
+
+17. LIBÉRATION DES REVENUS VENDEURS
+
+L’argent d’une vente vendeur ne doit pas être immédiatement considéré comme disponible si la plateforme impose une période de vérification ou de sécurisation.
+
+Créer un système de solde :
+
+Solde en attente
+
+Argent provenant de ventes encore en cours de traitement.
+
+Solde disponible
+
+Argent pouvant être retiré par le vendeur.
+
+L’administrateur doit pouvoir contrôler le moment où les fonds deviennent disponibles conformément aux règles de la plateforme.
+
+Avant qu’un retrait soit possible, vérifier que toutes les informations nécessaires du vendeur sont correctement renseignées.
+
+⸻
+
+18. ESPACE VENDEUR
+
+Le vendeur doit avoir un dashboard permettant de voir :
+
+* nombre de produits ;
+* produits actifs ;
+* produits vendus ;
+* ventes en attente ;
+* revenus ;
+* commissions ;
+* solde disponible ;
+* solde en attente ;
+* historique des transactions ;
+* produits mis en avant ;
+* dépenses de promotion.
+
+Il doit pouvoir :
+
+* ajouter un produit ;
+* modifier un produit ;
+* supprimer/désactiver un produit ;
+* consulter ses commandes ;
+* consulter ses revenus ;
+* acheter une mise en avant.
+
+⸻
+
+19. ESPACE CLIENT
+
+Le client doit avoir un dashboard avec :
+
+* profil ;
+* statut de vérification ;
+* commandes ;
+* comptes achetés ;
+* paiements ;
+* échéanciers ;
+* prochaines échéances ;
+* historique ;
+* demandes de support ;
+* notifications.
+
+Pour les comptes achetés avec paiement échelonné, afficher clairement :
+
+Montant total
+
+Montant déjà payé
+
+Montant restant
+
+Prochaine échéance
+
+Historique des paiements
+
+⸻
+
+20. PANEL ADMINISTRATEUR
+
+L’administrateur doit avoir un contrôle complet de la plateforme.
+
+Dashboard avec :
+
+* utilisateurs ;
+* clients ;
+* vendeurs ;
+* produits ;
+* commandes ;
+* paiements ;
+* revenus ;
+* commissions ;
+* vérifications KYC ;
+* retraits ;
+* promotions ;
+* produits mis en avant ;
+* tickets/support ;
+* logs de sécurité.
+
+L’administrateur doit pouvoir :
+
+Utilisateurs
+
+* consulter ;
+* suspendre ;
+* réactiver ;
+* modifier certains paramètres ;
+* gérer les rôles.
+
+Produits
+
+* ajouter ;
+* modifier ;
+* supprimer ;
+* désactiver ;
+* mettre en avant ;
+* appliquer une promotion.
+
+Vendeurs
+
+* approuver ;
+* suspendre ;
+* consulter leurs ventes ;
+* consulter leurs commissions ;
+* gérer les paiements.
+
+Paiements
+
+* consulter toutes les transactions ;
+* voir leur statut ;
+* rechercher une transaction ;
+* consulter les références PayTech.
+
+Vérification
+
+* accepter ;
+* refuser ;
+* demander une nouvelle vérification.
+
+⸻
+
+21. RÔLES ET PERMISSIONS
+
+Ne pas donner tous les droits directement à tous les utilisateurs.
+
+Créer un véritable système RBAC (Role-Based Access Control).
+
+Exemple :
+
+CLIENT
+
+Accès uniquement à ses propres données.
+
+VENDEUR
+
+Accès :
+
+* à ses produits ;
+* ses commandes ;
+* ses revenus ;
+* ses informations personnelles.
+
+Il ne doit jamais pouvoir accéder aux données des autres vendeurs.
+
+STAFF / MODÉRATEUR
+
+Accès limité aux fonctions nécessaires.
+
+ADMINISTRATEUR
+
+Accès complet.
+
+Toutes les permissions doivent être contrôlées côté backend.
+
+Ne jamais faire confiance uniquement aux permissions du frontend.
+
+⸻
+
+22. SÉCURITÉ
+
+La sécurité est une priorité absolue.
+
+Je veux une architecture conçue pour résister au maximum aux attaques courantes.
+
+Mettre en place notamment :
+
+* authentification sécurisée ;
+* mots de passe hashés ;
+* sessions sécurisées ;
+* cookies HttpOnly/Secure/SameSite si utilisés ;
+* protection CSRF lorsque nécessaire ;
+* protection XSS ;
+* validation stricte des entrées ;
+* protection SQL injection via ORM/requêtes paramétrées ;
+* rate limiting ;
+* protection contre le brute force ;
+* validation côté serveur ;
+* contrôle d’autorisation côté serveur ;
+* headers de sécurité ;
+* chiffrement des données sensibles ;
+* stockage sécurisé des documents ;
+* logs de sécurité ;
+* audit des actions administratives ;
+* gestion sécurisée des secrets ;
+* variables d’environnement ;
+* séparation développement/production ;
+* sauvegardes ;
+* monitoring ;
+* alertes en cas d’activité suspecte.
+
+Ne jamais stocker de secrets directement dans le code source.
+
+⸻
+
+23. DONNÉES TRÈS SENSIBLES
+
+Les informations suivantes doivent être considérées comme sensibles :
+
+* pièces d’identité ;
+* passeports ;
+* photos personnelles ;
+* mots de passe eFootball ;
+* e-mails des comptes eFootball ;
+* informations de paiement ;
+* données personnelles.
+
+Limiter strictement leur accès.
+
+Le système doit enregistrer qui a consulté/modifié une information sensible lorsque cela est nécessaire.
+
+⸻
+
+24. JOURNAL D’AUDIT
+
+Créer un système d’Audit Log.
+
+Enregistrer notamment :
+
+* connexion ;
+* modification de profil ;
+* modification de rôle ;
+* création de produit ;
+* suppression de produit ;
+* modification du prix ;
+* changement de statut ;
+* validation KYC ;
+* paiement ;
+* remboursement ;
+* retrait ;
+* consultation de données sensibles ;
+* modification par un administrateur.
+
+Exemple :
+
+ADMIN → a modifié le prix du produit X → ancienne valeur → nouvelle valeur → date → adresse IP/session.
+
+L’objectif est qu’une modification importante soit traçable.
+
+⸻
+
+25. PROTECTION DU PANEL ADMIN
+
+Le panel administrateur doit être beaucoup plus sécurisé que l’espace client.
+
+Prévoir :
+
+* authentification renforcée ;
+* 2FA/MFA ;
+* sessions courtes pour les opérations sensibles ;
+* confirmation supplémentaire pour certaines actions critiques ;
+* journalisation des actions ;
+* limitation des tentatives de connexion ;
+* possibilité de révoquer les sessions.
+
+Pour les actions critiques comme :
+
+* suppression massive ;
+* modification financière ;
+* changement de rôle ;
+* modification des paramètres de paiement ;
+
+demander une confirmation supplémentaire.
+
+⸻
+
+26. INTERFACE ET DESIGN
+
+Je veux un design moderne, professionnel et premium.
+
+Le site doit être :
+
+* responsive ;
+* mobile-first ;
+* rapide ;
+* propre ;
+* intuitif ;
+* professionnel.
+
+Je veux une excellente présentation des comptes eFootball.
+
+Utiliser :
+
+* belles cartes produits ;
+* badges ;
+* filtres ;
+* recherche ;
+* catégories ;
+* pagination ou chargement optimisé ;
+* pages produits modernes ;
+* dashboard professionnel.
+
+⸻
+
+27. ANIMATIONS
+
+Je veux des animations modernes mais légères.
+
+Utiliser notamment :
+
+* animations au scroll ;
+* transitions ;
+* hover ;
+* micro-interactions ;
+* animations lors du chargement ;
+* transitions entre les pages ;
+* feedback visuel lors des paiements.
+
+IMPORTANT :
+
+Les animations ne doivent jamais ralentir le site.
+
+Priorité :
+
+PERFORMANCE > ANIMATION
+
+Éviter les animations lourdes qui augmentent le temps de chargement ou utilisent inutilement le CPU/GPU.
+
+⸻
+
+28. PERFORMANCE
+
+La plateforme doit être extrêmement rapide.
+
+Optimiser :
+
+* images ;
+* vidéos éventuelles ;
+* JavaScript ;
+* CSS ;
+* requêtes SQL ;
+* API ;
+* cache ;
+* lazy loading ;
+* pagination ;
+* CDN ;
+* compression ;
+* chargement des composants.
+
+Éviter les requêtes inutiles.
+
+Ne jamais charger toute la base de données lorsqu’une page n’a besoin que de quelques produits.
+
+Prévoir des index de base de données adaptés.
+
+Objectif :
+
+* temps de chargement très faible ;
+* excellente expérience sur smartphone ;
+* fonctionnement correct avec une connexion Internet moyenne ;
+* bonne stabilité lorsque le nombre d’utilisateurs augmente.
+
+⸻
+
+29. RECHERCHE ET FILTRES
+
+Le catalogue doit permettre de rechercher et filtrer les comptes.
+
+Filtres possibles :
+
+* prix ;
+* puissance ;
+* division ;
+* nombre de pièces ;
+* vendeur ;
+* paiement comptant ;
+* paiement en plusieurs fois ;
+* promotion ;
+* produits mis en avant.
+
+Ajouter une recherche rapide par nom.
+
+⸻
+
+30. NOTIFICATIONS
+
+Créer un système de notifications.
+
+Notifications possibles :
+
+* compte vérifié ;
+* vérification refusée ;
+* achat confirmé ;
+* paiement confirmé ;
+* prochaine échéance ;
+* échéance en retard ;
+* produit vendu ;
+* paiement vendeur disponible ;
+* mise en avant activée ;
+* mise en avant expirée ;
+* réponse du support.
+
+Prévoir des notifications :
+
+* dans la plateforme ;
+* par e-mail lorsque nécessaire.
+
+⸻
+
+31. BASE DE DONNÉES
+
+Concevoir une base de données propre et normalisée.
+
+Prévoir notamment des tables/modèles pour :
+
+* User
+* Role
+* Seller
+* IdentityVerification
+* Product
+* ProductImage
+* ProductCredential
+* Order
+* OrderItem
+* Payment
+* InstallmentPlan
+* Installment
+* Commission
+* SellerBalance
+* Withdrawal
+* Promotion
+* FeaturedProduct
+* SupportTicket
+* Notification
+* AuditLog
+* Session
+
+Les relations doivent être correctement définies.
+
+⸻
+
+32. API
+
+Toutes les opérations importantes doivent passer par une API sécurisée.
+
+Exemples :
+
+POST /auth/register
+
+POST /auth/login
+
+POST /auth/google
+
+POST /verification
+
+GET /products
+
+GET /products/:id
+
+POST /products
+
+PATCH /products/:id
+
+DELETE /products/:id
+
+POST /orders
+
+POST /payments
+
+GET /orders/:id
+
+GET /installments
+
+POST /support/tickets
+
+POST /seller/featured
+
+etc.
+
+Les routes doivent être protégées selon les rôles.
+
+⸻
+
+33. PAIEMENTS ET WEBHOOKS
+
+Créer une architecture robuste pour PayTech.
+
+Lorsqu’un paiement est effectué :
+
+1. Créer une transaction interne.
+2. Envoyer la demande de paiement à PayTech.
+3. Attendre la confirmation.
+4. Recevoir le webhook.
+5. Vérifier l’authenticité du webhook.
+6. Vérifier le montant et la référence.
+7. Mettre à jour la transaction.
+8. Mettre à jour la commande.
+9. Générer les actions correspondantes.
+
+Ne jamais créditer un vendeur simplement parce que le frontend indique “paiement réussi”.
+
+⸻
+
+34. EXTENSIBILITÉ MOBILE
+
+Même si la première version est uniquement web, concevoir le backend comme une API indépendante du frontend.
+
+Plus tard, je veux pouvoir développer :
+
+* application Android ;
+* application iOS.
+
+L’application devra utiliser la même API.
+
+Ne pas construire une architecture qui oblige à réécrire toute la logique métier lors du développement de l’application mobile.
+
+⸻
+
+35. ADMINISTRATION DES PARAMÈTRES
+
+L’administrateur doit pouvoir modifier depuis le dashboard :
+
+* commission vendeur ;
+* frais d’inscription vendeur ;
+* prix de mise en avant par jour ;
+* nombre maximum de mensualités ;
+* durée maximale ;
+* règles de paiement ;
+* paramètres des promotions ;
+* paramètres de sécurité.
+
+Éviter de coder en dur ces valeurs lorsqu’elles doivent être configurables.
+
+⸻
+
+36. RÈGLES MÉTIER IMPORTANTES
+
+Règle 1
+
+Un utilisateur doit être vérifié avant de pouvoir acheter.
+
+Règle 2
+
+Un utilisateur vérifié peut devenir vendeur après paiement des frais d’inscription.
+
+Règle 3
+
+Le vendeur paie 1 000 FCFA pour son inscription.
+
+Règle 4
+
+Les produits des vendeurs sont payables en une seule fois.
+
+Règle 5
+
+Les produits de l’administrateur peuvent être payés en plusieurs fois.
+
+Règle 6
+
+Le nombre maximal de mensualités est de 8.
+
+Règle 7
+
+Les ventes des vendeurs génèrent une commission de 15 % pour l’administrateur.
+
+Règle 8
+
+Les identifiants eFootball ne sont jamais publics.
+
+Règle 9
+
+Les paiements sont traités via PayTech.
+
+Règle 10
+
+Les produits mis en avant coûtent 200 FCFA par jour.
+
+Règle 11
+
+Toutes les actions financières importantes doivent être traçables.
+
+Règle 12
+
+Les permissions doivent être vérifiées côté serveur.
+
+⸻
+
+37. CE QUE JE VEUX DE TOI AVANT DE CODER
+
+Ne commence pas directement à écrire tout le code.
+
+Commence par :
+
+1. analyser le cahier des charges ;
+2. identifier les éventuelles incohérences ;
+3. proposer l’architecture technique ;
+4. choisir la stack ;
+5. expliquer pourquoi cette stack est adaptée à la performance ;
+6. concevoir l’architecture de la base de données ;
+7. définir les rôles et permissions ;
+8. définir les flux de paiement ;
+9. définir le système de vérification ;
+10. définir le système de sécurité ;
+11. définir l’architecture API ;
+12. définir la structure du projet ;
+13. définir les étapes de développement.
+
+Ensuite seulement, commencer l’implémentation.
+
+⸻
+
+38. MÉTHODE DE DÉVELOPPEMENT
+
+Développer le projet progressivement.
+
+Phase 1
+
+Architecture + base de données + authentification.
+
+Phase 2
+
+Vérification d’identité.
+
+Phase 3
+
+Catalogue produits.
+
+Phase 4
+
+Système vendeur.
+
+Phase 5
+
+Paiements PayTech.
+
+Phase 6
+
+Commandes.
+
+Phase 7
+
+Paiement en plusieurs fois.
+
+Phase 8
+
+Dashboard administrateur.
+
+Phase 9
+
+Promotions et produits mis en avant.
+
+Phase 10
+
+Support et notifications.
+
+Phase 11
+
+Sécurité avancée.
+
+Phase 12
+
+Optimisation des performances.
+
+Phase 13
+
+Tests.
+
+Phase 14
+
+Déploiement production.
+
+⸻
+
+39. TESTS OBLIGATOIRES
+
+Avant la mise en production, tester notamment :
+
+* inscription ;
+* connexion ;
+* connexion Google ;
+* vérification d’identité ;
+* achat ;
+* paiement PayTech ;
+* webhook ;
+* paiement échoué ;
+* paiement annulé ;
+* paiement en plusieurs fois ;
+* échéance ;
+* retard de paiement ;
+* création vendeur ;
+* commission ;
+* mise en avant ;
+* promotion ;
+* retrait vendeur ;
+* permissions ;
+* accès non autorisé ;
+* sécurité API ;
+* injection SQL ;
+* XSS ;
+* brute force ;
+* rate limiting ;
+* accès aux documents privés ;
+* accès aux identifiants eFootball.
+
+Tester également avec plusieurs utilisateurs simultanément afin de vérifier les problèmes de concurrence et de cohérence des paiements.
+
+⸻
+
+40. OBJECTIF FINAL
+
+Je veux obtenir une plateforme eFootball qui soit :
+
+rapide + moderne + sécurisée + évolutive + professionnelle.
+
+Elle doit pouvoir commencer avec peu d’utilisateurs mais être conçue pour évoluer progressivement vers une plateforme avec beaucoup plus d’utilisateurs et de transactions.
+
+La priorité absolue est :
+
+1. sécurité ;
+2. fiabilité des paiements ;
+3. protection des données sensibles ;
+4. performance ;
+5. expérience utilisateur ;
+6. évolutivité.
+
+Ne pas sacrifier la sécurité ou la fiabilité pour gagner quelques millisecondes.
+
+Avant toute implémentation importante, expliquer les choix techniques et signaler clairement les éventuels risques ou problèmes dans les règles métier.
+41. SYSTÈME DE MESSAGERIE
+
+La plateforme doit intégrer un système de messagerie interne permettant aux utilisateurs autorisés de communiquer directement.
+
+Client ↔ Administrateur
+
+Un client doit pouvoir envoyer un message directement à l’administrateur.
+
+Le fonctionnement doit être similaire à une conversation :
+
+* le client ouvre une conversation ;
+* il écrit un message ;
+* l’administrateur reçoit une notification ;
+* l’administrateur peut répondre ;
+* le client reçoit une notification de réponse.
+
+Chaque conversation doit avoir :
+
+* un identifiant ;
+* un expéditeur ;
+* un destinataire ;
+* des messages ;
+* une date ;
+* une heure ;
+* un statut lu/non lu ;
+* éventuellement des pièces jointes si cette fonctionnalité est activée.
+
+⸻
+
+42. ADMINISTRATEUR ↔ VENDEUR
+
+L’administrateur doit également pouvoir contacter directement un vendeur.
+
+L’administrateur peut :
+
+* démarrer une conversation avec un vendeur ;
+* envoyer des messages ;
+* répondre aux messages ;
+* envoyer des informations concernant une vente ;
+* demander des informations supplémentaires ;
+* informer le vendeur d’un problème ;
+* envoyer des notifications importantes.
+
+Le vendeur doit recevoir une notification lorsqu’un administrateur lui envoie un message.
+
+⸻
+
+43. SÉPARATION DES CONVERSATIONS
+
+IMPORTANT :
+
+Les clients ne doivent jamais pouvoir discuter directement avec les vendeurs.
+
+Un client peut uniquement communiquer avec :
+
+* l’administrateur ;
+* éventuellement un membre du personnel autorisé.
+
+Un vendeur peut communiquer avec :
+
+* l’administrateur ;
+* éventuellement un membre du personnel autorisé.
+
+Il ne doit jamais être possible pour un client de découvrir ou contacter directement un vendeur via le système de messagerie.
+
+⸻
+
+44. INTERFACE DE MESSAGERIE
+
+Créer une interface moderne de type messagerie.
+
+Elle doit afficher :
+
+* liste des conversations ;
+* dernier message ;
+* date du dernier message ;
+* nombre de messages non lus ;
+* indicateur de nouveau message ;
+* statut lu/non lu.
+
+Dans une conversation :
+
+* messages envoyés ;
+* messages reçus ;
+* heure ;
+* date ;
+* indication lu/non lu.
+
+L’interface doit fonctionner correctement sur smartphone et ordinateur.
+
+⸻
+
+45. NOTIFICATIONS EN TEMPS RÉEL
+
+Créer un véritable système de notifications.
+
+Lorsqu’un utilisateur reçoit un nouveau message, il doit recevoir une notification.
+
+Exemples :
+
+Nouveau message
+
+L’administrateur vous a envoyé un message.
+
+Ou :
+
+Nouveau message de l’administration
+
+Vous avez reçu une réponse concernant votre commande.
+
+Les notifications doivent apparaître :
+
+* dans l’application/site ;
+* dans le centre de notifications ;
+* éventuellement par notification push ;
+* éventuellement par SMS/e-mail pour les événements importants.
+
+⸻
+
+46. NOTIFICATIONS PUSH
+
+Préparer l’architecture pour les notifications push.
+
+L’objectif est qu’un utilisateur puisse recevoir une alerte même lorsqu’il n’est pas actuellement sur la plateforme.
+
+Exemple :
+
+Un administrateur envoie un message à un vendeur.
+
+Le vendeur reçoit :
+
+🔔 Nouveau message
+
+Vous avez reçu un nouveau message de l’administration.
+
+En cliquant sur la notification, l’utilisateur est redirigé directement vers la conversation concernée.
+
+Pour l’application mobile future, prévoir une intégration avec le système de notifications push adapté à Android et iOS.
+
+⸻
+
+47. CENTRE DE NOTIFICATIONS
+
+Créer une page/zone “Notifications”.
+
+Elle doit permettre de voir :
+
+* nouveaux messages ;
+* commandes ;
+* paiements ;
+* vérification d’identité ;
+* échéances ;
+* promotions ;
+* mise en avant ;
+* informations administratives.
+
+Chaque notification doit avoir :
+
+* type ;
+* titre ;
+* contenu ;
+* date ;
+* statut lu/non lu ;
+* lien vers l’action concernée.
+
+Prévoir :
+
+“Tout marquer comme lu”
+
+⸻
+
+48. NUMÉRO DE TÉLÉPHONE OBLIGATOIRE
+
+Lors de la création du compte, demander :
+
+* numéro de téléphone ;
+* indicatif du pays.
+
+Le numéro doit être vérifié par OTP/SMS avant que le compte puisse accéder aux fonctionnalités sensibles.
+
+Prévoir les statuts :
+
+* numéro non vérifié ;
+* vérification en cours ;
+* numéro vérifié.
+
+Le numéro de téléphone ne doit pas être visible publiquement.
+
+⸻
+
+49. LOCALISATION
+
+Lors du processus de vérification du compte, demander à l’utilisateur de fournir sa localisation.
+
+Utiliser l’API de localisation de Google Maps / Google Maps Platform lorsque cela est approprié.
+
+Le système doit :
+
+1. expliquer clairement pourquoi la localisation est demandée ;
+2. demander le consentement de l’utilisateur ;
+3. demander l’autorisation de localisation du navigateur ou de l’application ;
+4. récupérer la position uniquement après autorisation ;
+5. enregistrer les coordonnées nécessaires ;
+6. éventuellement convertir les coordonnées en adresse approximative ou zone géographique.
+
+IMPORTANT :
+
+Ne pas mettre en place de suivi GPS permanent.
+
+La localisation doit être collectée uniquement lorsque cela est nécessaire au processus prévu et conformément au consentement de l’utilisateur.
+
+⸻
+
+50. INFORMATIONS DE PROFIL ET VÉRIFICATION
+
+Lors de la vérification, l’utilisateur doit pouvoir fournir les informations nécessaires à son identité.
+
+Selon le processus défini par l’administrateur, cela peut inclure :
+
+* nom ;
+* prénom ;
+* numéro de téléphone ;
+* date de naissance si nécessaire ;
+* pays ;
+* ville ;
+* adresse si nécessaire ;
+* localisation ;
+* document d’identité ;
+* recto ;
+* verso ;
+* passeport si utilisé ;
+* photo du visage.
+
+Ne collecter que les données réellement nécessaires.
+
+⸻
+
+51. DOSSIER DE VÉRIFICATION PERMANENT
+
+Une fois la vérification terminée, les informations fournies ne doivent pas disparaître.
+
+Créer un dossier de vérification utilisateur conservé de manière sécurisée.
+
+L’objectif est que l’administrateur puisse consulter ultérieurement le dossier complet d’un utilisateur sans lui demander de renvoyer systématiquement les mêmes documents.
+
+Exemple :
+
+ADMINISTRATEUR → CLIENT → DOSSIER DE VÉRIFICATION
+
+L’administrateur doit pouvoir consulter :
+
+Informations personnelles
+
+* nom ;
+* prénom ;
+* numéro de téléphone ;
+* pays ;
+* ville ;
+* informations de profil ;
+* localisation collectée avec consentement.
+
+Documents
+
+* pièce d’identité recto ;
+* pièce d’identité verso ;
+* passeport si fourni ;
+* photo du visage.
+
+Informations de vérification
+
+* date de soumission ;
+* date de vérification ;
+* statut ;
+* administrateur ayant effectué la vérification ;
+* motif d’un éventuel refus ;
+* historique des vérifications.
+
+⸻
+
+52. HISTORIQUE DES VÉRIFICATIONS
+
+Ne pas simplement écraser les anciennes informations.
+
+Conserver un historique lorsque les informations de vérification sont modifiées.
+
+Exemple :
+
+Vérification #1
+
+* soumise le 10/09/2026
+* statut : refusée
+* motif : document illisible
+
+Vérification #2
+
+* soumise le 12/09/2026
+* statut : approuvée
+* vérifiée par : administrateur X
+
+Cela permet de savoir exactement ce qui s’est passé.
+
+⸻
+
+53. DOSSIER CLIENT DANS LE PANEL ADMIN
+
+Lorsqu’un administrateur ouvre la fiche d’un client, il doit avoir une vue complète de son compte.
+
+Exemple :
+
+Profil
+
+Nom
+Prénom
+Téléphone
+E-mail
+Pays
+Ville
+Date d’inscription
+
+Vérification
+
+Statut : Vérifié ✅
+
+Date de vérification
+
+Administrateur ayant vérifié
+
+Documents
+
+Pièce d’identité recto
+Pièce d’identité verso
+Photo
+Passeport si fourni
+
+Localisation
+
+Afficher la localisation autorisée par l’utilisateur sur une carte.
+
+Activité
+
+* commandes ;
+* paiements ;
+* conversations ;
+* notifications ;
+* changements de profil ;
+* historique de vérification.
+
+⸻
+
+54. DOSSIER VENDEUR
+
+Le même principe doit être appliqué aux vendeurs.
+
+Lorsqu’un administrateur ouvre la fiche d’un vendeur, il doit pouvoir voir :
+
+* informations personnelles ;
+* numéro de téléphone ;
+* e-mail ;
+* statut vendeur ;
+* date d’inscription ;
+* statut de vérification ;
+* documents de vérification ;
+* localisation fournie avec consentement ;
+* produits ;
+* ventes ;
+* commissions ;
+* paiements ;
+* retraits ;
+* conversations ;
+* historique des actions.
+
+⸻
+
+55. PROTECTION DES DOCUMENTS D’IDENTITÉ
+
+Les pièces d’identité ne doivent JAMAIS être placées dans un dossier public accessible directement par URL.
+
+Utiliser un stockage privé.
+
+L’accès doit fonctionner de cette manière :
+
+Administrateur authentifié
+↓
+Backend vérifie les permissions
+↓
+Backend génère un accès temporaire et sécurisé
+↓
+Document affiché à l’administrateur autorisé
+
+Les documents doivent être protégés contre :
+
+* accès public ;
+* enumeration des fichiers ;
+* téléchargement non autorisé ;
+* accès par un autre utilisateur ;
+* modification non autorisée.
+
+⸻
+
+56. ACCÈS AUX DONNÉES SENSIBLES
+
+L’accès aux données sensibles doit être soumis à des permissions strictes.
+
+Un client ne peut consulter que ses propres informations.
+
+Un vendeur ne peut consulter que ses propres informations.
+
+Un administrateur autorisé peut consulter les informations nécessaires à la gestion de la plateforme.
+
+Chaque consultation importante d’un document sensible doit pouvoir être enregistrée dans l’AuditLog.
+
+Exemple :
+
+Administrateur X a consulté le document d’identité du vendeur Y.
+
+Date et heure enregistrées.
+
+⸻
+
+57. MODIFICATION DES INFORMATIONS
+
+Si un utilisateur souhaite modifier une information importante après vérification, certaines modifications doivent déclencher une nouvelle vérification.
+
+Par exemple :
+
+* changement de nom ;
+* changement de document d’identité ;
+* changement de certaines informations personnelles importantes.
+
+Le système peut alors créer :
+
+Nouvelle vérification requise
+
+L’ancien dossier reste conservé dans l’historique.
+
+⸻
+
+58. NOTIFICATION DES ADMINISTRATEURS
+
+Les administrateurs doivent recevoir des notifications pour les événements importants :
+
+* nouveau client ;
+* nouvelle demande de vérification ;
+* nouvelle demande vendeur ;
+* nouveau vendeur ;
+* nouveau paiement ;
+* nouveau retrait ;
+* nouveau produit ;
+* nouveau message ;
+* nouvelle demande de support ;
+* problème de paiement ;
+* vérification nécessitant une action.
+
+L’administrateur doit pouvoir voir rapidement les actions qui nécessitent son intervention.
+
+⸻
+
+59. NOTIFICATION DES VENDEURS
+
+Les vendeurs doivent recevoir des notifications concernant :
+
+* nouveau message de l’administration ;
+* produit vendu ;
+* paiement confirmé ;
+* commission ;
+* solde disponible ;
+* retrait ;
+* produit refusé ;
+* produit désactivé ;
+* promotion ;
+* mise en avant ;
+* expiration de la mise en avant.
+
+⸻
+
+60. NOTIFICATION DES CLIENTS
+
+Les clients doivent recevoir des notifications concernant :
+
+* vérification acceptée ;
+* vérification refusée ;
+* nouveau message ;
+* commande confirmée ;
+* paiement confirmé ;
+* prochaine échéance ;
+* échéance proche ;
+* échéance en retard ;
+* problème de commande ;
+* informations importantes concernant leur achat.
+
+⸻
+
+61. PRÉFÉRENCES DE NOTIFICATIONS
+
+Chaque utilisateur doit pouvoir gérer certaines préférences.
+
+Exemple :
+
+☑ Notifications dans l’application
+☑ Notifications push
+☑ Notifications e-mail
+☑ Notifications SMS
+
+Certaines notifications critiques peuvent rester obligatoires pour des raisons de sécurité ou de transaction.
+
+⸻
+
+62. MODÈLES DE DONNÉES SUPPLÉMENTAIRES
+
+Ajouter notamment :
+
+Conversation
+
+* id
+* type
+* clientId
+* sellerId
+* adminId
+* createdAt
+* updatedAt
+
+Message
+
+* id
+* conversationId
+* senderId
+* content
+* attachment
+* readAt
+* createdAt
+
+Notification
+
+* id
+* userId
+* type
+* title
+* message
+* readAt
+* createdAt
+* actionUrl
+
+PhoneVerification
+
+* id
+* userId
+* phoneNumber
+* verifiedAt
+* status
+
+Location
+
+* id
+* userId
+* latitude
+* longitude
+* approximateAddress
+* consentGivenAt
+* capturedAt
+
+IdentityVerification
+
+* id
+* userId
+* status
+* documentType
+* documentFront
+* documentBack
+* passport
+* selfie
+* submittedAt
+* reviewedAt
+* reviewedBy
+* rejectionReason
+
+VerificationHistory
+
+* id
+* verificationId
+* previousStatus
+* newStatus
+* changedBy
+* reason
+* createdAt
+
+⸻
+
+63. RÈGLES DE CONFIDENTIALITÉ
+
+Les informations personnelles et documents d’identité doivent être traités comme des données hautement sensibles.
+
+Le système doit appliquer le principe du moindre privilège.
+
+Chaque utilisateur ne doit avoir accès qu’aux données dont il a réellement besoin.
+
+La localisation ne doit pas être collectée ou utilisée en arrière-plan sans consentement approprié.
+
+Les données doivent avoir une politique de conservation définie et respecter les obligations légales applicables aux utilisateurs et au pays où le service est exploité.
+
+⸻
+
+64. OBJECTIF DU SYSTÈME
+
+L’expérience utilisateur finale doit être simple :
+
+CLIENT
+
+Inscription
+↓
+Téléphone
+↓
+Informations personnelles
+↓
+Consentement localisation
+↓
+Documents + photo
+↓
+Vérification
+↓
+Compte validé
+↓
+Achat
+↓
+Paiement
+↓
+Commande
+↓
+Possibilité de discuter avec l’administration
+↓
+Notifications automatiques
+
+VENDEUR
+
+Inscription
+↓
+Vérification
+↓
+Paiement des frais vendeur
+↓
+Compte vendeur activé
+↓
+Publication de comptes eFootball
+↓
+Vente
+↓
+Commission automatique
+↓
+Solde vendeur
+↓
+Retrait selon les règles de la plateforme
+
+ADMINISTRATEUR
+
+Dashboard
+↓
+Clients
+↓
+Vendeurs
+↓
+Vérifications
+↓
+Produits
+↓
+Commandes
+↓
+Paiements
+↓
+Messages
+↓
+Notifications
+↓
+Commissions
+↓
+Retraits
+↓
+Audit et sécurité
+
+⸻
+
+65. IMPORTANT — PRINCIPES À RESPECTER
+
+Ne jamais :
+
+* exposer publiquement les pièces d’identité ;
+* exposer publiquement les mots de passe eFootball ;
+* permettre à un client de contacter directement un vendeur ;
+* permettre à un vendeur de consulter les données d’un autre vendeur ;
+* faire confiance au frontend pour les permissions ;
+* considérer une redirection PayTech comme une confirmation de paiement ;
+* stocker les secrets dans le code ;
+* stocker les documents sensibles dans un stockage public ;
+* suivre la localisation en permanence sans nécessité et consentement approprié.
+
+Le système doit être conçu avec une approche security-by-design et privacy-by-design.

@@ -1,0 +1,26 @@
+{
+  "name": "misterdou",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plateforme eFootball — vente sécurisée de comptes (monorepo web + api + db + shared)",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @misterdou/api --filter @misterdou/web dev",
+    "dev:api": "pnpm --filter @misterdou/api dev",
+    "dev:web": "pnpm --filter @misterdou/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @misterdou/db generate",
+    "db:push": "pnpm --filter @misterdou/db push",
+    "db:seed": "pnpm --filter @misterdou/db seed",
+    "db:studio": "pnpm --filter @misterdou/db studio",
+    "admin:bootstrap": "pnpm --filter @misterdou/api admin:bootstrap"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,913 @@
+// MISTERDOU — Schéma Prisma (source de vérité) — PostgreSQL 15+
+// Documentation complète : docs/03-base-de-donnees.md
+// Toutes les valeurs monétaires = entiers FCFA (Int). ids = uuid.
+// Schéma aligné sur la base réelle (introspection) : toute nouvelle table doit
+// être pushée et validée, jamais retirée à la légère.
+
+generator client {
+  provider   = "prisma-client-js"
+  output     = "../generated/client"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        RoleName @unique
+  description String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+model User {
+  id                                                 String                  @id @default(uuid())
+  roleId                                             String
+  email                                              String?                 @unique
+  emailVerifiedAt                                    DateTime?
+  phoneNumber                                        String?                 @unique
+  countryCode                                        String?
+  passwordHash                                       String?
+  googleSub                                          String?                 @unique
+  googleEmail                                        String?
+  firstName                                          String?
+  lastName                                           String?
+  birthDate                                          DateTime?
+  country                                            String?
+  city                                               String?
+  address                                            String?
+  status                                             UserStatus              @default(ACTIVE)
+  kycStatus                                          KycStatus               @default(NOT_SUBMITTED)
+  verifiedAt                                         DateTime?
+  twoFactorEnabled                                   Boolean                 @default(false)
+  lastLoginAt                                        DateTime?
+  lastLoginIp                                        String?
+  deletedAt                                          DateTime?
+  createdAt                                          DateTime                @default(now())
+  updatedAt                                          DateTime                @updatedAt
+  auditLogs                                          AuditLog[]
+  Conversation_Conversation_participantAUserIdToUser Conversation[]          @relation("Conversation_participantAUserIdToUser")
+  Conversation_Conversation_participantBUserIdToUser Conversation[]          @relation("Conversation_participantBUserIdToUser")
+  reviewedVerifications                              IdentityVerification[]  @relation("VerificationReviewer")
+  identityVerifications                              IdentityVerification[]  @relation("VerificationSubject")
+  locations                                          Location[]
+  managerProfile                                     ManagerProfile?
+  message                                            Message[]
+  notifications                                      Notification[]
+  notificationPreference                             NotificationPreference?
+  orders                                             Order[]                 @relation("OrderBuyer")
+  payments                                           Payment[]
+  phoneVerifications                                 PhoneVerification[]
+  productReviews                                     ProductReview[]
+  pushToken                                          PushToken[]
+  seller                                             Seller?
+  sessions                                           Session[]
+  settings                                           Settings[]
+  SupportTicket_SupportTicket_assignedToIdToUser     SupportTicket[]         @relation("SupportTicket_assignedToIdToUser")
+  SupportTicket_SupportTicket_reporterIdToUser       SupportTicket[]         @relation("SupportTicket_reporterIdToUser")
+  role                                               Role                    @relation(fields: [roleId], references: [id])
+  withdrawal                                         Withdrawal[]
+
+  // Phase 12 : FK la plus jointe du schéma (comptes par rôle : vue admin,
+  // compteur /admin/overview, file ADMIN de notifyActiveAdmins). Postgres
+  // n'indexe PAS les FK automatiquement → EXPLAIN montrait Seq Scan sur User
+  // + « Rows Removed by Filter » à chaque appel.
+  @@index([roleId])
+}
+
+model IdentityVerification {
+  id               String                @id @default(uuid())
+  userId           String
+  status           VerificationStatus    @default(PENDING)
+  documentType     DocType
+  nationalIdNumber String?
+  documentFrontKey String
+  documentBackKey  String?
+  passportKey      String?
+  selfieKey        String
+  firstName        String
+  lastName         String
+  birthDate        DateTime?
+  country          String?
+  city             String?
+  address          String?
+  locationId       String?
+  submittedAt      DateTime              @default(now())
+  reviewedAt       DateTime?
+  reviewedById     String?
+  rejectionReason  String?
+  reviewerNote     String?
+  location         Location?             @relation(fields: [locationId], references: [id])
+  reviewedBy       User?                 @relation("VerificationReviewer", fields: [reviewedById], references: [id])
+  user             User                  @relation("VerificationSubject", fields: [userId], references: [id], onDelete: Cascade)
+  histories        VerificationHistory[]
+
+  @@index([status, submittedAt])
+  @@index([userId])
+}
+
+model Location {
+  id                    String                 @id @default(uuid())
+  userId                String
+  latitude              Decimal                @db.Decimal(9, 6)
+  longitude             Decimal                @db.Decimal(9, 6)
+  approximateAddress    String?
+  consentGivenAt        DateTime               @default(now())
+  capturedAt            DateTime               @default(now())
+  captureMethod         CaptureMethod          @default(BROWSER_GEOLOCATION)
+  revokedAt             DateTime?
+  identityVerifications IdentityVerification[]
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationHistory {
+  id             String               @id @default(uuid())
+  verificationId String
+  previousStatus VerificationStatus?
+  newStatus      VerificationStatus
+  changedBy      String?
+  reason         String?
+  createdAt      DateTime             @default(now())
+  verification   IdentityVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  @@index([verificationId])
+}
+
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  inApp     Boolean  @default(true)
+  push      Boolean  @default(true)
+  email     Boolean  @default(true)
+  sms       Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PhoneVerification {
+  id             String      @id @default(uuid())
+  userId         String
+  phoneNumber    String
+  countryCode    String
+  otpCodeHash    String?
+  otpExpiresAt   DateTime?
+  otpAttempts    Int         @default(0)
+  requestedTimes Int         @default(0)
+  status         PhoneStatus @default(UNVERIFIED)
+  verifiedAt     DateTime?
+  verifiedAtIp   String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Product {
+  id                     String             @id @default(uuid())
+  sellerId               String?
+  ownerType              ProductOwnerType   @default(VENDOR)
+  title                  String
+  slug                   String             @unique
+  description            String
+  division               String
+  teamPower              Int
+  coins                  Int
+  extraInfo              String?
+  basePrice              Int
+  paymentMode            PaymentMode        @default(ONE_TIME)
+  installmentDownPayment Int?
+  installmentMonths      Int?
+  featuredPriceOverride  Int?
+  status                 ProductStatus      @default(DRAFT)
+  publishedAt            DateTime?
+  reviewedBy             String?
+  rejectedReason         String?
+  viewCount              Int                @default(0)
+  featuredUntil          DateTime?
+  deletedAt              DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  homepageOrder          Int                @default(0)
+  showOnHome             Boolean            @default(false)
+  featuredProduct        FeaturedProduct[]
+  orderItems             OrderItem[]
+  seller                 Seller?            @relation(fields: [sellerId], references: [id])
+  credential             ProductCredential?
+  images                 ProductImage[]
+  reviews                ProductReview[]
+  promotions             Promotion[]
+
+  @@index([status, publishedAt(sort: Desc), id])
+  @@index([status, basePrice])
+  @@index([status, teamPower])
+  @@index([status, coins])
+  @@index([status, division])
+  @@index([status, paymentMode, createdAt(sort: Desc)])
+  @@index([sellerId, status])
+  @@index([status, showOnHome, homepageOrder])
+  // Phase 12 : requête la plus chaude de l'API (GET /api/catalogue + /api/seed)
+  // = WHERE status = 'ACTIVE' AND "deletedAt" IS NULL ORDER BY "createdAt" DESC
+  // LIMIT 300. Aucun index existant ne fournit ce tri → Seq Scan + Sort complet
+  // des offres actives à chaque appel (EXPLAIN confirmé).
+  @@index([status, deletedAt, createdAt(sort: Desc)])
+}
+
+model ProductReview {
+  id        String   @id @default(uuid())
+  productId String
+  userId    String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([productId, createdAt])
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  objectKey String
+  mimeType  String
+  sizeBytes Int
+  isPrimary Boolean @default(false)
+  position  Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, position])
+}
+
+model ProductCredential {
+  id                String    @id @default(uuid())
+  productId         String    @unique
+  encryptedEmail    String
+  encryptedPassword String
+  encryptedBy       String    @default("aes-256-gcm/v1")
+  lastAccessedAt    DateTime?
+  lastAccessedById  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Promotion {
+  id              String          @id @default(uuid())
+  productId       String
+  title           String
+  discountPercent Int?
+  promoPrice      Int?
+  startsAt        DateTime
+  endsAt          DateTime
+  status          PromotionStatus @default(SCHEDULED)
+  createdById     String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  product         Product         @relation(fields: [productId], references: [id])
+
+  @@index([productId, status])
+  @@index([status, startsAt, endsAt])
+}
+
+model Order {
+  id              String           @id @default(uuid())
+  orderNumber     String           @unique
+  buyerId         String
+  status          OrderStatus      @default(PENDING_PAYMENT)
+  paymentMode     PaymentMode      @default(ONE_TIME)
+  totalAmount     Int
+  discountAmount  Int              @default(0)
+  currency        String           @default("XOF")
+  promotionId     String?
+  deliveredAt     DateTime?
+  buyerMessage    String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  installmentPlan InstallmentPlan?
+  buyer           User             @relation("OrderBuyer", fields: [buyerId], references: [id])
+  items           OrderItem[]
+  payments        Payment[]
+  supportTicket   SupportTicket[]
+
+  @@index([buyerId, createdAt(sort: Desc)])
+  // Phase 12 : /admin/plans trie les échéanciers par Order.createdAt DESC
+  // (1:1 via orderId unique). Sans index sur Order.createdAt, Postgres joint
+  // TOUTES les lignes puis trie le résultat entier (EXPLAIN : Hash Join +
+  // Sort, « rows=610 » estimés, avant Limit 25).
+  @@index([createdAt(sort: Desc)])
+}
+
+model OrderItem {
+  id         String      @id @default(uuid())
+  orderId    String
+  productId  String
+  title      String
+  division   String
+  teamPower  Int
+  coins      Int
+  unitPrice  Int
+  quantity   Int         @default(1)
+  sellerId   String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  commission Commission?
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([sellerId, createdAt])
+}
+
+model Payment {
+  id                String          @id @default(uuid())
+  paymentNumber     String          @unique
+  userId            String
+  orderId           String?
+  type              PaymentType
+  amount            Int
+  currency          String          @default("XOF")
+  provider          PaymentProvider @default(PAYTECH)
+  providerReference String?         @unique
+  transactionToken  String?         @unique
+  status            PaymentStatus   @default(PENDING)
+  failureReason     String?
+  webhookReceivedAt DateTime?
+  verifiedAt        DateTime?
+  installmentPlanId String?
+  installmentId     String?
+  paidAt            DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  installments      Installment?
+  order             Order?          @relation(fields: [orderId], references: [id])
+  user              User            @relation(fields: [userId], references: [id])
+  featuredPurchases FeaturedProduct[]
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([status, createdAt])
+}
+
+model InstallmentPlan {
+  id                String        @id @default(uuid())
+  orderId           String        @unique
+  totalAmount       Int
+  downPaymentAmount Int
+  remainingAmount   Int
+  monthCount        Int
+  monthlyAmount     Int
+  lastMonthAmount   Int?
+  totalPaid         Int           @default(0)
+  paidCount         Int           @default(0)
+  status            PlanStatus    @default(ACTIVE)
+  dueDay            Int?
+  installments      Installment[]
+  order             Order         @relation(fields: [orderId], references: [id])
+
+  @@index([status])
+}
+
+model Installment {
+  id         String            @id @default(uuid())
+  planId     String
+  index      Int
+  amountDue  Int
+  amountPaid Int               @default(0)
+  dueDate    DateTime
+  paidAt     DateTime?
+  paymentId  String?           @unique
+  status     InstallmentStatus @default(PENDING)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  payment    Payment?          @relation(fields: [paymentId], references: [id])
+  plan       InstallmentPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, status, dueDate])
+  // Phase 12 : jobs de relance (markOverdueInstallments : status = PENDING AND
+  // dueDate < now ; rappels : status = PENDING AND dueDate BETWEEN …). L'index
+  // (planId, status, dueDate) n'est pas utilisable sans planId → Seq Scan
+  // (EXPLAIN : Seq Scan + Filter, Rows Removed by Filter).
+  @@index([status, dueDate])
+}
+
+model Notification {
+  id        String               @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  channel   NotificationChannel  @default(IN_APP)
+  priority  NotificationPriority @default(NORMAL)
+  actionUrl String?
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt(sort: Desc)])
+  // Phase 12 : liste /notifications = WHERE userId ORDER BY createdAt DESC
+  // LIMIT/OFFSET. (userId, readAt) ne peut pas satisfaire le tri → Seq Scan sur
+  // toute la table + tri (« Rows Removed by Filter: 129 » sur la base de test).
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model PushToken {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  platform   String   @default("WEB")
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Session {
+  id             String      @id @default(uuid())
+  userId         String
+  tokenHash      String      @unique
+  kind           SessionKind @default(COOKIE)
+  isAdminSession Boolean     @default(false)
+  userAgent      String?
+  ip             String?
+  expiresAt      DateTime
+  lastActiveAt   DateTime    @default(now())
+  revokedAt      DateTime?
+  revokedById    String?
+  createdAt      DateTime    @default(now())
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id           BigInt        @id @default(autoincrement())
+  userId       String?
+  sessionId    String?
+  ip           String?
+  userAgent    String?
+  actorRole    RoleName?
+  action       String
+  resourceType String?
+  resourceId   String?
+  metadata     Json?
+  severity     AuditSeverity @default(INFO)
+  createdAt    DateTime      @default(now())
+  user         User?         @relation(fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model Settings {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  valueType   String   @default("int")
+  group       String   @default("platform")
+  description String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User?    @relation(fields: [updatedById], references: [id])
+
+  @@index([group])
+}
+
+model Commission {
+  id               String           @id @default(uuid())
+  orderItemId      String           @unique
+  sellerId         String
+  orderAmount      Int
+  commissionRate   Int
+  commissionAmount Int
+  netToSeller      Int
+  status           CommissionStatus @default(RECORDED)
+  releasedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime @updatedAt
+  orderItem        OrderItem        @relation(fields: [orderItemId], references: [id])
+  seller           Seller           @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, status])
+}
+
+model Conversation {
+  id                                         String           @id @default(uuid())
+  kind                                       ConversationKind
+  participantAUserId                         String
+  participantBUserId                         String
+  createdAt                                  DateTime         @default(now())
+  updatedAt                                  DateTime @updatedAt
+  User_Conversation_participantAUserIdToUser User             @relation("Conversation_participantAUserIdToUser", fields: [participantAUserId], references: [id])
+  User_Conversation_participantBUserIdToUser User             @relation("Conversation_participantBUserIdToUser", fields: [participantBUserId], references: [id])
+  message                                    Message[]
+
+  @@unique([participantAUserId, participantBUserId, kind])
+  @@index([participantAUserId, kind])
+  // Phase 12 : « mes conversations » filtre OR (participantA = moi OU
+  // participantB = moi). La branche B n'avait AUCUN index → Seq Scan forcé sur
+  // toute la table (EXPLAIN : Seq Scan + Filter OR + Sort sur updatedAt).
+  @@index([participantBUserId])
+}
+
+model FeaturedProduct {
+  id            String         @id @default(uuid())
+  productId     String
+  sellerId      String?
+  purchasedById String
+  days          Int
+  dailyRate     Int
+  totalPaid     Int
+  startedAt     DateTime
+  expiresAt     DateTime
+  status        FeaturedStatus @default(ACTIVE)
+  paymentId     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime @updatedAt
+  product       Product        @relation(fields: [productId], references: [id])
+  seller        Seller?        @relation(fields: [sellerId], references: [id])
+  payment       Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([sellerId])
+  @@index([status, expiresAt])
+}
+
+model ManagerProfile {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  title        String?
+  permissions  ManagerPermission[]
+  createdById  String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  managerShift ManagerShift[]
+}
+
+model ManagerShift {
+  id             String         @id @default(uuid())
+  profileId      String
+  day            ShiftDay
+  startMinute    Int
+  endMinute      Int
+  createdAt      DateTime       @default(now())
+  managerProfile ManagerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  attachmentKey  String?
+  isSystem       Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  // Phase 12 : compteurs « non lus » de la liste de conversations
+  // (WHERE conversationId IN (…) AND readAt IS NULL) et marquage en lu
+  // (UPDATE … WHERE conversationId = … AND readAt IS NULL) : sans (…, readAt),
+  // Postgres parcourt TOUTES les messages de chaque conversation puis filtre
+  // (EXPLAIN : Bitmap Index Scan sur (conversationId, createdAt) + Filter readAt).
+  @@index([conversationId, readAt])
+}
+
+model PendingCredit {
+  id         String    @id @default(uuid())
+  sellerId   String
+  amount     Int
+  reference  String?
+  creditedAt DateTime  @default(now())
+  releasedAt DateTime?
+  createdAt  DateTime  @default(now())
+  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([creditedAt])
+  @@index([sellerId, releasedAt])
+}
+
+model Seller {
+  id                 String            @id @default(uuid())
+  userId             String            @unique
+  status             SellerStatus      @default(APPLICATION_PENDING)
+  registrationFee    Int
+  registrationPaidAt DateTime?
+  sellerSince        DateTime?
+  approvedBy         String?
+  approvedAt         DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime @updatedAt
+  commission         Commission[]
+  featuredProduct    FeaturedProduct[]
+  pendingCredit      PendingCredit[]
+  product            Product[]
+  user               User              @relation(fields: [userId], references: [id])
+  sellerBalance      SellerBalance?
+  withdrawal         Withdrawal[]
+
+  @@index([status])
+}
+
+model SellerBalance {
+  id                  String   @id @default(uuid())
+  sellerId            String   @unique
+  balancePending      Int      @default(0)
+  balanceAvailable    Int      @default(0)
+  totalEarnings       Int      @default(0)
+  totalCommissionPaid Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  seller              Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id                                    String          @id @default(uuid())
+  orderId                               String?
+  reporterId                            String
+  category                              SupportCategory @default(OTHER)
+  subject                               String
+  description                           String
+  status                                SupportStatus   @default(CREATED)
+  assignedToId                          String?
+  resolvedAt                            DateTime?
+  createdAt                             DateTime        @default(now())
+  updatedAt                             DateTime @updatedAt
+  User_SupportTicket_assignedToIdToUser User?           @relation("SupportTicket_assignedToIdToUser", fields: [assignedToId], references: [id])
+  order                                 Order?          @relation(fields: [orderId], references: [id])
+  User_SupportTicket_reporterIdToUser   User            @relation("SupportTicket_reporterIdToUser", fields: [reporterId], references: [id])
+
+  @@index([reporterId, status])
+  @@index([status, createdAt])
+}
+
+model Withdrawal {
+  id                  String           @id @default(uuid())
+  sellerId            String
+  requestedById       String
+  amount              Int
+  status              WithdrawalStatus @default(PENDING)
+  bankDetailsSnapshot String?
+  requestedAt         DateTime         @default(now())
+  processedAt         DateTime?
+  processedById       String?
+  rejectionReason     String?
+  paymentReference    String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User             @relation(fields: [requestedById], references: [id])
+  seller              Seller           @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, status])
+  @@index([status])
+}
+
+enum RoleName {
+  CLIENT
+  VENDOR
+  STAFF
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum PhoneStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+}
+
+enum VerificationStatus {
+  PENDING
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+}
+
+enum DocType {
+  NATIONAL_ID
+  PASSPORT
+}
+
+enum PaymentMode {
+  ONE_TIME
+  INSTALLMENTS
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  SUSPENDED
+  SOLD
+  ARCHIVED
+}
+
+enum SellerStatus {
+  APPLICATION_PENDING
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum CommissionStatus {
+  RECORDED
+  RELEASED
+  REFUNDED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum ProductOwnerType {
+  ADMIN
+  VENDOR
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PARTIALLY_PAID
+  PAID
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentType {
+  ORDER_PAYMENT
+  INITIAL_INSTALLMENT
+  INSTALLMENT
+  SELLER_REGISTRATION_FEE
+  FEATURED
+  REFUND
+}
+
+enum PaymentProvider {
+  PAYTECH
+  BALANCE
+  SYSTEM
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+  CANCELLED
+}
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+  CANCELLED
+}
+
+enum PromotionStatus {
+  SCHEDULED
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum FeaturedStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  REFUNDED
+  PENDING
+}
+
+enum NotificationType {
+  KYC_VERIFIED
+  KYC_REJECTED
+  NEW_MESSAGE
+  ORDER_CONFIRMED
+  PAYMENT_CONFIRMED
+  UPCOMING_INSTALLMENT
+  INSTALLMENT_OVERDUE
+  PRODUCT_SOLD
+  SELLER_PAYOUT_AVAILABLE
+  FEATURED_ACTIVATED
+  FEATURED_EXPIRED
+  ADMIN_ALERT
+  SYSTEM
+  ORDER_DELIVERED
+  ORDER_REFUNDED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  CRITICAL
+}
+
+enum SessionKind {
+  COOKIE
+  BEARER
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum CaptureMethod {
+  BROWSER_GEOLOCATION
+  MANUAL
+}
+
+enum ConversationKind {
+  CLIENT_TO_ADMIN
+  VENDOR_TO_ADMIN
+}
+
+enum ManagerPermission {
+  KYC
+  PAYMENTS
+  WITHDRAWALS
+  SELLERS
+  PRODUCTS
+  ORDERS
+  STATS
+  SETTINGS
+  SUPPORT
+}
+
+enum ShiftDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum SupportCategory {
+  VERIFICATION_CODE
+  PAYMENT_ISSUE
+  DELIVERY
+  OTHER
+}
+
+enum SupportStatus {
+  CREATED
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
