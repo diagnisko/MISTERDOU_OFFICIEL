@@ -36,8 +36,7 @@ const envSchema = z.object({
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
 
   SMTP_URL: z.string().optional(),
-  SMS_PROVIDER: z.string().default("log"),
-  SMS_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default("MISTERDOU <no-reply@misterdou.local>"),
 
   // Swagger /docs : "true" | "false". Absent → ouvert en dev, FERMÉ en prod
   // (A05 — exposer le plan d'API en production aide l'attaquant).

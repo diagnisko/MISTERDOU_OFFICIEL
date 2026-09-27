@@ -21,7 +21,7 @@ type Verification = {
   history: { status: string; reason: string | null; createdAt: string }[];
 };
 
-type Me = { countryCode: string | null; phoneNumber: string | null; phoneVerified: boolean };
+type Me = { countryCode: string | null; phoneNumber: string | null };
 
 const filePurposes = {
   front: "kyc_front",
@@ -137,12 +137,11 @@ export default function IdentityVerificationPage() {
         {loading ? <p className="mt-10 flex items-center gap-3 text-sm text-stone-400"><Spinner /> Chargement du dossier…</p> : (
           <div className="mt-8 space-y-5">
             {!me && <Alert tone="warning">Connectez-vous pour accéder à votre dossier. <Link href="/login" className="ml-1 text-[var(--lux-gold-light)] hover:underline">Se connecter</Link></Alert>}
-            {me && !me.phoneVerified && <PhoneVerification me={me} onVerified={refresh} />}
             {error && <Alert tone="danger">{error}</Alert>}
             {message && <Alert tone="success">{message}</Alert>}
             {records[0]?.rejectionReason && <Alert tone="warning" title="Une nouvelle soumission est nécessaire">{records[0].rejectionReason}</Alert>}
 
-            {canSubmit && me?.phoneVerified && (
+            {canSubmit && me && (
               <form onSubmit={submit} className="lux-glass rounded-[22px] p-5 sm:p-7">
                 <p className="lux-kicker">Nouvelle demande</p>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -184,7 +183,6 @@ export default function IdentityVerificationPage() {
               </form>
             )}
 
-            {me && !me.phoneVerified && <Alert tone="warning">Vérifiez d’abord votre numéro de téléphone. Le dossier d’identité sera disponible ensuite.</Alert>}
             {status === "PENDING" || status === "IN_PROGRESS" ? <Alert>Votre dossier est en cours de traitement. Vous pouvez consulter ici son statut et son historique.</Alert> : null}
             {status === "VERIFIED" ? <Alert tone="success">Votre identité est vérifiée. Vous pouvez maintenant passer commande.</Alert> : null}
 
@@ -206,55 +204,4 @@ export default function IdentityVerificationPage() {
       </main>
     </LuxShell>
   );
-}
-
-function PhoneVerification({ me, onVerified }: { me: Me | null; onVerified: () => Promise<void> }) {
-  const [countryCode, setCountryCode] = useState(me?.countryCode ?? "+221");
-  const [phone, setPhone] = useState(me?.phoneNumber?.replace(/^\+\d{1,4}/, "") ?? "");
-  const [code, setCode] = useState("");
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [sent, setSent] = useState(Boolean(me?.phoneNumber));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function savePhone() {
-    setBusy(true); setError(null);
-    try {
-      await request("/api/v1/auth/phone", { method: "POST", body: JSON.stringify({ countryCode, phoneNumber: phone }) });
-      setSent(true);
-    } catch (err) { setError(err instanceof Error ? err.message : "Numéro invalide"); }
-    finally { setBusy(false); }
-  }
-  async function sendCode() {
-    setBusy(true); setError(null);
-    try {
-      const result = await request<{ devCode?: string }>("/api/v1/auth/otp/request", { method: "POST", body: JSON.stringify({ countryCode, phoneNumber: phone }) });
-      setDevCode(result.devCode ?? null);
-      setSent(true);
-    } catch (err) { setError(err instanceof Error ? err.message : "Envoi du code impossible"); }
-    finally { setBusy(false); }
-  }
-  async function verify() {
-    setBusy(true); setError(null);
-    try {
-      await request("/api/v1/auth/otp/verify", { method: "POST", body: JSON.stringify({ countryCode, phoneNumber: phone, code }) });
-      await onVerified();
-    } catch (err) { setError(err instanceof Error ? err.message : "Code incorrect"); }
-    finally { setBusy(false); }
-  }
-  return <section className="lux-glass rounded-[22px] p-5 sm:p-7">
-    <p className="lux-kicker">Étape préalable</p>
-    <h2 className="mt-2 text-xl text-stone-100">Confirmer mon téléphone</h2>
-    <p className="mt-2 text-sm text-stone-400">Votre numéro reste privé. Il sert à sécuriser votre compte et les achats.</p>
-    {error && <div className="mt-4"><Alert tone="danger">{error}</Alert></div>}
-    {!sent ? <div className="mt-5 grid gap-3 sm:grid-cols-[120px_1fr_auto]">
-      <Field label="Indicatif"><TextInput value={countryCode} onChange={(event) => setCountryCode(event.target.value)} placeholder="+221" /></Field>
-      <Field label="Téléphone"><TextInput type="tel" inputMode="tel" autoComplete="tel-national" value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))} /></Field>
-      <Button type="button" className="self-end" loading={busy} onClick={() => void savePhone()}>Continuer</Button>
-    </div> : <div className="mt-5 space-y-4">
-      {devCode && <Alert tone="info">Mode développement : code {devCode}</Alert>}
-      <div className="flex flex-wrap items-end gap-3"><Field label="Code reçu par SMS"><TextInput inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} /></Field><Button type="button" loading={busy} onClick={() => void verify()} disabled={code.length !== 6}>Vérifier le numéro</Button><Button type="button" variant="ghost" onClick={() => void sendCode()} disabled={busy}>Renvoyer le code</Button></div>
-      {!devCode && <p className="text-xs text-stone-500">Si aucun SMS n’arrive, l’envoi SMS doit être configuré par l’administrateur.</p>}
-    </div>}
-  </section>;
 }

@@ -6,7 +6,7 @@ import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, requirePermission } from "../../lib/auth-context.js";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { putFile } from "../../lib/storage.js";
-import { assertVerifiedPhone, createUploadKey, getMyVerification, getVerificationFile, listPendingVerifications, reviewVerification, submitVerification, validateUploadPurpose } from "./service.js";
+import { createUploadKey, getMyVerification, getVerificationFile, listPendingVerifications, reviewVerification, submitVerification, validateUploadPurpose } from "./service.js";
 
 const reviewSchema = kycAdminActionSchema.extend({ status: z.enum(["VERIFIED", "REJECTED"]) });
 
@@ -27,7 +27,6 @@ export async function registerIdentityVerificationRoutes(app: FastifyInstance) {
   await app.register(import("@fastify/multipart"), { limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 1 } });
   app.post("/uploads", { bodyLimit: 9 * 1024 * 1024, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const auth = requireAuth(request);
-    await assertVerifiedPhone(auth.user.id);
     let purpose: string | undefined;
     let file: { buffer: Buffer; mimetype: string } | undefined;
     for await (const part of request.parts()) {

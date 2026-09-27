@@ -9,16 +9,6 @@ import { notifyUser, notifyActiveAdmins } from "../../lib/notify.js";
 
 export type KycActor = { actorId: string; actorRole?: RoleName; ip?: string; userAgent?: string };
 
-export async function assertVerifiedPhone(userId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { phoneNumber: true } });
-  if (!user?.phoneNumber) throw badRequest("PHONE_NOT_VERIFIED", "Ajoutez et vérifiez votre numéro de téléphone.");
-  const verification = await prisma.phoneVerification.findFirst({
-    where: { userId, phoneNumber: user.phoneNumber, status: "VERIFIED" },
-    select: { id: true },
-  });
-  if (!verification) throw badRequest("PHONE_NOT_VERIFIED", "Vérifiez votre numéro de téléphone avant de continuer.");
-}
-
 type VerificationRecord = {
   id: string;
   status: VerificationStatus;
@@ -72,7 +62,6 @@ async function assertOwnedFile(key: string, userId: string, purpose: string) {
 
 export async function submitVerification(input: unknown, actor: KycActor) {
   const data = kycSubmitSchema.parse(input);
-  await assertVerifiedPhone(actor.actorId);
   if (data.documentType === "NATIONAL_ID") {
     await assertOwnedFile(data.documentFrontKey, actor.actorId, "kyc_front");
     await assertOwnedFile(data.documentBackKey!, actor.actorId, "kyc_back");
