@@ -1,6 +1,6 @@
 "use client";
 
-import { Reveal, SectionLabel } from "./lux-fx";
+import { Reveal, SectionLabel, IgniteHeading } from "./lux-fx";
 import { IconCard, IconFingerprint, IconShield } from "./lux-icons";
 
 const ITEMS = [
@@ -28,17 +28,16 @@ export function LuxWhy() {
         <Reveal>
           <SectionLabel>Pourquoi MISTERDOU</SectionLabel>
         </Reveal>
-        <Reveal delay={0.08}>
-          <h2 className="lux-h2 mt-5 max-w-2xl text-stone-100">
-            La rigueur d'une banque, <em className="lux-gold-text">l'élégance</em> du jeu.
-          </h2>
-        </Reveal>
+        <IgniteHeading
+          className="lux-h2 mt-5 max-w-2xl text-stone-100"
+          parts={[{ text: "La rigueur d’une banque," }, { text: " l’élégance", accent: true }, { text: " du jeu." }]}
+        />
 
         <div className="mt-14 grid gap-5 md:grid-cols-3">
           {ITEMS.map((item, i) => (
             <Reveal key={item.title} delay={0.1 + i * 0.09}>
               <article className="lux-glass lux-glass-sheen group h-full rounded-[24px] p-7 transition-colors">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[var(--lux-gold)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.08)] text-[var(--lux-gold)]">
                   <item.icon className="h-6 w-6" aria-hidden />
                 </div>
                 <h3 className="lux-serif mt-6 text-[21px] font-semibold text-stone-100">{item.title}</h3>

@@ -352,7 +352,7 @@ function CreatePromotionModal({
       <form onSubmit={(event) => void submit(event)} className="space-y-4">
         <label className="block">
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-            Offre <span className="ml-1 text-[var(--lux-gold, #f59e0b)]">*</span>
+            Offre <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>
           </span>
           {offerings && offerings.length > 0 ? (
             <SelectInput value={productId} onChange={(event) => setProductId(event.target.value)} required>
@@ -415,13 +415,13 @@ function CreatePromotionModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-              Début <span className="ml-1 text-[var(--lux-gold, #f59e0b)]">*</span>
+              Début <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>
             </span>
             <TextInput type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-              Fin <span className="ml-1 text-[var(--lux-gold, #f59e0b)]">*</span>
+              Fin <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>
             </span>
             <TextInput type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} />
           </label>

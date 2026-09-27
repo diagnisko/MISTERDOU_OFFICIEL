@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { Magnetic, OrbGlide, Reveal } from "./lux-fx";
+import { Magnetic, OrbGlide, Reveal, IgniteHeading } from "./lux-fx";
 import { IconArrowRight } from "./lux-icons";
 
 export function LuxCta() {
@@ -19,11 +19,10 @@ export function LuxCta() {
         <Reveal>
           <span className="lux-glass-chip text-[10px] text-stone-300">Rejoignez le marché sûr</span>
         </Reveal>
-        <Reveal delay={0.08}>
-          <h2 className="lux-h2 mt-7 text-stone-100">
-            Votre carrière mérite des armes <em className="lux-gold-text">à la hauteur</em>.
-          </h2>
-        </Reveal>
+        <IgniteHeading
+          className="lux-h2 mt-7 text-stone-100"
+          parts={[{ text: "Votre carrière mérite des armes" }, { text: " à la hauteur.", accent: true }]}
+        />
         <Reveal delay={0.16}>
           <p className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-stone-400">
             Comptes certifiés, identité vérifiée, paiement échelonné. L'achat comme la revente, sans friction,

@@ -150,7 +150,7 @@ export default function SellerPage() {
       <div data-lux className="relative min-h-screen overflow-x-clip text-stone-100">
         <div className="lux-bg" aria-hidden />
 
-        <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#0f172a]/82 backdrop-blur-xl">
+        <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
           <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5 md:px-8">
             <Link href="/" className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
               MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
@@ -356,7 +356,7 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   return (
     <Link
       href={href}
-      className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-300 transition-colors hover:border-[rgba(245,215,142,0.45)] hover:text-[var(--lux-gold-light)] sm:px-4"
+      className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.45)] hover:text-[var(--lux-gold-light)] sm:px-4"
     >
       {children}
     </Link>

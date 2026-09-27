@@ -1,16 +1,19 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue } from "motion/react";
+import { useRef } from "react";
 import Link from "next/link";
-import { Reveal, SectionLabel } from "./lux-fx";
+import { Reveal, SectionLabel, IgniteHeading } from "./lux-fx";
 import { IconArrowRight, IconCheck, IconLock, IconCard, IconPhone } from "./lux-icons";
 
-const STEPS = [
+type Step = { icon: typeof IconPhone; n: string; title: string; body: string };
+
+const STEPS: Step[] = [
   {
     icon: IconPhone,
     n: "01",
     title: "Inscription",
-    body: "Créez votre compte avec votre numéro de téléphone. Un code à usage unique le sécurise immédiatement.",
+    body: "Créez votre compte par e-mail ou avec Google, en moins d’une minute.",
   },
   {
     icon: IconCheck,
@@ -32,8 +35,47 @@ const STEPS = [
   },
 ];
 
+// Une étape s'allume quand le fil de braise l'atteint (et s'éteint si l'on remonte).
+function HowStep({ step, progress, at, reduce }: { step: Step; progress: MotionValue<number>; at: number; reduce: boolean }) {
+  const lit = useTransform(progress, [Math.max(0, at - 0.06), Math.min(1, at + 0.02)], [0, 1]);
+  const dim = useTransform(lit, [0, 1], [0.45, 1]);
+  const ringScale = useTransform(lit, [0, 1], [0.9, 1]);
+  return (
+    <div>
+      <motion.span
+        className="absolute left-0 top-0 z-10 flex h-[52px] w-[52px] items-center justify-center rounded-full border border-[rgba(232,71,36,0.35)] bg-[#120908] text-[var(--lux-gold-light)] md:relative"
+        style={reduce ? undefined : { scale: ringScale }}
+      >
+        <motion.span
+          aria-hidden
+          className="absolute inset-[-1px] rounded-full"
+          style={{
+            opacity: reduce ? 1 : lit,
+            background: "radial-gradient(circle, rgba(232,71,36,0.35), transparent 70%)",
+            boxShadow: "0 0 0 1px rgba(255,106,50,0.8), 0 0 34px -4px rgba(232,71,36,0.9)",
+          }}
+        />
+        <step.icon className="relative h-5 w-5" aria-hidden />
+      </motion.span>
+      <motion.div style={reduce ? undefined : { opacity: dim }}>
+        <div className="lux-serif text-[40px] font-semibold leading-none text-transparent [-webkit-text-stroke:1px_rgba(255,106,50,0.6)] md:mt-6">
+          {step.n}
+        </div>
+        <h3 className="lux-serif mt-3 text-[20px] font-semibold text-stone-100">{step.title}</h3>
+        <p className="mt-2.5 max-w-xs text-[13.5px] leading-relaxed text-stone-400">{step.body}</p>
+      </motion.div>
+    </div>
+  );
+}
+
 export function LuxHow() {
   const reduce = useReducedMotion();
+  const trackRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: reduce ? undefined : trackRef,
+    offset: ["start 75%", "end 55%"],
+  });
+  const line = useSpring(scrollYProgress, { stiffness: 120, damping: 28, restDelta: 0.001 });
 
   return (
     <section id="parcours" className="relative px-5 py-24 md:px-8 md:py-32">
@@ -41,44 +83,24 @@ export function LuxHow() {
         <Reveal>
           <SectionLabel>Comment ça marche</SectionLabel>
         </Reveal>
-        <Reveal delay={0.08}>
-          <h2 className="lux-h2 mt-5 max-w-2xl text-stone-100">
-            Quatre étapes. <em className="lux-gold-text">Zéro compromis</em>.
-          </h2>
-        </Reveal>
+        <IgniteHeading
+          className="lux-h2 mt-5 max-w-2xl text-stone-100"
+          parts={[{ text: "Quatre étapes." }, { text: " Zéro compromis.", accent: true }]}
+        />
 
-        <div className="relative mt-16">
-          {/* Ligne dorée : horizontal desktop, vertical mobile — tracée au scroll */}
-          <motion.div
-            aria-hidden
-            className="absolute left-[calc(12.5%)] right-[calc(12.5%)] top-[26px] hidden h-px origin-left bg-[linear-gradient(90deg,#f5d78e,#f59e0b_45%,#d97706)] md:block"
-            initial={reduce ? false : { scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true, amount: 0.35, margin: "-12% 0px" }}
-            transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-          />
-          <motion.div
-            aria-hidden
-            className="absolute bottom-6 left-6 top-6 w-px origin-top bg-[linear-gradient(180deg,#f5d78e,#d97706)] md:hidden"
-            initial={reduce ? false : { scaleY: 0 }}
-            whileInView={{ scaleY: 1 }}
-            viewport={{ once: true, amount: 0.25, margin: "0px" }}
-            transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-          />
+        <div ref={trackRef} className="relative mt-16">
+          {/* Fil de braise tracé par le scroll : horizontal desktop, vertical mobile */}
+          <div aria-hidden className="absolute left-[12.5%] right-[12.5%] top-[26px] hidden h-px bg-white/10 md:block">
+            <motion.div className="h-full w-full origin-left" style={{ scaleX: reduce ? 1 : line, background: "var(--lux-ember-gradient)" }} />
+          </div>
+          <div aria-hidden className="absolute bottom-6 left-[26px] top-6 w-px bg-white/10 md:hidden">
+            <motion.div className="h-full w-full origin-top" style={{ scaleY: reduce ? 1 : line, background: "linear-gradient(180deg,#ff6a32,#7a1712)" }} />
+          </div>
 
           <ol className="grid gap-10 md:grid-cols-4 md:gap-6">
             {STEPS.map((step, i) => (
-              <li key={step.n} className="relative">
-                <Reveal delay={0.12 + i * 0.1}>
-                  <span className="relative z-10 flex h-[52px] w-[52px] items-center justify-center rounded-full border border-[rgba(245,158,11,0.4)] bg-[#222735] text-[var(--lux-gold)] shadow-[0_0_24px_-6px_rgba(245,158,11,0.45)]">
-                    <step.icon className="h-5 w-5" aria-hidden />
-                  </span>
-                  <div className="lux-serif mt-6 text-[40px] font-semibold leading-none text-transparent [-webkit-text-stroke:1px_rgba(245,158,11,0.55)]">
-                    {step.n}
-                  </div>
-                  <h3 className="lux-serif mt-3 text-[20px] font-semibold text-stone-100">{step.title}</h3>
-                  <p className="mt-2.5 max-w-xs text-[13.5px] leading-relaxed text-stone-400">{step.body}</p>
-                </Reveal>
+              <li key={step.n} className="relative pl-20 md:pl-0">
+                <HowStep step={step} progress={line} at={i / (STEPS.length - 1)} reduce={Boolean(reduce)} />
               </li>
             ))}
           </ol>

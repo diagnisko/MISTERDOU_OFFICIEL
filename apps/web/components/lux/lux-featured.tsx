@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion, type Variants } from "motion/react";
 import Link from "next/link";
-import { Reveal, SectionLabel, LUX_EASE } from "./lux-fx";
+import { Reveal, SectionLabel, LUX_EASE, IgniteHeading } from "./lux-fx";
 import { LuxCountdown } from "./lux-countdown";
 import { ProductCard } from "./lux-product-card";
 import { IconArrowRight } from "./lux-icons";
@@ -44,11 +44,10 @@ export function LuxFeatured() {
             <Reveal>
               <SectionLabel>La sélection du moment</SectionLabel>
             </Reveal>
-            <Reveal delay={0.08}>
-              <h2 className="lux-h2 mt-5 text-stone-100">
-                Des comptes, <em className="lux-gold-text">choisis</em>. Des prix, assumés.
-              </h2>
-            </Reveal>
+            <IgniteHeading
+              className="lux-h2 mt-5 text-stone-100"
+              parts={[{ text: "Des comptes," }, { text: " choisis.", accent: true }, { text: " Des prix, assumés." }]}
+            />
           </div>
           {promo && (
             <Reveal delay={0.15}>

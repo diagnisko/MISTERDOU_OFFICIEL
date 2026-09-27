@@ -50,11 +50,11 @@ export default function RegisterPage() {
           initial={reduce ? {} : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-start gap-4 rounded-2xl border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] p-5"
+          className="flex items-start gap-4 rounded-2xl border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.08)] p-5"
           role="status"
         >
           <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[var(--lux-gold-gradient)]">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1c1303" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a0503" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M4 12.5l5.5 5.5L20 7" />
             </svg>
           </span>
@@ -135,7 +135,7 @@ export default function RegisterPage() {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--lux-muted)] transition hover:text-[var(--lux-gold-light)] focus-visible:outline-2 focus-visible:outline-[rgba(245,158,11,0.5)]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--lux-muted)] transition hover:text-[var(--lux-gold-light)] focus-visible:outline-2 focus-visible:outline-[rgba(232,71,36,0.5)]"
               >
                 {showPassword ? (
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -153,7 +153,7 @@ export default function RegisterPage() {
 
           {notice && (
             <p
-              className="rounded-xl border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.09)] px-3.5 py-2.5 text-sm text-[var(--lux-gold-light)]"
+              className="rounded-xl border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.09)] px-3.5 py-2.5 text-sm text-[var(--lux-gold-light)]"
               role="status"
             >
               {notice}

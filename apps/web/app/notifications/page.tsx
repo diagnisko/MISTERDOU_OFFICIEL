@@ -329,7 +329,7 @@ export default function NotificationsPage() {
                     >
                       <span className="mt-1.5 shrink-0" aria-hidden>
                         {item.priority === "CRITICAL" ? (
-                          <span className="block h-2 w-2 rounded-full bg-[var(--lux-gold)] shadow-[0_0_0_3px_rgba(245,158,11,0.18)]" />
+                          <span className="block h-2 w-2 rounded-full bg-[var(--lux-gold)] shadow-[0_0_0_3px_rgba(232,71,36,0.18)]" />
                         ) : (
                           <span className="block h-2 w-2 rounded-full bg-white/25" />
                         )}
@@ -340,7 +340,7 @@ export default function NotificationsPage() {
                             {notificationTypeLabel(item.type)}
                           </Badge>
                           {!item.readAt && (
-                            <Badge cls="border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.1)] text-[var(--lux-gold-light)]">
+                            <Badge cls="border-[rgba(232,71,36,0.4)] bg-[rgba(232,71,36,0.1)] text-[var(--lux-gold-light)]">
                               Non lue
                             </Badge>
                           )}

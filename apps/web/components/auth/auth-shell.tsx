@@ -12,7 +12,7 @@ export const fieldLabelClass =
   "mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--lux-muted)]";
 
 export const inputClass =
-  "w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-[var(--lux-text)] outline-none transition placeholder:text-[#64748b] focus:border-[rgba(245,158,11,0.55)] focus:bg-white/[0.065] focus:ring-2 focus:ring-[rgba(245,158,11,0.16)]";
+  "w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-[var(--lux-text)] outline-none transition placeholder:text-[#8a7771] focus:border-[rgba(232,71,36,0.55)] focus:bg-white/[0.065] focus:ring-2 focus:ring-[rgba(232,71,36,0.16)]";
 
 const TRUST_LINES = [
   "Vendeurs vérifiés, comptes certifiés",
@@ -79,7 +79,7 @@ export function AuthShell({
           <motion.ul {...rise(0.24)} className="mt-11 space-y-4">
             {TRUST_LINES.map((line) => (
               <li key={line} className="flex items-center gap-4 text-sm text-[var(--lux-muted-strong)]">
-                <span className="h-px w-7 bg-[rgba(245,158,11,0.55)]" aria-hidden />
+                <span className="h-px w-7 bg-[rgba(232,71,36,0.55)]" aria-hidden />
                 {line}
               </li>
             ))}

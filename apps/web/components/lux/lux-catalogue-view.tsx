@@ -143,7 +143,7 @@ async function CatalogueBody({
                 className={
                   division === null
                     ? "lux-glass-chip lux-chip-active"
-                    : "lux-glass-chip hover:border-[rgba(245,215,142,0.5)]"
+                    : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
                 }
               >
                 Toutes
@@ -156,7 +156,7 @@ async function CatalogueBody({
                   className={
                     division === d
                       ? "lux-glass-chip lux-chip-active"
-                      : "lux-glass-chip hover:border-[rgba(245,215,142,0.5)]"
+                      : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
                   }
                 >
                   {d}
@@ -173,7 +173,7 @@ async function CatalogueBody({
                   className={
                     sort === s.value
                       ? "lux-glass-chip lux-chip-active"
-                      : "lux-glass-chip hover:border-[rgba(245,215,142,0.5)]"
+                      : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
                   }
                 >
                   {s.label}

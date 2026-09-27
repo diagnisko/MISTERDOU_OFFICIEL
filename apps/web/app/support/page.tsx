@@ -523,7 +523,7 @@ function NewTicketPanel({
           Conservez ce code pour suivre votre demande — il est demandé à chaque échange avec le
           support.
         </p>
-        <p className="mt-4 flex flex-wrap items-center gap-3 rounded-[14px] border border-[rgba(245,215,142,0.3)] bg-[rgba(245,158,11,0.08)] px-4 py-3">
+        <p className="mt-4 flex flex-wrap items-center gap-3 rounded-[14px] border border-[rgba(255,106,50,0.3)] bg-[rgba(232,71,36,0.08)] px-4 py-3">
           <span className="font-mono text-lg font-bold tracking-[0.12em] text-[var(--lux-gold-light)]">
             {created.code}
           </span>
@@ -588,7 +588,7 @@ function NewTicketPanel({
             rows={6}
             maxLength={4000}
             placeholder="Décrivez votre problème en détail"
-            className="glass w-full rounded-[14px] border-[rgba(255,255,255,0.12)] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors focus:border-[rgba(245,158,11,0.6)] placeholder:text-stone-400"
+            className="glass w-full rounded-[14px] border-[rgba(255,255,255,0.12)] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400"
           />
         </Field>
 
@@ -635,7 +635,7 @@ function CopyButton({ value, label = "Copier" }: { value: string; label?: string
           })
           .catch(() => setCopied(false));
       }}
-      className="rounded-lg border border-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300 transition hover:border-[rgba(245,158,11,0.45)] hover:text-[var(--lux-gold-light)]"
+      className="rounded-lg border border-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300 transition hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold-light)]"
     >
       {copied ? "Copié" : label}
     </button>

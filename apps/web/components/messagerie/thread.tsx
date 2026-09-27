@@ -303,7 +303,7 @@ export function ConversationThread({
             rows={2}
             aria-label="Votre message"
             placeholder="Écrire un message… (Entrée pour envoyer, Maj + Entrée pour une nouvelle ligne)"
-            className="min-h-[46px] w-full resize-none rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-white/[0.04] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-500 focus:border-[rgba(245,158,11,0.6)]"
+            className="min-h-[46px] w-full resize-none rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-white/[0.04] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-500 focus:border-[rgba(232,71,36,0.6)]"
           />
           <Button type="submit" loading={sending} disabled={!draft.trim()}>
             Envoyer
@@ -326,7 +326,7 @@ function MessageBubble({ message, mine }: { message: MessageItem; mine: boolean 
       <div
         className={`max-w-[85%] rounded-[16px] border px-3.5 py-2.5 sm:max-w-[70%] ${
           mine
-            ? "rounded-br-md border-[rgba(245,215,142,0.32)] bg-[linear-gradient(120deg,rgba(245,215,142,0.16),rgba(245,158,11,0.12))] text-stone-50"
+            ? "rounded-br-md border-[rgba(255,106,50,0.32)] bg-[linear-gradient(120deg,rgba(255,106,50,0.16),rgba(232,71,36,0.12))] text-stone-50"
             : "rounded-bl-md border-white/10 bg-white/[0.05] text-stone-200"
         }`}
       >

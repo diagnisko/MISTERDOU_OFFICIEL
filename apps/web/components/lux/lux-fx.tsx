@@ -7,6 +7,7 @@ import {
   useSpring,
   useTransform,
   useMotionValue,
+  type MotionValue,
   type Variants,
 } from "motion/react";
 import { useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
@@ -127,6 +128,71 @@ export function OrbGlide({
   const y = useTransform(scrollYProgress, [0, 1], [from, to]);
   const s = useTransform(scrollYProgress, [0, 1], [scaleFrom, scaleTo]);
   return <motion.div style={{ y, scale: s }} className={`lux-orb ${className ?? ""}`} aria-hidden />;
+}
+
+export type IgnitePart = { text: string; accent?: boolean };
+
+// Titre qui s'embrase au scroll : chaque mot passe d'une braise éteinte à
+// pleine lumière pendant que le titre traverse l'écran (piloté par le scroll,
+// réversible). Le texte complet reste dans le DOM pour les lecteurs d'écran.
+export function IgniteHeading({ parts, className }: { parts: IgnitePart[]; className?: string }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  const reduce = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: reduce ? undefined : ref,
+    offset: ["start 90%", "start 35%"],
+  });
+
+  const tokens = parts.flatMap((part) =>
+    part.text.split(/(\s+)/).filter(Boolean).map((text) => ({ text, accent: part.accent })),
+  );
+  const wordCount = tokens.filter((t) => !/^\s+$/.test(t.text)).length;
+  let index = -1;
+
+  return (
+    <h2 ref={ref} className={className}>
+      {tokens.map((token, i) => {
+        if (/^\s+$/.test(token.text)) return token.text;
+        index += 1;
+        if (reduce) {
+          return token.accent ? (
+            <em key={i} className="lux-gold-text">{token.text}</em>
+          ) : (
+            <span key={i}>{token.text}</span>
+          );
+        }
+        const start = index / wordCount;
+        const end = Math.min(1, start + 1.6 / wordCount);
+        return (
+          <IgniteWord key={i} progress={scrollYProgress} range={[start, end]} accent={token.accent}>
+            {token.text}
+          </IgniteWord>
+        );
+      })}
+    </h2>
+  );
+}
+
+function IgniteWord({
+  progress,
+  range,
+  accent,
+  children,
+}: {
+  progress: MotionValue<number>;
+  range: [number, number];
+  accent?: boolean;
+  children: ReactNode;
+}) {
+  const opacity = useTransform(progress, range, [0.14, 1]);
+  if (accent) {
+    return (
+      <motion.em className="lux-gold-text" style={{ opacity }}>
+        {children}
+      </motion.em>
+    );
+  }
+  return <motion.span style={{ opacity }}>{children}</motion.span>;
 }
 
 // Primitives pures réexportées ici pour compatibilité : les écrans qui n’ont

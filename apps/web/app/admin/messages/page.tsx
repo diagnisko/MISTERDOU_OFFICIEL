@@ -107,7 +107,7 @@ export default function AdminMessagesPage() {
                   <td className="px-4 py-3.5">
                     <span className="flex items-center gap-2.5">
                       <span
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[rgba(245,215,142,0.28)] bg-[rgba(245,158,11,0.12)] text-[10px] font-bold text-[var(--lux-gold-light)]"
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] text-[10px] font-bold text-[var(--lux-gold-light)]"
                         aria-hidden
                       >
                         {initials(participantsLabel(row))}
@@ -135,7 +135,7 @@ export default function AdminMessagesPage() {
                   </td>
                   <td className="px-4 py-3.5">
                     {count > 0 ? (
-                      <span className="grid min-w-[20px] place-items-center rounded-full bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] px-1.5 py-0.5 text-[10px] font-bold text-[#1c1303]">
+                      <span className="grid min-w-[20px] place-items-center rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-1.5 py-0.5 text-[10px] font-bold text-[#1a0503]">
                         {count > 99 ? "99+" : count}
                       </span>
                     ) : (

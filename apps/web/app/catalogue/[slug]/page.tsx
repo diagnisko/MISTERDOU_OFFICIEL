@@ -93,7 +93,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const TIER_GLOW: Record<string, string> = {
-  gold: "rgba(245,158,11,0.34)",
+  gold: "rgba(232,71,36,0.34)",
   platinum: "rgba(229,228,226,0.26)",
   silver: "rgba(192,192,192,0.24)",
   bronze: "rgba(205,127,50,0.28)",
@@ -187,7 +187,7 @@ function DetailHub() {
           <div
             className="relative flex min-h-[320px] items-end justify-between overflow-hidden rounded-[28px] p-7"
             style={{
-              background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(245,158,11,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
+              background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(232,71,36,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
             }}
           >
             <span className="lux-glass-chip absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
@@ -195,7 +195,7 @@ function DetailHub() {
               {tierLabel(tier)}
             </span>
             {item.isFeatured && (
-              <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1c1303] shadow-lg">
+              <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
                 <IconSparkle className="h-3 w-3" aria-hidden />
                 Mis en avant
               </span>

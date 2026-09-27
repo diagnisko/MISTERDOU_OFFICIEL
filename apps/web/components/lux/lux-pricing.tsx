@@ -1,6 +1,6 @@
 "use client";
 
-import { Reveal, SectionLabel } from "./lux-fx";
+import { Reveal, SectionLabel, IgniteHeading } from "./lux-fx";
 import Link from "next/link";
 import { IconArrowRight, IconStar } from "./lux-icons";
 import { formatFcfa } from "@/lib/lux";
@@ -40,11 +40,10 @@ export function LuxPricing() {
         <Reveal>
           <SectionLabel>Transparence</SectionLabel>
         </Reveal>
-        <Reveal delay={0.08}>
-          <h2 className="lux-h2 mt-5 max-w-2xl text-stone-100">
-            Des règles claires, <em className="lux-gold-text">chiffrées</em> en toute clarté.
-          </h2>
-        </Reveal>
+        <IgniteHeading
+          className="lux-h2 mt-5 max-w-2xl text-stone-100"
+          parts={[{ text: "Des règles claires," }, { text: " chiffrées", accent: true }, { text: " en toute clarté." }]}
+        />
 
         <div className="mt-14">
           <Reveal from="right" delay={0.1}>

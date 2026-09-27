@@ -165,7 +165,7 @@ export default function SettingsPage() {
                             rows={4}
                             value={draft}
                             onChange={(event) => setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }))}
-                            className="glass w-full rounded-[14px] px-3.5 py-2.5 font-mono text-xs text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(245,158,11,0.6)]"
+                            className="glass w-full rounded-[14px] px-3.5 py-2.5 font-mono text-xs text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(232,71,36,0.6)]"
                           />
                         )}
 

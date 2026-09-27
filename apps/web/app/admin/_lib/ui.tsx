@@ -390,7 +390,7 @@ export function FieldModal({
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
             {label}
             {requiredLabel && minLength > 0 && (
-              <span className="ml-1 text-[var(--lux-gold, #f59e0b)]">*</span>
+              <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>
             )}
           </span>
           {multiline ? (
@@ -400,7 +400,7 @@ export function FieldModal({
               placeholder={placeholder}
               rows={4}
               maxLength={maxLength}
-              className="glass w-full rounded-[14px] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(245,158,11,0.6)] placeholder:text-stone-400"
+              className="glass w-full rounded-[14px] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400"
             />
           ) : (
             <TextInput

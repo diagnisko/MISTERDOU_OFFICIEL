@@ -12,7 +12,7 @@ const CARD: Variants = {
 };
 
 const TIER_GLOW: Record<string, string> = {
-  gold: "rgba(245,158,11,0.30)",
+  gold: "rgba(232,71,36,0.30)",
   platinum: "rgba(229,228,226,0.24)",
   silver: "rgba(192,192,192,0.22)",
   bronze: "rgba(205,127,50,0.26)",
@@ -50,7 +50,7 @@ export function ProductCard({
         <div
           className="lux-card-visual relative h-56"
           style={{
-            background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(245,158,11,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
+            background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(232,71,36,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
           }}
         >
           {/* tuile division 6×6 — usage exclusif */}
@@ -61,7 +61,7 @@ export function ProductCard({
             </span>
           </span>
           {product.isFeatured && (
-            <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1c1303] shadow-lg">
+            <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
               <IconSparkle className="h-3 w-3" aria-hidden />
               Mis en avant
             </span>
@@ -124,7 +124,7 @@ export function ProductCard({
 
         <Link
           href={detailHref}
-          className="lux-btn lux-btn-ghost w-full !min-h-[44px] text-[11px] group-hover/card:border-[rgba(245,215,142,0.45)]"
+          className="lux-btn lux-btn-ghost w-full !min-h-[44px] text-[11px] group-hover/card:border-[rgba(255,106,50,0.45)]"
           style={{ borderRadius: 16 }}
         >
           Voir le compte

@@ -30,7 +30,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
     <header
       className={cx(
         "fixed inset-x-0 top-0 z-[60] transition-all duration-500",
-        scrolled ? "border-b border-[rgba(255,255,255,0.08)] bg-[#0f172a]/78 backdrop-blur-xl" : "bg-transparent",
+        scrolled ? "border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/78 backdrop-blur-xl" : "bg-transparent",
       )}
     >
       <nav aria-label="Navigation principale" className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:h-[72px] md:px-8">
@@ -56,13 +56,13 @@ export function LuxNav({ root = false }: { root?: boolean }) {
           <div className="hidden items-center gap-3 lg:flex">
             <Link
               href="/login"
-              className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-stone-300 transition-colors hover:border-[rgba(245,215,142,0.45)] hover:text-[var(--lux-gold-light)]"
+              className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.45)] hover:text-[var(--lux-gold-light)]"
             >
               Connexion
             </Link>
             <Link
               href="/register"
-              className="rounded-2xl bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] px-4 py-2.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1c1303] shadow-[0_10px_30px_-14px_rgba(245,158,11,0.7)] transition-transform duration-300 hover:-translate-y-0.5"
+              className="rounded-2xl bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-4 py-2.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1a0503] shadow-[0_10px_30px_-14px_rgba(232,71,36,0.7)] transition-transform duration-300 hover:-translate-y-0.5"
             >
               Créer un compte
             </Link>
@@ -83,7 +83,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
       {/* Menu mobile — glass */}
       <div
         className={cx(
-          "overflow-hidden border-b border-[rgba(255,255,255,0.08)] bg-[#0f172a]/92 backdrop-blur-2xl transition-[max-height,opacity] duration-500 lg:hidden",
+          "overflow-hidden border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/92 backdrop-blur-2xl transition-[max-height,opacity] duration-500 lg:hidden",
           open ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0",
         )}
       >

@@ -285,7 +285,7 @@ function MessagesInner() {
                           }`}
                         >
                           <span
-                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(245,215,142,0.28)] bg-[rgba(245,158,11,0.12)] text-[11px] font-bold text-[var(--lux-gold-light)]"
+                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] text-[11px] font-bold text-[var(--lux-gold-light)]"
                             aria-hidden
                           >
                             {initials(name)}
@@ -304,7 +304,7 @@ function MessagesInner() {
                                 {roleLabel(rowPeer?.role) || kindLabel(row.kind)}
                               </Badge>
                               {count > 0 && (
-                                <span className="ml-auto grid min-w-[18px] place-items-center rounded-full bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] px-1.5 text-[10px] font-bold leading-[18px] text-[#1c1303]">
+                                <span className="ml-auto grid min-w-[18px] place-items-center rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-1.5 text-[10px] font-bold leading-[18px] text-[#1a0503]">
                                   {count > 9 ? "9+" : count}
                                 </span>
                               )}
@@ -377,7 +377,7 @@ function MessagesInner() {
                           ←
                         </button>
                         <span
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[rgba(245,215,142,0.28)] bg-[rgba(245,158,11,0.12)] text-[11px] font-bold text-[var(--lux-gold-light)]"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] text-[11px] font-bold text-[var(--lux-gold-light)]"
                           aria-hidden
                         >
                           {initials(peerName)}

@@ -98,7 +98,7 @@ export default function AccountPage() {
       <div data-lux className="relative min-h-screen overflow-x-clip text-stone-100">
         <div className="lux-bg" aria-hidden />
 
-        <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#0f172a]/82 backdrop-blur-xl">
+        <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
           <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5 md:px-8">
             <Link href="/" className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
               MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
@@ -110,7 +110,7 @@ export default function AccountPage() {
                 type="button"
                 onClick={logout}
                 disabled={loggingOut}
-                className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-300 transition-colors hover:border-[rgba(245,215,142,0.45)] hover:text-[var(--lux-gold-light)] disabled:opacity-50 sm:px-4"
+                className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.45)] hover:text-[var(--lux-gold-light)] disabled:opacity-50 sm:px-4"
               >
                 {loggingOut ? "…" : "Déconnexion"}
               </button>
@@ -122,7 +122,7 @@ export default function AccountPage() {
           <div className="mx-auto max-w-5xl">
             {/* Identité */}
             <div className="flex flex-wrap items-center gap-5">
-              <span className="grid h-16 w-16 place-items-center rounded-2xl border border-[rgba(245,215,142,0.28)] bg-[rgba(245,158,11,0.12)] font-serif text-2xl font-bold text-[var(--lux-gold-light)]">
+              <span className="grid h-16 w-16 place-items-center rounded-2xl border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] font-serif text-2xl font-bold text-[var(--lux-gold-light)]">
                 {fullName.slice(0, 1).toUpperCase()}
               </span>
               <div className="min-w-0">
@@ -318,7 +318,7 @@ function OrdersPanel() {
               )}
 
               {creds && (
-                <div className="mt-3 rounded-xl border border-[rgba(245,215,142,0.3)] bg-[rgba(245,158,11,0.1)] p-4">
+                <div className="mt-3 rounded-xl border border-[rgba(255,106,50,0.3)] bg-[rgba(232,71,36,0.1)] p-4">
                   <p className="lux-kicker">Accès livré — conservez-le en lieu sûr</p>
                   <dl className="mt-3 grid gap-2 text-sm">
                     <div className="grid gap-1">
@@ -399,7 +399,7 @@ function SchedulePanel({ orderId }: { orderId: string }) {
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-[rgba(245,215,142,0.22)] bg-[rgba(245,158,11,0.06)] p-4">
+    <div className="mt-3 rounded-xl border border-[rgba(255,106,50,0.22)] bg-[rgba(232,71,36,0.06)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--lux-gold-light)]">
           Échéancier · {schedule.monthCount} mensualités
@@ -430,7 +430,7 @@ function SchedulePanel({ orderId }: { orderId: string }) {
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
         <span
-          className="block h-full rounded-full bg-[linear-gradient(90deg,#f5d78e,#f59e0b)] transition-[width] duration-500"
+          className="block h-full rounded-full bg-[linear-gradient(90deg,#ffa070,#ff6a32)] transition-[width] duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -528,7 +528,7 @@ function QuickLink({ href, label }: { href: string; label: string }) {
     <li>
       <Link
         href={href}
-        className="flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.03)] px-4 py-3.5 text-sm text-stone-300 transition-colors hover:border-[rgba(245,215,142,0.35)] hover:text-stone-50"
+        className="flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.03)] px-4 py-3.5 text-sm text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.35)] hover:text-stone-50"
       >
         {label}
         <IconArrowRight className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />

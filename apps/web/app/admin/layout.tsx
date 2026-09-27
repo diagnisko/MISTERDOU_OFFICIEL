@@ -192,7 +192,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="hidden rounded-full border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.12)] px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[var(--lux-gold-light)] sm:inline-block">
+              <span className="hidden rounded-full border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.12)] px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[var(--lux-gold-light)] sm:inline-block">
                 {sessionKind === "admin" ? "Session MFA" : "Session équipe"}
               </span>
               <button

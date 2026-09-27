@@ -78,7 +78,7 @@ export function LuxPerfLed() {
   if (!enabled) return null;
   return (
     <div
-      className="fixed bottom-4 left-4 z-[70] flex items-center gap-2 rounded-full border border-[rgba(245,158,11,0.35)] bg-[#0f172a]/90 px-3 py-1.5 font-mono text-[11px] text-stone-200 shadow-lg backdrop-blur"
+      className="fixed bottom-4 left-4 z-[70] flex items-center gap-2 rounded-full border border-[rgba(232,71,36,0.35)] bg-[#050303]/90 px-3 py-1.5 font-mono text-[11px] text-stone-200 shadow-lg backdrop-blur"
       role="status"
       aria-label="Latence apparente"
     >

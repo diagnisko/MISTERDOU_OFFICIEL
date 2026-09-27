@@ -33,7 +33,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
 
 export function LuxFooter() {
   return (
-    <footer className="relative border-t border-[rgba(255,255,255,0.08)] bg-[#0f172a] px-5 pb-10 pt-16 md:px-8">
+    <footer className="relative border-t border-[rgba(255,255,255,0.08)] bg-[#050303] px-5 pb-10 pt-16 md:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>

@@ -70,7 +70,7 @@ export function LuxTopBar({
   links?: { href: string; label: string }[];
 }) {
   return (
-    <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#0f172a]/82 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-4 px-5 md:px-8">
         <Link href="/" className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
           MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
@@ -86,7 +86,7 @@ export function LuxTopBar({
               {l.label}
             </Link>
           ))}
-          <span className="ml-1 hidden rounded-full border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.12)] px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[var(--lux-gold-light)] sm:inline-block">
+          <span className="ml-1 hidden rounded-full border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.12)] px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[var(--lux-gold-light)] sm:inline-block">
             {label}
           </span>
         </nav>

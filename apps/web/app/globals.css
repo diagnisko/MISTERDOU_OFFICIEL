@@ -1,25 +1,26 @@
 @import "tailwindcss";
 
 /* ============================================================
-   MISTERDOU — Design tokens (Table de style shadcn-like, mobile-first)
-   Thème : dark premium slate & or (Palette A — or structuré).
-   Chaque jet est une variable CSS (utilisable par les composants
-   et le prochain dashboard admin).
+   MISTERDOU — Design tokens
+   Thème « braise » : noir de scène + rouge incandescent, échantillonné
+   sur l'illustration du hero (halo #FAECE9, chair #B43526, ombre #840800).
+   Les noms --lux-gold* sont conservés pour ne pas toucher 40 composants :
+   ils portent désormais l'accent incandescent, pas de l'or.
    ============================================================ */
 
 @theme {
   /* Surfaces */
-  --color-background: #0f172a;
-  --color-foreground: #f8fafc;
-  --color-surface: #222735;
-  --color-surface-2: #272f42;
-  --color-border: #334155;
-  --color-muted: #94a3b8;
-  --color-muted-strong: #cbd5e1;
+  --color-background: #050303;
+  --color-foreground: #fff7f2;
+  --color-surface: #120908;
+  --color-surface-2: #1c0d0b;
+  --color-border: #3d1a15;
+  --color-muted: #b8a6a1;
+  --color-muted-strong: #dccbc4;
 
   /* Marque / accents */
-  --color-brand: #f59e0b;
-  --color-brand-strong: #d97706;
+  --color-brand: #e84724;
+  --color-brand-strong: #c83a24;
   --color-secondary: #8b5cf6;
   --color-secondary-strong: #a78bfa;
   --color-accent: #10b981;
@@ -41,17 +42,18 @@
 /* Repli global : le kit UI (boutons, badges, champs) reste lisible même
    hors coquille [data-lux] — la coquille ne fait que le réaffiner. */
 :root {
-  --lux-bg: #0f172a;
-  --lux-surface: #222735;
-  --lux-surface-2: #272f42;
-  --lux-text: #f8fafc;
-  --lux-muted: #94a3b8;
-  --lux-gold: #f59e0b;
-  --lux-gold-light: #f5d78e;
-  --lux-gold-deep: #d97706;
-  --lux-line: rgba(255, 255, 255, 0.1);
+  --lux-bg: #050303;
+  --lux-surface: #120908;
+  --lux-surface-2: #1c0d0b;
+  --lux-text: #fff7f2;
+  --lux-muted: #b8a6a1;
+  --lux-gold: #e84724;
+  --lux-gold-light: #ff7a45;
+  --lux-gold-deep: #7a1712;
+  --lux-line: rgba(255, 236, 229, 0.1);
   --lux-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --lux-gold-gradient: linear-gradient(120deg, #f5d78e 0%, #f59e0b 45%, #d97706 100%);
+  /* Texte/boutons : reste lumineux jusqu'au bout (contraste AA sur noir). */
+  --lux-gold-gradient: linear-gradient(120deg, #ffb08a 0%, #ff6a32 45%, #e84724 100%);
 }
 
 .glass {
@@ -62,7 +64,7 @@
 }
 
 .gradient-text {
-  background: linear-gradient(90deg, #f5d78e, var(--color-brand), var(--color-brand-strong));
+  background: linear-gradient(90deg, #ffa070, var(--color-brand), var(--color-brand-strong));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -79,7 +81,7 @@
 .card-hover:hover {
   transform: translateY(-4px);
   border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
-  box-shadow: 0 16px 44px -18px rgb(245 158 11 / 0.35);
+  box-shadow: 0 16px 44px -18px rgb(232 71 36 / 0.4);
 }
 
 html {
@@ -92,8 +94,7 @@ body {
        entre le storefront, l'auth et la console — chaque écran hérite du même
        fond organique sans le faire répéter. */
     radial-gradient(52% 40% at 84% -4%, color-mix(in srgb, var(--color-brand) 13%, transparent), transparent 70%),
-    radial-gradient(40% 32% at 0% 98%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%),
-    radial-gradient(46% 40% at 102% 88%, color-mix(in srgb, var(--color-secondary) 9%, transparent), transparent 66%),
+    radial-gradient(40% 32% at 0% 98%, rgba(122, 23, 18, 0.22), transparent 70%),
     var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
@@ -110,20 +111,22 @@ body {
    ============================================================ */
 
 [data-lux] {
-  --lux-bg: #0f172a;
-  --lux-surface: #222735;
-  --lux-surface-2: #272f42;
-  --lux-text: #f8fafc;
-  --lux-muted: #94a3b8;
-  --lux-gold: #f59e0b;
-  --lux-gold-light: #f5d78e;
-  --lux-gold-deep: #d97706;
-  --lux-line: rgba(255, 255, 255, 0.1);
-  --lux-ink: color-mix(in srgb, var(--lux-gold-deep) 18%, #0b1220);
-  --lux-gold-gradient: linear-gradient(120deg, var(--lux-gold-light) 0%, var(--lux-gold) 45%, var(--lux-gold-deep) 100%);
+  --lux-bg: #050303;
+  --lux-surface: #120908;
+  --lux-surface-2: #1c0d0b;
+  --lux-text: #fff7f2;
+  --lux-muted: #b8a6a1;
+  --lux-gold: #e84724;
+  --lux-gold-light: #ff7a45;
+  --lux-gold-deep: #7a1712;
+  --lux-line: rgba(255, 236, 229, 0.1);
+  --lux-ink: color-mix(in srgb, var(--lux-gold-deep) 18%, #050301);
+  --lux-gold-gradient: linear-gradient(120deg, #ffb08a 0%, #ff6a32 45%, #e84724 100%);
+  /* Braise profonde : filets, lignes de progression, halos (jamais du texte). */
+  --lux-ember-gradient: linear-gradient(120deg, #ff6a32 0%, #e84724 45%, #7a1712 100%);
   --lux-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Palettes de divisions (tuiles 6×6 SEULEMENT) */
+  /* Palettes de divisions (tuiles 6×6 SEULEMENT — rang, pas la marque) */
   --lux-tile-gold: linear-gradient(135deg, #f5d78e 0%, #ca8a04 60%, #8a5a03 100%);
   --lux-tile-platinum: linear-gradient(135deg, #ffffff 0%, #e5e4e2 55%, #9fa39f 100%);
   --lux-tile-silver: linear-gradient(135deg, #e2e4e6 0%, #c0c0c0 55%, #7f8487 100%);
@@ -131,9 +134,9 @@ body {
 
   /* Aurore radiale fixe (couche d'ambiance de la landing) */
   --lux-aurora:
-    radial-gradient(52% 44% at 82% 8%, rgba(245, 158, 11, 0.1), transparent 68%),
-    radial-gradient(46% 38% at 6% 92%, rgba(251, 191, 36, 0.07), transparent 70%),
-    radial-gradient(120% 120% at 50% -10%, rgba(245, 158, 11, 0.055), transparent 62%);
+    radial-gradient(52% 44% at 82% 8%, rgba(232, 71, 36, 0.12), transparent 68%),
+    radial-gradient(46% 38% at 6% 92%, rgba(122, 23, 18, 0.28), transparent 70%),
+    radial-gradient(120% 120% at 50% -10%, rgba(255, 106, 50, 0.05), transparent 62%);
 
   font-family: var(--font-lux-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background-color: var(--lux-bg);
@@ -141,7 +144,7 @@ body {
 }
 
 [data-lux] ::selection {
-  background: rgba(245, 158, 11, 0.32);
+  background: rgba(232, 71, 36, 0.32);
   color: var(--lux-text);
 }
 
@@ -256,12 +259,12 @@ body {
 }
 .lux-btn-gold {
   background: var(--lux-gold-gradient);
-  color: #1c1303;
-  box-shadow: 0 10px 30px -12px rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: #1a0503;
+  box-shadow: 0 10px 30px -12px rgba(232, 71, 36, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .lux-btn-gold:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 38px -12px rgba(245, 158, 11, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 16px 38px -12px rgba(232, 71, 36, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .lux-btn-ghost {
   background: rgba(255, 255, 255, 0.04);
@@ -271,7 +274,7 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 .lux-btn-ghost:hover {
-  border-color: rgba(245, 215, 142, 0.45);
+  border-color: rgba(255, 106, 50, 0.45);
   transform: translateY(-2px);
   color: var(--lux-gold-light);
 }
@@ -292,7 +295,7 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 18px;
-  background: linear-gradient(90deg, #1b2434 25%, #2a3548 45%, #1b2434 65%);
+  background: linear-gradient(90deg, #140a08 25%, #2a1410 45%, #140a08 65%);
   background-size: 220% 100%;
   animation: lux-shimmer 1.5s ease-in-out infinite;
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -342,7 +345,7 @@ body {
 .lux-ring {
   position: absolute;
   border-radius: 9999px;
-  border: 1px solid rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(232, 71, 36, 0.14);
   pointer-events: none;
 }
 .lux-spin-slow {
@@ -363,7 +366,7 @@ body {
 .lux-particle {
   position: absolute;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(245, 215, 142, 0.9), rgba(245, 158, 11, 0));
+  background: radial-gradient(circle, rgba(255, 106, 50, 0.9), rgba(232, 71, 36, 0));
   pointer-events: none;
   animation: lux-float var(--dur, 7s) ease-in-out infinite;
   will-change: transform, opacity;
@@ -377,6 +380,76 @@ body {
   50% {
     transform: translate3d(0, -18px, 0);
     opacity: var(--o, 0.5);
+  }
+}
+
+/* --- Hero épinglé : couches de lumière --- */
+.lux-hero-halo {
+  background: radial-gradient(38% 34% at 50% 24%, rgba(255, 106, 50, 0.3), rgba(232, 71, 36, 0.1) 45%, transparent 72%);
+}
+.lux-hero-flash {
+  background: radial-gradient(60% 50% at 50% 30%, rgba(255, 236, 222, 0.85), rgba(255, 106, 50, 0.4) 40%, transparent 75%);
+}
+/* Assombrit bords et bas pour la lisibilité ; se fond dans la section suivante. */
+.lux-hero-vignette {
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 45%, rgba(5, 3, 3, 0.75) 100%),
+    linear-gradient(180deg, rgba(5, 3, 3, 0.35) 0%, transparent 22%, transparent 70%, var(--lux-bg) 100%);
+}
+.lux-hero-title {
+  text-shadow: 0 2px 30px rgba(5, 3, 3, 0.85), 0 0 60px rgba(5, 3, 3, 0.6);
+}
+
+/* Braises qui montent (transform/opacity uniquement) */
+.lux-ember {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #ffd9c2 0%, #ff6a32 45%, rgba(232, 71, 36, 0) 75%);
+  box-shadow: 0 0 10px rgba(255, 106, 50, 0.8);
+  pointer-events: none;
+  animation: lux-ember-rise var(--dur, 10s) linear infinite;
+  will-change: transform, opacity;
+}
+@keyframes lux-ember-rise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  60% {
+    transform: translate3d(18px, -60vh, 0) scale(0.8);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(-12px, -105vh, 0) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.lux-cue-line {
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 44px;
+  overflow: hidden;
+  background: rgba(255, 236, 229, 0.14);
+}
+.lux-cue-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, #ff6a32);
+  animation: lux-cue 1.8s var(--lux-ease) infinite;
+}
+@keyframes lux-cue {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
   }
 }
 
@@ -402,7 +475,7 @@ body {
   position: relative;
   width: 1px;
   height: 96px;
-  background: linear-gradient(180deg, var(--lux-gold) 0%, rgba(245, 158, 11, 0.35) 70%, transparent);
+  background: linear-gradient(180deg, var(--lux-gold) 0%, rgba(232, 71, 36, 0.35) 70%, transparent);
   overflow: visible;
 }
 .lux-scroll-cue .drop {
@@ -413,7 +486,7 @@ body {
   height: 9px;
   border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
   background: var(--lux-gold-light);
-  box-shadow: 0 0 12px rgba(245, 215, 142, 0.8);
+  box-shadow: 0 0 12px rgba(255, 106, 50, 0.8);
   animation: lux-drop 2.1s var(--lux-ease) infinite;
 }
 @keyframes lux-drop {
@@ -473,8 +546,8 @@ body {
 
 /* --- Cartes produit --- */
 [data-lux] .lux-chip-active {
-  border-color: rgba(245, 158, 11, 0.6) !important;
-  background: linear-gradient(145deg, rgba(245, 158, 11, 0.24), rgba(245, 158, 11, 0.1)) !important;
+  border-color: rgba(232, 71, 36, 0.6) !important;
+  background: linear-gradient(145deg, rgba(232, 71, 36, 0.24), rgba(232, 71, 36, 0.1)) !important;
   color: var(--lux-gold-light) !important;
 }
 
@@ -485,8 +558,8 @@ body {
 }
 .lux-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 26px 60px -30px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(245, 158, 11, 0.08), 0 20px 50px -28px rgba(245, 158, 11, 0.35);
+  border-color: rgba(232, 71, 36, 0.4);
+  box-shadow: 0 26px 60px -30px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(232, 71, 36, 0.08), 0 20px 50px -28px rgba(232, 71, 36, 0.35);
 }
 
 .lux-card-visual {
@@ -501,7 +574,7 @@ body {
   filter: blur(80px);
   pointer-events: none;
   will-change: transform;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.1), transparent 70%);
+  background: radial-gradient(circle, rgba(232, 71, 36, 0.1), transparent 70%);
 }
 
 /* Boutons bouton-panier / focus */
@@ -558,21 +631,21 @@ body {
 }
 [data-lux] .card-hover:hover {
   transform: translateY(-6px);
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 26px 60px -30px rgba(0, 0, 0, 0.85), 0 20px 50px -28px rgba(245, 158, 11, 0.35);
+  border-color: rgba(232, 71, 36, 0.4);
+  box-shadow: 0 26px 60px -30px rgba(0, 0, 0, 0.85), 0 20px 50px -28px rgba(232, 71, 36, 0.35);
 }
 
 /* Boutons */
 [data-lux] .shadow-glow {
-  box-shadow: 0 10px 30px -12px rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 30px -12px rgba(232, 71, 36, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 [data-lux] a.shadow-glow:hover,
 [data-lux] button.shadow-glow:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 38px -12px rgba(245, 158, 11, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 16px 38px -12px rgba(232, 71, 36, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 [data-lux] .gradient-text {
-  background: var(--lux-gold-gradient, linear-gradient(120deg, #f5d78e, #f59e0b 45%, #d97706));
+  background: var(--lux-gold-gradient, linear-gradient(120deg, #ffa070, #ff6a32 45%, #e84724));
 }
 
 /* Variantes compactes du bouton luxe (dashboards denses) */
@@ -612,10 +685,10 @@ body {
    ============================================================ */
 
 [data-apx] {
-  --apx-panel: rgba(16, 24, 40, 0.62);
-  --apx-panel-2: rgba(21, 30, 48, 0.5);
+  --apx-panel: rgba(20, 10, 8, 0.62);
+  --apx-panel-2: rgba(28, 14, 11, 0.5);
   --apx-hair: rgba(255, 255, 255, 0.075);
-  --apx-hair-strong: rgba(245, 215, 142, 0.22);
+  --apx-hair-strong: rgba(255, 106, 50, 0.22);
   --apx-gold: var(--lux-gold);
   --apx-gold-lite: var(--lux-gold-light);
   --apx-radius: 22px;
@@ -644,7 +717,7 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 38%, rgba(245, 215, 142, 0.12) 100%);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 38%, rgba(255, 106, 50, 0.12) 100%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -665,7 +738,7 @@ body {
   border-radius: inherit;
   background: radial-gradient(
     340px circle at var(--apx-x, 50%) var(--apx-y, 0%),
-    rgba(245, 158, 11, 0.16),
+    rgba(232, 71, 36, 0.16),
     transparent 62%
   );
   opacity: 0;
@@ -682,7 +755,7 @@ body {
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 0.92;
-  background: linear-gradient(112deg, #fdf3dc 0%, var(--lux-gold) 42%, #c2760a 100%);
+  background: linear-gradient(112deg, #ffd9c2 0%, var(--lux-gold) 42%, #b8301c 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -692,7 +765,7 @@ body {
   font-family: var(--font-lux-serif), Georgia, serif;
   font-weight: 600;
   letter-spacing: -0.01em;
-  background: linear-gradient(112deg, #fff8e8, var(--lux-gold) 60%, #c2760a);
+  background: linear-gradient(112deg, #ffd9c2, var(--lux-gold) 60%, #b8301c);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -744,16 +817,16 @@ body {
   cursor: not-allowed;
 }
 .apx-btn-gold {
-  color: #1c1303;
-  background: linear-gradient(120deg, #f7e0ab, #f59e0b 46%, #d97706);
+  color: #1a0503;
+  background: linear-gradient(120deg, #ffd9c2, #ff6a32 46%, #e84724);
   box-shadow:
-    0 10px 30px -14px rgba(245, 158, 11, 0.6),
+    0 10px 30px -14px rgba(232, 71, 36, 0.6),
     inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 .apx-btn-gold:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow:
-    0 18px 40px -14px rgba(245, 158, 11, 0.7),
+    0 18px 40px -14px rgba(232, 71, 36, 0.7),
     inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 .apx-btn-ghost {
@@ -764,7 +837,7 @@ body {
 .apx-btn-ghost:hover:not(:disabled) {
   color: var(--lux-gold-light);
   border-color: var(--apx-hair-strong);
-  background: rgba(245, 158, 11, 0.07);
+  background: rgba(232, 71, 36, 0.07);
   transform: translateY(-1px);
 }
 .apx-btn-sm {
@@ -777,7 +850,7 @@ body {
 /* Champs */
 .apx-input {
   width: 100%;
-  background: rgba(4, 8, 18, 0.45);
+  background: rgba(8, 4, 3, 0.45);
   border: 1px solid var(--apx-hair);
   border-radius: 13px;
   padding: 0.62rem 0.9rem;
@@ -789,16 +862,16 @@ body {
     background 220ms ease;
 }
 .apx-input::placeholder {
-  color: #64748b;
+  color: #8a7771;
 }
 .apx-input:focus {
   outline: none;
-  border-color: rgba(245, 158, 11, 0.5);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.14);
-  background: rgba(4, 8, 18, 0.6);
+  border-color: rgba(232, 71, 36, 0.5);
+  box-shadow: 0 0 0 3px rgba(232, 71, 36, 0.14);
+  background: rgba(8, 4, 3, 0.6);
 }
 .apx-input::selection {
-  background: rgba(245, 158, 11, 0.35);
+  background: rgba(232, 71, 36, 0.35);
 }
 
 /* Tableaux */
@@ -810,7 +883,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #b8a6a1;
   background: rgba(255, 255, 255, 0.03);
 }
 [data-apx] tbody td {
@@ -820,20 +893,20 @@ body {
   transition: background 200ms ease;
 }
 [data-apx] tbody tr:hover {
-  background: rgba(245, 158, 11, 0.045);
+  background: rgba(232, 71, 36, 0.045);
 }
 
 /* Barre de défilement */
 .apx-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(245, 215, 142, 0.28) transparent;
+  scrollbar-color: rgba(255, 106, 50, 0.28) transparent;
 }
 .apx-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .apx-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(245, 215, 142, 0.35), rgba(245, 158, 11, 0.18));
+  background: linear-gradient(180deg, rgba(255, 106, 50, 0.35), rgba(232, 71, 36, 0.18));
   border-radius: 99px;
 }
 .apx-scroll::-webkit-scrollbar-track {
@@ -850,7 +923,7 @@ body {
   border-radius: 13px;
   padding: 0.6rem 0.8rem;
   font-size: 13.5px;
-  color: #b6c2d4;
+  color: #cdbab3;
   transition:
     color 220ms ease,
     background 220ms ease;
@@ -863,10 +936,10 @@ body {
   width: 3px;
   height: 0;
   border-radius: 0 3px 3px 0;
-  background: linear-gradient(180deg, #f7e0ab, #f59e0b);
+  background: linear-gradient(180deg, #ffd9c2, #ff6a32);
   transform: translateY(-50%);
   transition: height 320ms var(--lux-ease);
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.7);
+  box-shadow: 0 0 14px rgba(232, 71, 36, 0.7);
 }
 .apx-navlink:hover {
   color: #fff;
@@ -874,7 +947,7 @@ body {
 }
 .apx-navlink[data-active="true"] {
   color: #fff;
-  background: rgba(245, 158, 11, 0.08);
+  background: rgba(232, 71, 36, 0.08);
   font-weight: 600;
 }
 .apx-navlink[data-active="true"]::before {
@@ -907,7 +980,7 @@ body {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(245, 215, 142, 0.14), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 106, 50, 0.14), transparent);
   animation: apx-shimmer 1.6s infinite;
 }
 @keyframes apx-shimmer {
@@ -933,8 +1006,13 @@ body {
   [data-lux] .lux-marquee-track,
   [data-lux] .lux-spin-slow,
   [data-lux] .lux-spin-rev,
-  [data-lux] .lux-particle {
+  [data-lux] .lux-particle,
+  [data-lux] .lux-ember,
+  [data-lux] .lux-cue-line::after {
     animation: none !important;
+  }
+  [data-lux] .lux-ember {
+    display: none;
   }
   [data-lux] .lux-scroll-cue {
     display: none;

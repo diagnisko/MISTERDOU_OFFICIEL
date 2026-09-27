@@ -368,7 +368,7 @@ function MemberFormModal({
           <label className="block">
             <Label>
               Mot de passe {mode === "edit" ? "(laisser vide pour conserver)" : ""}
-              {mode === "create" && <span className="ml-1 text-[var(--lux-gold, #f59e0b)]">*</span>}
+              {mode === "create" && <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>}
             </Label>
             <TextInput
               type="password"
@@ -415,7 +415,7 @@ function MemberFormModal({
                   key={permission}
                   className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
                     checked
-                      ? "border-[rgba(245,158,11,0.45)] bg-amber-300/[0.07]"
+                      ? "border-[rgba(232,71,36,0.45)] bg-amber-300/[0.07]"
                       : "border-white/10 bg-black/10 hover:bg-white/[0.04]"
                   }`}
                 >

@@ -71,7 +71,7 @@ export function Field({
     <label className="block">
       <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
         {label}
-        {required && <span className="ml-1 text-[var(--lux-gold, #f59e0b)]">*</span>}
+        {required && <span className="ml-1 text-[var(--lux-gold)]">*</span>}
       </span>
       {children}
       {hint && !error && <span className="mt-1.5 block text-xs text-stone-400">{hint}</span>}
@@ -81,7 +81,7 @@ export function Field({
 }
 
 const INPUT_CLS =
-  "glass w-full rounded-[14px] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(245,158,11,0.6)] placeholder:text-stone-400";
+  "glass w-full rounded-[14px] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400";
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${INPUT_CLS} ${props.className ?? ""}`} />;
@@ -242,7 +242,7 @@ export function Steps({ current, steps }: { current: number; steps: string[] }) 
                 done
                   ? "bg-[#10b981] text-[#04140e]"
                   : active
-                    ? "bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] text-[#1c1303]"
+                    ? "bg-[linear-gradient(120deg,#ffb08a,#ff6a32_45%,#e84724)] text-[#1a0503]"
                     : "bg-white/5 text-stone-400 ring-1 ring-white/10"
               }`}
             >

@@ -153,7 +153,7 @@ export function NotificationBell() {
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="relative grid h-10 w-10 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(245,158,11,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
+        className="relative grid h-10 w-10 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
       >
         <svg
           width="18"
@@ -170,7 +170,7 @@ export function NotificationBell() {
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 grid min-w-[18px] place-items-center rounded-full bg-[linear-gradient(120deg,#f5d78e,#f59e0b_45%,#d97706)] px-1 text-[10px] font-bold leading-[18px] text-[#1c1303]">
+          <span className="absolute -right-1.5 -top-1.5 grid min-w-[18px] place-items-center rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-1 text-[10px] font-bold leading-[18px] text-[#1a0503]">
             {badge}
           </span>
         )}
@@ -180,7 +180,7 @@ export function NotificationBell() {
         <div
           role="dialog"
           aria-label="Notifications récentes"
-          className="absolute right-0 z-[70] mt-2 w-[min(92vw,360px)] overflow-hidden rounded-[18px] border border-white/10 bg-[#0f172a]/97 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+          className="absolute right-0 z-[70] mt-2 w-[min(92vw,360px)] overflow-hidden rounded-[18px] border border-white/10 bg-[#050303]/97 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
         >
           <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
             <p className="lux-kicker">Notifications</p>
@@ -211,7 +211,7 @@ export function NotificationBell() {
                   >
                     <span className="mt-1.5 shrink-0" aria-hidden>
                       {item.priority === "CRITICAL" ? (
-                        <span className="block h-2 w-2 rounded-full bg-[var(--lux-gold)] shadow-[0_0_0_3px_rgba(245,158,11,0.18)]" />
+                        <span className="block h-2 w-2 rounded-full bg-[var(--lux-gold)] shadow-[0_0_0_3px_rgba(232,71,36,0.18)]" />
                       ) : (
                         <span className="block h-2 w-2 rounded-full bg-white/25" />
                       )}
