@@ -7,6 +7,7 @@ import { Magnetic, Reveal, cx } from "./lux-fx";
 import { IconCrown, IconShield } from "./lux-icons";
 import { formatInt, formatRating } from "@/lib/lux";
 import { useLux } from "./lux-data";
+import { LuxHeroScrollFrames } from "./lux-hero-scroll";
 
 const RING_DEFS = [
   { size: 420, top: "-4%", right: "8%", className: "lux-spin-slow" },
@@ -83,6 +84,20 @@ export function LuxHero() {
         aria-hidden
         className="pointer-events-none absolute inset-[-70px]"
         style={reduce ? undefined : { y: auroraY, scale: auroraScale, background: "var(--lux-aurora)" }}
+      />
+
+      {/* Séquence d'images scrubée au scroll — même parallaxe que l'aurore */}
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-[-70px] opacity-[0.55]"
+        style={reduce ? undefined : { y: auroraY, scale: auroraScale }}
+      >
+        <LuxHeroScrollFrames scrollY={scrollY} range={[0, 900]} className="absolute inset-0" />
+      </motion.div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%]"
+        style={{ background: "linear-gradient(180deg, transparent, var(--lux-bg) 92%)" }}
       />
 
       {/* Contenu */}
