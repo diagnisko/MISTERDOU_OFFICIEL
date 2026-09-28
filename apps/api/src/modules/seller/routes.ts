@@ -57,7 +57,46 @@ export async function registerSellerRoutes(app: FastifyInstance) {
           })
         : [];
 
+      // Ventes : 6 derniers mois (net vendeur) + 8 dernières lignes, hors remboursées.
+      const sixMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+      const sales = seller
+        ? await prisma.commission.findMany({
+            where: { sellerId: seller.id, status: { not: "REFUNDED" }, createdAt: { gte: sixMonthsAgo } },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              orderAmount: true,
+              commissionAmount: true,
+              netToSeller: true,
+              status: true,
+              createdAt: true,
+              orderItem: { select: { title: true, order: { select: { orderNumber: true } } } },
+            },
+          })
+        : [];
+      const salesByMonth = Array.from({ length: 6 }, (_, k) => {
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5 + k, 1));
+        const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 4 + k, 1));
+        const inMonth = sales.filter((s) => s.createdAt >= start && s.createdAt < end);
+        return {
+          month: `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}`,
+          net: inMonth.reduce((sum, s) => sum + s.netToSeller, 0),
+          count: inMonth.length,
+        };
+      });
+
       return sendOk(reply, {
+        salesByMonth,
+        recentSales: sales.slice(0, 8).map((s) => ({
+          id: s.id,
+          title: s.orderItem.title,
+          orderNumber: s.orderItem.order.orderNumber,
+          orderAmount: s.orderAmount,
+          commissionAmount: s.commissionAmount,
+          netToSeller: s.netToSeller,
+          status: s.status,
+          createdAt: s.createdAt.toISOString(),
+        })),
         seller: seller
           ? {
               id: seller.id,

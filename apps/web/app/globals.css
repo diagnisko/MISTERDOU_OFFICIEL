@@ -994,6 +994,304 @@ body {
   will-change: transform, opacity;
 }
 
+/* ============================================================
+   TABLEAUX DE BORD (admin, vendeur) — « braise » sans-serif
+   Cartes sombres, filets fins, une carte-signal remplie d'incandescence.
+   ============================================================ */
+
+.dash-root {
+  position: relative;
+  min-height: 100vh;
+  background: #050303;
+  color: var(--lux-text);
+  font-family: var(--font-lux-sans), ui-sans-serif, system-ui, sans-serif;
+  isolation: isolate;
+}
+.dash-root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 45% at 100% 0%, rgba(232, 71, 36, 0.2), transparent 70%),
+    radial-gradient(35% 40% at 0% 100%, rgba(122, 23, 18, 0.35), transparent 72%);
+}
+
+.dash-frame {
+  background: linear-gradient(180deg, rgba(20, 11, 9, 0.88), rgba(10, 5, 4, 0.92));
+  border: 1px solid rgba(255, 236, 229, 0.07);
+  box-shadow: 0 40px 120px -60px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.dash-card {
+  position: relative;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #140a08 0%, #0d0605 100%);
+  border: 1px solid rgba(255, 236, 229, 0.075);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+a.dash-card,
+button.dash-card {
+  transition: border-color 250ms ease, transform 250ms var(--lux-ease);
+}
+a.dash-card:hover,
+button.dash-card:hover {
+  border-color: rgba(255, 106, 50, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Carte-signal : l'incandescence de l'illustration, en aplat. */
+.dash-card-hero {
+  border-color: rgba(255, 176, 138, 0.28);
+  background:
+    radial-gradient(120% 140% at 0% 100%, rgba(255, 214, 196, 0.85) 0%, rgba(255, 138, 92, 0.55) 22%, transparent 55%),
+    linear-gradient(125deg, #e84724 0%, #b8301c 38%, #4a0f0b 72%, #1a0806 100%);
+  box-shadow: 0 30px 70px -40px rgba(232, 71, 36, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.dash-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 236, 229, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+  color: #f3e3dc;
+}
+.dash-card-hero .dash-icon {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(20, 5, 3, 0.25);
+  color: #fff;
+}
+
+.dash-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 236, 229, 0.2);
+  padding: 0.12rem 0.45rem;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 8px;
+  border: 1px solid;
+  padding: 0.2rem 0.55rem;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-pill::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+.dash-pill-paid {
+  color: #86efac;
+  border-color: rgba(134, 239, 172, 0.35);
+  background: rgba(34, 197, 94, 0.1);
+}
+.dash-pill-due {
+  color: #fcd9a5;
+  border-color: rgba(252, 217, 165, 0.35);
+  background: rgba(251, 191, 36, 0.09);
+}
+.dash-pill-late {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+}
+.dash-pill-none {
+  color: #c9b8b1;
+  border-color: rgba(255, 236, 229, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dash-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  border-radius: 9999px;
+  padding: 0 1.2rem;
+  font-size: 13px;
+  font-weight: 600;
+  transition: transform 250ms var(--lux-ease), box-shadow 250ms ease, background 250ms ease, border-color 250ms ease;
+}
+.dash-btn-primary {
+  color: #fff7f2;
+  background: linear-gradient(120deg, #d23c1f 0%, #a82a18 60%, #7a1712 100%);
+  box-shadow: 0 12px 30px -14px rgba(232, 71, 36, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.dash-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 38px -14px rgba(232, 71, 36, 1), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.dash-btn-ghost {
+  color: #e9dad3;
+  border: 1px solid rgba(255, 236, 229, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+.dash-btn-ghost:hover:not(:disabled) {
+  border-color: rgba(255, 106, 50, 0.4);
+  color: #fff;
+}
+.dash-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.dash-btn-round {
+  width: 42px;
+  padding: 0;
+}
+
+.dash-input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 236, 229, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0 1rem 0 2.5rem;
+  font-size: 13px;
+  color: var(--lux-text);
+  outline: none;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.dash-input::placeholder {
+  color: #8a7771;
+}
+.dash-input:focus {
+  border-color: rgba(255, 106, 50, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dash-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 12px;
+  padding: 0.55rem 0.75rem;
+  font-size: 13px;
+  color: #b8a6a1;
+  transition: background 200ms ease, color 200ms ease;
+}
+.dash-nav-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff7f2;
+}
+.dash-nav-link[aria-current="page"] {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(232, 71, 36, 0.22), rgba(232, 71, 36, 0.04));
+  box-shadow: inset 2px 0 0 #ff6a32;
+}
+.dash-nav-link[aria-current="page"] svg {
+  color: #ff7a45;
+}
+
+.dash-table th {
+  padding: 0.75rem 1rem;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8f7d77;
+  text-align: left;
+  white-space: nowrap;
+}
+.dash-table td {
+  padding: 0.85rem 1rem;
+  font-size: 13px;
+  color: #e9dad3;
+  border-top: 1px solid rgba(255, 236, 229, 0.06);
+}
+.dash-table tbody tr {
+  transition: background 150ms ease;
+}
+.dash-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dash-progress {
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.dash-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff8a5c, #e84724);
+}
+
+/* Anciennes briques rendues dans une coquille de tableau de bord :
+   casse normale, pilules, panneaux sombres plutôt que verre. */
+.dash-root .lux-btn {
+  border-radius: 9999px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px !important;
+}
+.dash-root .lux-btn-gold {
+  color: #fff7f2;
+  background: linear-gradient(120deg, #d23c1f 0%, #a82a18 60%, #7a1712 100%);
+}
+.dash-root .lux-kicker,
+.dash-root .apx-kicker {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #b8a6a1;
+}
+.dash-root .lux-glass,
+.dash-root .apx-glass {
+  background: linear-gradient(180deg, #140a08 0%, #0d0605 100%);
+  border: 1px solid rgba(255, 236, 229, 0.075);
+  border-radius: 20px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.dash-root .lux-serif:not(.dash-brand) {
+  font-family: var(--font-lux-sans), ui-sans-serif, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Pastille de mois dans l'échéancier */
+.dash-month {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 92px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 236, 229, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.55rem 0.7rem;
+  font-size: 11px;
+}
+.dash-month[data-state="PAID"] {
+  border-color: rgba(134, 239, 172, 0.3);
+  background: rgba(34, 197, 94, 0.07);
+}
+.dash-month[data-state="OVERDUE"] {
+  border-color: rgba(252, 165, 165, 0.4);
+  background: rgba(239, 68, 68, 0.09);
+}
+.dash-month[data-state="CURRENT"] {
+  border-color: rgba(255, 106, 50, 0.55);
+  background: rgba(232, 71, 36, 0.1);
+}
+
 /* --- Réduction de mouvement : état final figé --- */
 @media (prefers-reduced-motion: reduce) {
   [data-lux] *,

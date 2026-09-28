@@ -23,7 +23,7 @@ export default function AdminSignInPage() {
         method: "POST",
         body: JSON.stringify({ email, password, ...(requiresCode ? { totpCode } : {}) }),
       });
-      router.replace(result.role === "STAFF" ? "/admin" : result.setupRequired ? "/console/sign-in/setup" : "/console");
+      router.replace(result.role === "STAFF" ? "/admin" : result.setupRequired ? "/console/sign-in/setup" : "/admin");
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Connexion indisponible.");
       if (!requiresCode) setRequiresCode(true);

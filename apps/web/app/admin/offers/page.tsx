@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { request } from "@/lib/api";
 import { Button } from "@/components/ui";
+import { MediaManager } from "@/components/media/media-manager";
 import { buildQuery } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import {
+  AdminModal,
   AdminPageHead,
   DataTable,
   ErrorAlert,
@@ -54,6 +56,7 @@ export default function OffersPage() {
   const [perPage, setPerPage] = useState(25);
   const [busy, setBusy] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: OfferingRow; next: string } | null>(null);
+  const [media, setMedia] = useState<OfferingRow | null>(null);
 
   const list = useAdminList<OfferingRow>(
     `/api/v1/admin/offerings${buildQuery({ page, perPage, q: search || undefined })}`,
@@ -121,7 +124,8 @@ export default function OffersPage() {
                       {formatCell(data[column.key], column.key)}
                     </td>
                   ))}
-                  <td className="px-4 py-3.5">
+                  <td className="flex gap-2 px-4 py-3.5">
+                    <RowAction label="Médias" tone="muted" onClick={() => setMedia(row)} />
                     <RowAction
                       label={status === "ACTIVE" ? "Désactiver" : "Publier"}
                       busy={busy === row.id}
@@ -145,6 +149,12 @@ export default function OffersPage() {
           setPage(1);
         }}
       />
+
+      {media && (
+        <AdminModal title={`Médias — ${media.title}`} onClose={() => setMedia(null)} width="max-w-2xl">
+          <MediaManager productId={media.id} />
+        </AdminModal>
+      )}
 
       {target && (
         <FieldModal

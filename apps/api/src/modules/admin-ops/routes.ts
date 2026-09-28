@@ -22,6 +22,7 @@ import {
   updateSetting,
   type OpsActor,
 } from "./service.js";
+import { financeOverview, listReceivables } from "./finance.js";
 
 const TAG = "Admin — Opérations";
 
@@ -48,6 +49,10 @@ const withdrawalQuery = pageQuery.extend({
 
 const planQuery = pageQuery.extend({
   status: z.enum(["ACTIVE", "COMPLETED", "DEFAULTED", "CANCELLED"]).optional(),
+});
+
+const receivableQuery = pageQuery.extend({
+  status: z.enum(["all", "OVERDUE", "DUE", "PAID", "NONE"]).default("all"),
 });
 
 const settingsValueBody = z.object({ value: z.unknown() });
@@ -194,6 +199,23 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
       const args = planQuery.parse(request.query);
       const { items, total } = await listPlans(args);
       return sendOk(reply, items, { page: args.page, perPage: args.perPage, total });
+    },
+  );
+
+  // --- Pilotage financier ---
+  app.get(
+    "/admin/finance",
+    { preHandler: permissionGuard("STATS"), schema: secured("Chiffre d'affaires, encaissé du mois, montant à recevoir, série 12 mois") },
+    async (_request, reply) => sendOk(reply, await financeOverview()),
+  );
+
+  app.get(
+    "/admin/receivables",
+    { preHandler: permissionGuard("PAYMENTS"), schema: secured("Comptes en cours de paiement : état du mois, mois restants, échéancier") },
+    async (request, reply) => {
+      const args = receivableQuery.parse(request.query);
+      const { items, total, counts } = await listReceivables(args);
+      return sendOk(reply, { items, counts, total, page: args.page, perPage: args.perPage }, { page: args.page, perPage: args.perPage, total });
     },
   );
 

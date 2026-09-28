@@ -160,14 +160,22 @@ MISTERDOU/
 - Schémas zod **partagés** : la web et la API valident les mêmes contrats (pas de drift).
 - DTOs de réponse (`OrderDto`, `InstallmentPlanDto`, …) pour une exposition stable.
 
-### 4.5 Stockage privé (documents)
-- **Dev** : dossier `data/private-storage/` hors git, fichiers chiffrés AES-256-GCM (clé =
-  dérivée de `STORAGE_MASTER_KEY` via HKDF, nonces par fichier, clé de fichier aléatoire).
-- Un "StorageDriver" (interface `store()/get()/delete()/url()` et `createSignedTicket()`)
-  permet de brancher S3/R2 en production sans toucher au reste. L'accès se fait par
-  **ticket signé temporaire** : `GET /api/v1/private-docs/:ticket` → validation permission →
-  ticket (HMAC) → vanity servi en flux avec type MIME correct, jamais accessible par URL brute.
-- Les URLs brutes ne sont jamais rendues. Pas de fichier dans `public/`.
+### 4.5 Stockage des fichiers (Cloudflare R2)
+
+Deux buckets, deux régimes (`apps/api/src/lib/storage.ts`, `apps/api/src/lib/media.ts`) :
+
+- **Bucket privé — pièces d'identité.** L'API reçoit le fichier (multipart, 8 Mo, octets de
+  tête vérifiés), le chiffre en AES-256-GCM (clé dérivée de `STORAGE_MASTER_KEY`) puis
+  l'écrit dans `R2_PRIVATE_BUCKET`. Aucun accès public, aucune URL présignée : la lecture
+  passe toujours par `GET /admin/kyc/:id/files/:kind` (permission KYC, journal d'audit,
+  déchiffrement à la volée). En production l'API refuse de démarrer sans ce bucket.
+- **Bucket public — images et vidéos des comptes.** `POST /products/:id/media/upload-url`
+  renvoie une URL PUT présignée (10 min, type et taille signés) ; le navigateur envoie le
+  fichier directement à R2 ; `POST /products/:id/media` vérifie l'objet reçu (taille, octets
+  de tête) avant de l'enregistrer, sinon le supprime. Servi par `R2_PUBLIC_BASE_URL`.
+  Limites : 10 images (JPEG/PNG/WebP, 8 Mo) et 2 vidéos (MP4/WebM, 60 Mo) par offre.
+- **Développement sans R2** : mêmes parcours sur disque local (`STORAGE_DIR`), l'envoi
+  local est protégé par une signature HMAC à durée limitée.
 
 ### 4.6 Readiness mobile (Phase 14+)
 - L'API n'utilise **pas** de stateful websocket pour le cœur : notifications push via un canal

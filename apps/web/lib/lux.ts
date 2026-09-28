@@ -53,6 +53,8 @@ export interface LuxCardData {
   schedule?: LuxSchedule | null;
   price?: number;
   avgRating?: number | null;
+  /** Image de couverture (bucket public) ; absente → visuel dégradé par division. */
+  coverUrl?: string | null;
 }
 
 export interface LuxSeed {

@@ -3,6 +3,7 @@ import { prisma } from "@misterdou/db";
 import { sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
 import { getPublicMeta } from "../settings/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
+import { publicUrl } from "../../lib/media.js";
 
 // ---------------------------------------------------------------------------
 // GET /api/seed — une seule requête publique pour alimenter la landing.
@@ -70,7 +71,17 @@ export async function registerSeedRoutes(app: FastifyInstance) {
             where: { status: "ACTIVE", deletedAt: null },
             orderBy: { createdAt: "desc" },
             take: 6,
-            select: { ...HOME_SELECT, featuredUntil: true, ...promoRelationSelect(now) },
+            select: {
+              ...HOME_SELECT,
+              featuredUntil: true,
+              ...promoRelationSelect(now),
+              images: {
+                where: { mimeType: { startsWith: "image/" } },
+                orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
+                take: 1,
+                select: { objectKey: true },
+              },
+            },
           }),
           // Bannière promo de la landing : la promotion en cours qui se termine
           // le plus tôt (compte à rebours côté client, invalide à expiration).
@@ -99,6 +110,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         installmentMonths: number | null;
         installmentDownPayment: number | null;
         promotions: ReadonlyArray<{ id: string; promoPrice: number | null; discountPercent: number | null }>;
+        images: ReadonlyArray<{ objectKey: string }>;
       }) => ({
         id: p.id,
         slug: p.slug,
@@ -112,6 +124,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         installmentMonths: p.installmentMonths,
         installmentDownPayment: p.installmentDownPayment,
         canSplit: p.installmentMonths !== null,
+        coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
       });
 
       const home = products.map(toItem);

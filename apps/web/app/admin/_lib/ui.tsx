@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert, Badge, Button, Spinner, StatusBadge, TextInput } from "@/components/ui";
-import { LuxPageHead } from "@/components/lux/lux-shell";
+import { DashHeading } from "@/components/dash/dash-ui";
 import { errorMessage, formatXof, isPermissionError, type PageMeta } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -24,8 +24,9 @@ export function AdminPageHead({
   action?: ReactNode;
 }) {
   return (
-    <div className="border-b border-white/10 pb-6">
-      <LuxPageHead kicker={kicker} title={title} meta={meta} action={action} />
+    <div>
+      <DashHeading greeting={kicker} title={title} actions={action} />
+      {meta && <p className="mt-2 max-w-2xl text-[13px] text-[#8f7d77]">{meta}</p>}
     </div>
   );
 }
@@ -72,7 +73,7 @@ export function SearchBar({
         placeholder={placeholder ?? "Rechercher"}
         className="min-w-0 sm:w-64"
       />
-      <Button type="submit">Rechercher</Button>
+      <button type="submit" className="dash-btn dash-btn-ghost">Rechercher</button>
     </form>
   );
 }
@@ -88,7 +89,7 @@ export function FilterTabs({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filtre par statut">
+    <div className="flex flex-wrap gap-1 rounded-full border border-[rgba(255,236,229,0.08)] bg-white/[0.02] p-1" role="tablist" aria-label="Filtre par statut">
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -98,10 +99,10 @@ export function FilterTabs({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(option.value)}
-            className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
+            className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition ${
               active
-                ? "border-amber-200/15 bg-amber-300/[0.09] text-[var(--lux-gold-light)]"
-                : "border-white/10 text-stone-400 hover:bg-white/[0.06] hover:text-stone-100"
+                ? "bg-[linear-gradient(120deg,#c83a24,#8e2014)] text-white"
+                : "text-[#b8a6a1] hover:text-white"
             }`}
           >
             {option.label}
@@ -127,7 +128,7 @@ export function Pagination({
   const from = meta.total === 0 ? 0 : (meta.page - 1) * perPage + 1;
   const to = Math.min(meta.total, meta.page * perPage);
   const btn =
-    "rounded-xl border border-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-stone-400 transition hover:bg-white/[0.06] hover:text-stone-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-stone-400";
+    "rounded-full border border-[rgba(255,236,229,0.1)] px-3.5 py-1.5 text-[12px] font-medium text-[#e9dad3] transition hover:border-[rgba(255,106,50,0.4)] hover:text-white disabled:opacity-40";
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-400">
       <span className="tabular-nums">
@@ -172,7 +173,7 @@ export function Pagination({
 /** Conteneur de tableau (même cadre que la console). */
 export function TableCard({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-5 overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#101825]/80">
+    <div className="dash-card mt-5 overflow-hidden">
       {children}
     </div>
   );
@@ -193,20 +194,20 @@ export function DataTable({
   return (
     <div className="overflow-x-auto">
       <table
-        className="w-full border-collapse text-left text-xs"
+        className="dash-table w-full border-collapse text-left"
         style={{ minWidth: `${minWidth}px` }}
       >
-        <thead className="bg-white/[0.035] text-[9px] uppercase tracking-[0.14em] text-stone-500">
+        <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column} className="px-4 py-3 font-semibold">
+              <th key={column}>
                 {column}
               </th>
             ))}
-            {actionLabel && <th className="px-4 py-3 font-semibold">{actionLabel}</th>}
+            {actionLabel && <th>{actionLabel}</th>}
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/[0.06]">{children}</tbody>
+        <tbody>{children}</tbody>
       </table>
     </div>
   );
@@ -259,15 +260,15 @@ export function AdminModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`lux-glass my-auto w-full ${width} rounded-[20px] p-5 sm:p-6`}
+        className={`dash-card my-auto w-full ${width} p-5 sm:p-6`}
       >
         <div className="flex items-start justify-between gap-4">
-          <h2 className="text-xl text-stone-100">{title}</h2>
+          <h2 className="text-[18px] font-semibold text-stone-50">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-stone-400 transition hover:text-stone-100"
+            className="grid h-8 w-8 place-items-center rounded-full border border-[rgba(255,236,229,0.12)] text-xs text-[#b8a6a1] transition hover:text-white"
           >
             ✕
           </button>
@@ -512,13 +513,13 @@ export function RowAction({
       ? "text-[#fca5a5]"
       : tone === "muted"
         ? "text-stone-500"
-        : "text-[var(--lux-gold-light)]";
+        : "text-[#ff8a5c]";
   return (
     <button
       type="button"
       disabled={busy || disabled}
       onClick={onClick}
-      className={`whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.1em] transition hover:opacity-80 disabled:opacity-50 ${cls}`}
+      className={`whitespace-nowrap rounded-full border border-current/20 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white/[0.04] disabled:opacity-50 ${cls}`}
     >
       {label}
     </button>

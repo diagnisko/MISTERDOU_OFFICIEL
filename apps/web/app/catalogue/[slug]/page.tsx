@@ -83,6 +83,69 @@ function BuyButton({
   );
 }
 
+// Galerie publique : média principal (image ou vidéo) + vignettes.
+function Gallery({
+  media,
+  title,
+  badges,
+}: {
+  media: NonNullable<CatalogueDetail["media"]>;
+  title: string;
+  badges: React.ReactNode;
+}) {
+  const [active, setActive] = useState(0);
+  const current = media[Math.min(active, media.length - 1)]!;
+  const imageCount = media.filter((m) => m.kind === "image").length;
+  return (
+    <div>
+      <div className="relative aspect-[16/10] overflow-hidden rounded-[28px] border border-[var(--lux-line)] bg-black">
+        {current.kind === "video" ? (
+          <video key={current.id} src={current.url} controls playsInline preload="metadata" className="h-full w-full bg-black object-contain">
+            Votre navigateur ne lit pas cette vidéo.
+          </video>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- bucket public R2, domaine configurable
+          <img
+            src={current.url}
+            alt={`${title} — capture ${media.filter((m) => m.kind === "image").indexOf(current) + 1} sur ${imageCount}`}
+            className="h-full w-full object-cover"
+          />
+        )}
+        {current.kind === "image" && badges}
+      </div>
+      {media.length > 1 && (
+        <ul className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Médias du compte">
+          {media.map((m, i) => (
+            <li key={m.id} className="shrink-0">
+              <button
+                type="button"
+                onClick={() => setActive(i)}
+                aria-label={m.kind === "video" ? `Lire la vidéo ${i + 1}` : `Afficher la capture ${i + 1}`}
+                aria-pressed={i === active}
+                className={cx(
+                  "relative block h-16 w-24 overflow-hidden rounded-xl border transition",
+                  i === active ? "border-[#ff6a32]" : "border-[var(--lux-line)] opacity-70 hover:opacity-100",
+                )}
+              >
+                {m.kind === "video" ? (
+                  <span className="grid h-full w-full place-items-center bg-[#120908] text-white">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="lux-glass flex flex-col gap-1.5 rounded-[18px] px-5 py-4">
@@ -183,34 +246,51 @@ function DetailHub() {
         </nav>
 
         <div className="grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-start">
-          {/* Visuel */}
-          <div
-            className="relative flex min-h-[320px] items-end justify-between overflow-hidden rounded-[28px] p-7"
-            style={{
-              background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(232,71,36,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
-            }}
-          >
-            <span className="lux-glass-chip absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
-              <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
-              {tierLabel(tier)}
-            </span>
-            {item.isFeatured && (
-              <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
-                <IconSparkle className="h-3 w-3" aria-hidden />
-                Mis en avant
+          {item.media && item.media.length > 0 ? (
+            <Gallery media={item.media} title={item.title} badges={<>
+                <span className="lux-glass-chip pointer-events-none absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
+                  <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
+                  {tierLabel(tier)}
+                </span>
+                {item.isFeatured && (
+                  <span className="pointer-events-none absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
+                    <IconSparkle className="h-3 w-3" aria-hidden />
+                    Mis en avant
+                  </span>
+                )}
+              </>} />
+          ) : (
+            <>
+            <div
+              className="relative flex min-h-[320px] items-end justify-between overflow-hidden rounded-[28px] p-7"
+              style={{
+                background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(232,71,36,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
+              }}
+            >
+              <span className="lux-glass-chip absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
+                <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
+                {tierLabel(tier)}
               </span>
-            )}
+              {item.isFeatured && (
+                <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
+                  <IconSparkle className="h-3 w-3" aria-hidden />
+                  Mis en avant
+                </span>
+              )}
 
-            <div className="flex flex-col gap-1">
-              <span className="lux-serif text-[76px] font-bold leading-none text-stone-50">{formatInt(item.teamPower)}</span>
-              <span className="text-[11px] uppercase tracking-[0.32em] text-stone-400">OVR — puissance</span>
+              <div className="flex flex-col gap-1">
+                <span className="lux-serif text-[76px] font-bold leading-none text-stone-50">{formatInt(item.teamPower)}</span>
+                <span className="text-[11px] uppercase tracking-[0.32em] text-stone-400">OVR — puissance</span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5 text-[13px] text-stone-300">
+                <IconCoins className="h-6 w-6 text-[var(--lux-gold-light)]" aria-hidden />
+                <span className="lux-serif text-[20px] font-bold text-stone-100 tabular-nums">{formatInt(item.coins)}</span>
+                <span className="text-[9px] uppercase tracking-[0.3em] text-stone-400">Coins</span>
+              </div>
             </div>
-            <div className="flex flex-col items-center gap-1.5 text-[13px] text-stone-300">
-              <IconCoins className="h-6 w-6 text-[var(--lux-gold-light)]" aria-hidden />
-              <span className="lux-serif text-[20px] font-bold text-stone-100 tabular-nums">{formatInt(item.coins)}</span>
-              <span className="text-[9px] uppercase tracking-[0.3em] text-stone-400">Coins</span>
-            </div>
-          </div>
+
+            </>
+          )}
 
           {/* Infos */}
           <div className="flex flex-col gap-5">

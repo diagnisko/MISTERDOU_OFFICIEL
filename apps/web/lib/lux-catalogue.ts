@@ -139,6 +139,8 @@ export interface CatalogueDetail {
   extraInfo: string | null;
   avgRating: number | null;
   reviewCount: number;
+  /** Captures et vidéos publiques (bucket public), couverture en premier. */
+  media?: Array<{ id: string; url: string; kind: "image" | "video"; mimeType: string }>;
 }
 
 interface DetailEnvelope {

@@ -27,7 +27,7 @@ export default function AdminTotpSetupPage() {
     event.preventDefault(); setBusy(true); setError(null);
     try {
       await request("/api/v1/auth/admin/totp/confirm", { method: "POST", body: JSON.stringify({ code }) });
-      router.replace("/console");
+      router.replace("/admin");
     } catch (err) { setError(err instanceof ApiClientError ? err.message : "Code invalide."); }
     finally { setBusy(false); }
   }

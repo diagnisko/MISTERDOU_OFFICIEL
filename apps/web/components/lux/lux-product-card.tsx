@@ -53,6 +53,19 @@ export function ProductCard({
             background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(232,71,36,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
           }}
         >
+          {product.coverUrl && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- bucket public R2, domaine configurable */}
+              <img
+                src={product.coverUrl}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover/card:scale-[1.04]"
+              />
+              <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,3,3,0.45)_0%,transparent_32%,rgba(5,3,3,0.88)_100%)]" />
+            </>
+          )}
           {/* tuile division 6×6 — usage exclusif */}
           <span className="absolute left-4 top-4 flex items-center gap-2.5">
             <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />

@@ -4,6 +4,7 @@ import { sendError, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelop
 import { logger } from "../../lib/logger.js";
 import { buildSchedule } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
+import { mediaKind, publicUrl } from "../../lib/media.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -35,7 +36,18 @@ const SELECT_PUBLIC = {
 
 /** Projection publique + mise en avant + promotion active à l'instant T. */
 function publicSelect(now: Date) {
-  return { ...SELECT_PUBLIC, featuredUntil: true, ...promoRelationSelect(now) };
+  return {
+    ...SELECT_PUBLIC,
+    featuredUntil: true,
+    ...promoRelationSelect(now),
+    // Couverture : première image (la principale d'abord). Les vidéos restent sur la fiche.
+    images: {
+      where: { mimeType: { startsWith: "image/" } },
+      orderBy: [{ isPrimary: "desc" as const }, { position: "asc" as const }],
+      take: 1,
+      select: { objectKey: true },
+    },
+  };
 }
 
 interface CatalogueQuery {
@@ -193,6 +205,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
           isFeatured: isFeatured(p, now),
           schedule: scheduleFor(p, price),
           avgRating: ratingById.get(p.id) ?? null,
+          coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
         };
       });
 
@@ -237,6 +250,11 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       });
       if (!p) return sendError(reply, 404, "NOT_FOUND", "Compte introuvable ou retiré.");
 
+      const media = await prisma.productImage.findMany({
+        where: { productId: p.id },
+        orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
+        select: { id: true, objectKey: true, mimeType: true },
+      });
       const ratingAgg = await prisma.productReview.aggregate({
         where: { productId: p.id },
         _avg: { rating: true },
@@ -265,6 +283,12 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         extraInfo: p.extraInfo ?? null,
         avgRating: ratingAgg._avg.rating !== null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
         reviewCount: ratingAgg._count,
+        media: media.map((m) => ({
+          id: m.id,
+          url: publicUrl(m.objectKey),
+          kind: mediaKind(m.mimeType) ?? "image",
+          mimeType: m.mimeType,
+        })),
       };
 
       reply.header("Cache-Control", PUBLIC_CACHE_CONTROL);

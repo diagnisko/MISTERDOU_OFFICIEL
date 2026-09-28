@@ -31,6 +31,8 @@ secrets/
 # ------------------------------------------------------------------
 data/
 uploads/
+# Stockage local de développement (pièces KYC chiffrées, médias) — jamais versionné
+.storage/
 *.db
 *.sqlite
 *.sqlite3

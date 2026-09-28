@@ -4,16 +4,26 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiClientError, request, formatXof } from "@/lib/api";
-import { Alert, Button, Spinner, StatusBadge, TextInput } from "@/components/ui";
-import { LuxProvider } from "@/components/lux/lux-data";
-import { LuxFooter } from "@/components/lux/lux-footer";
+import { Alert, Spinner, StatusBadge } from "@/components/ui";
+import { MediaManager } from "@/components/media/media-manager";
+import { AreaChart, DashHeading, DashShell, KpiCard, Panel, type DashNavItem } from "@/components/dash/dash-ui";
+import {
+  IconChat,
+  IconClock,
+  IconCoins,
+  IconHome,
+  IconLifebuoy,
+  IconList,
+  IconPercent,
+  IconStore,
+  IconUsers,
+  IconWallet,
+} from "@/components/dash/dash-icons";
 
 // ---------------------------------------------------------------------------
-// Espace vendeur — §13 : acheter une mise en avant (200 FCFA/jour, tarif
-// servi par l'API). Solde d'abord (R10) : paiement direct si le solde couvre
-// le montant, sinon redirection checkout. Aucun montant calculé ici : le
-// total affiché est dailyRate (API) × nombre de jours saisi, le serveur
-// recalcule et facture.
+// Espace vendeur — soldes, gains, ventes récentes et mise en avant (§13, §18).
+// Aucun montant calculé ici : le total d'une mise en avant est dailyRate (API)
+// × jours saisis, le serveur recalcule et facture.
 // ---------------------------------------------------------------------------
 
 type Dashboard = {
@@ -41,7 +51,20 @@ type Dashboard = {
     isFeatured: boolean;
   }[];
   dailyRate: number;
+  salesByMonth: { month: string; net: number; count: number }[];
+  recentSales: {
+    id: string;
+    title: string;
+    orderNumber: string;
+    orderAmount: number;
+    commissionAmount: number;
+    netToSeller: number;
+    status: string;
+    createdAt: string;
+  }[];
 };
+
+type Me = { firstName: string | null; lastName: string | null; email: string | null };
 
 type FeaturedResult = {
   purchaseId: string;
@@ -56,16 +79,28 @@ type FeaturedResult = {
 
 const DAY_PRESETS = [1, 5, 10, 30];
 
+const SELLER_NAV: DashNavItem[] = [
+  { href: "/seller", label: "Vue d’ensemble", icon: IconHome },
+  { href: "/catalogue", label: "Catalogue public", icon: IconStore },
+  { href: "/account", label: "Mon compte", icon: IconUsers },
+  { href: "/messages", label: "Messages", icon: IconChat, group: "Relation" },
+  { href: "/notifications", label: "Notifications", icon: IconList, group: "Relation" },
+  { href: "/support", label: "Support", icon: IconLifebuoy, group: "Relation" },
+];
+
 export default function SellerPage() {
   const router = useRouter();
   const [dash, setDash] = useState<Dashboard | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const [modalProduct, setModalProduct] = useState<Dashboard["products"][number] | null>(null);
   const [days, setDays] = useState(1);
   const [paying, setPaying] = useState<"BALANCE" | "PAYTECH" | null>(null);
+  const [mediaProduct, setMediaProduct] = useState<Dashboard["products"][number] | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +120,9 @@ export default function SellerPage() {
 
   useEffect(() => {
     void load();
+    request<{ user: Me }>("/api/v1/auth/me")
+      .then((res) => setMe(res.user))
+      .catch(() => undefined);
   }, [load]);
 
   function openFeatured(product: Dashboard["products"][number]) {
@@ -106,7 +144,7 @@ export default function SellerPage() {
       });
       if (result.activated) {
         setNotice(
-          `Mise en avant activée pendant ${result.days} jour${result.days > 1 ? "s" : ""} — ${formatXof(result.amount)} débités du solde${result.featuredUntil ? `, jusqu'au ${new Date(result.featuredUntil).toLocaleDateString("fr-FR")}` : ""}.`,
+          `Mise en avant activée pendant ${result.days} jour${result.days > 1 ? "s" : ""} — ${formatXof(result.amount)} débités du solde${result.featuredUntil ? `, jusqu’au ${new Date(result.featuredUntil).toLocaleDateString("fr-FR")}` : ""}.`,
         );
         setModalProduct(null);
         await load();
@@ -124,251 +162,338 @@ export default function SellerPage() {
     }
   }
 
+  async function logout() {
+    setLoggingOut(true);
+    try {
+      await request("/api/v1/auth/logout", { method: "POST", body: JSON.stringify({}) });
+    } finally {
+      router.replace("/");
+    }
+  }
+
   const rate = dash?.dailyRate ?? 0;
   const amount = rate * days;
   const available = dash?.balance?.balanceAvailable ?? 0;
   const insufficient = available < amount;
   const daysValid = Number.isInteger(days) && days >= 1 && days <= 90;
+  const name = [me?.firstName, me?.lastName].filter(Boolean).join(" ") || "Vendeur";
+  const salesChart = (dash?.salesByMonth ?? []).map((m) => {
+    const [y, mo] = m.month.split("-").map(Number);
+    return {
+      label: new Date(Date.UTC(y!, mo! - 1, 1)).toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" }).replace(".", ""),
+      primary: m.net,
+    };
+  });
 
   if (loading) {
     return (
-      <LuxProvider>
-        <div data-lux className="relative min-h-screen overflow-x-clip text-stone-100">
-          <div className="lux-bg" aria-hidden />
-          <p className="relative z-10 grid min-h-[70vh] place-items-center text-[12px] uppercase tracking-[0.24em] text-stone-400">
-            <span className="flex items-center gap-3">
-              <Spinner className="h-4 w-4 text-[var(--lux-gold)]" /> Ouverture de l’espace vendeur…
-            </span>
-          </p>
-        </div>
-      </LuxProvider>
+      <div data-lux className="dash-root grid place-items-center text-sm text-[#b8a6a1]">
+        <span className="flex items-center gap-3">
+          <Spinner /> Ouverture de l’espace vendeur…
+        </span>
+      </div>
     );
   }
 
   return (
-    <LuxProvider>
-      <div data-lux className="relative min-h-screen overflow-x-clip text-stone-100">
-        <div className="lux-bg" aria-hidden />
+    <DashShell
+      nav={SELLER_NAV}
+      areaLabel="Espace vendeur"
+      user={{ name, email: me?.email }}
+      onLogout={() => void logout()}
+      loggingOut={loggingOut}
+      badge={
+        dash?.seller ? (
+          <span className="hidden md:inline-block">
+            <StatusBadge status={dash.seller.status} />
+          </span>
+        ) : null
+      }
+    >
+      <DashHeading
+        greeting={me?.firstName ? `Bonjour ${me.firstName}` : "Espace vendeur"}
+        title="Vos ventes"
+        actions={
+          <Link href="/catalogue" className="dash-btn dash-btn-ghost">
+            Voir le catalogue
+          </Link>
+        }
+      />
 
-        <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5 md:px-8">
-            <Link href="/" className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
-              MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
-            </Link>
-            <nav aria-label="Navigation espace vendeur" className="flex items-center gap-1 sm:gap-2">
-              <NavLink href="/catalogue">Catalogue</NavLink>
-              <NavLink href="/account">Mon espace</NavLink>
-            </nav>
+      {error && !modalProduct && (
+        <div className="mt-5">
+          <Alert tone="danger">{error}</Alert>
+        </div>
+      )}
+      {notice && (
+        <div className="mt-5">
+          <Alert tone="success">{notice}</Alert>
+        </div>
+      )}
+
+      {!dash?.seller && (
+        <div className="mt-6">
+          <Alert tone="warning">
+            Aucun profil vendeur n’est associé à ce compte. La demande d’activation vendeur se fait auprès de
+            l’équipe MISTERDOU.
+          </Alert>
+        </div>
+      )}
+
+      <section aria-label="Soldes" className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          hero
+          icon={IconWallet}
+          label="Solde disponible"
+          value={formatXof(dash?.balance?.balanceAvailable ?? 0)}
+          hint="Retirable ou utilisable pour la mise en avant"
+        />
+        <KpiCard
+          icon={IconClock}
+          label="En attente de libération"
+          value={formatXof(dash?.balance?.balancePending ?? 0)}
+          hint="Ventes récentes en période de sécurité"
+        />
+        <KpiCard
+          icon={IconCoins}
+          label="Gains cumulés"
+          value={formatXof(dash?.balance?.totalEarnings ?? 0)}
+          hint="Net vendeur depuis l’ouverture"
+        />
+        <KpiCard
+          icon={IconPercent}
+          label="Commissions versées"
+          value={formatXof(dash?.balance?.totalCommissionPaid ?? 0)}
+          hint="Part de la plateforme sur vos ventes"
+        />
+      </section>
+
+      <section className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
+        <Panel title="Gains nets sur 6 mois">
+          <AreaChart data={salesChart} primaryLabel="Gains nets" format={formatXof} />
+        </Panel>
+        <Panel title="Ventes récentes">
+          {(dash?.recentSales.length ?? 0) === 0 ? (
+            <p className="text-[13px] text-[#8f7d77]">Vos ventes apparaîtront ici dès le premier paiement confirmé.</p>
+          ) : (
+            <ul className="space-y-1">
+              {dash!.recentSales.map((sale) => (
+                <li key={sale.id} className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition hover:bg-white/[0.03]">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] text-white">{sale.title}</p>
+                    <p className="text-[11px] text-[#8f7d77]">
+                      {new Date(sale.createdAt).toLocaleDateString("fr-FR")} · commission {formatXof(sale.commissionAmount)}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[13px] font-semibold tabular-nums text-white">+{formatXof(sale.netToSeller)}</p>
+                    <span className={`dash-pill mt-1 ${sale.status === "RELEASED" ? "dash-pill-paid" : "dash-pill-due"}`}>
+                      {sale.status === "RELEASED" ? "Disponible" : "En attente"}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </section>
+
+      <section className="dash-card mt-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-stone-100">Mes offres</h2>
+            <p className="mt-0.5 text-[12px] text-[#8f7d77]">
+              Mise en avant à {formatXof(rate)} par jour, payable depuis votre solde ou en ligne.
+            </p>
           </div>
-        </header>
+          <span className="text-[12px] text-[#8f7d77]">
+            {dash?.products.length ?? 0} offre{(dash?.products.length ?? 0) > 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="-mx-5 mt-3 overflow-x-auto">
+          <table className="dash-table w-full min-w-[680px] border-collapse">
+            <thead>
+              <tr>
+                <th className="pl-5">Compte</th>
+                <th>Prix</th>
+                <th>État</th>
+                <th>Mise en avant</th>
+                <th className="pr-5">
+                  <span className="sr-only">Action</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(dash?.products.length ?? 0) === 0 && (
+                <tr>
+                  <td colSpan={5} className="pl-5 text-[#8f7d77]">
+                    Aucune offre publiée pour le moment.
+                  </td>
+                </tr>
+              )}
+              {(dash?.products ?? []).map((product) => (
+                <tr key={product.id}>
+                  <td className="pl-5">
+                    <Link href={`/catalogue/${product.slug}`} className="text-white hover:underline">
+                      {product.title}
+                    </Link>
+                    <p className="text-[11px] text-[#8f7d77]">
+                      {product.paymentMode === "INSTALLMENTS" ? "Échéancier" : "Paiement unique"}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap tabular-nums">{formatXof(product.basePrice)}</td>
+                  <td>
+                    <StatusBadge status={product.status} />
+                  </td>
+                  <td>
+                    {product.isFeatured ? (
+                      <span className="dash-pill dash-pill-paid">
+                        Jusqu’au {product.featuredUntil ? new Date(product.featuredUntil).toLocaleDateString("fr-FR") : "—"}
+                      </span>
+                    ) : (
+                      <span className="dash-pill dash-pill-none">Non</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap pr-5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setMediaProduct(product)}
+                      className="dash-btn dash-btn-ghost mr-2 !min-h-[34px] !text-[12px]"
+                    >
+                      Médias
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openFeatured(product)}
+                      className="dash-btn dash-btn-ghost !min-h-[34px] !text-[12px]"
+                    >
+                      {product.isFeatured ? "Prolonger" : "Mettre en avant"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <main className="relative z-10 px-5 pt-12 md:px-8 md:pt-16">
-          <div className="mx-auto max-w-5xl">
-            <p className="lux-kicker">Espace vendeur</p>
-            <h1 className="mt-3 text-3xl sm:text-4xl">Vos offres &amp; visibilité</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-400">
-              Mettez vos comptes en avant pour accroître leur visibilité — tarif journalier{" "}
-              <span className="text-[var(--lux-gold-light)]">{formatXof(rate)}</span>, payable depuis votre solde
-              ou en ligne.
+      {mediaProduct && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Médias de l’offre ${mediaProduct.title}`}
+          className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-black/75 p-4"
+          onClick={() => setMediaProduct(null)}
+        >
+          <div className="dash-card my-auto w-full max-w-2xl p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[13px] text-[#b8a6a1]">Captures et vidéos publiques</p>
+                <h3 className="mt-1 text-[18px] font-semibold text-white">{mediaProduct.title}</h3>
+              </div>
+              <button type="button" onClick={() => setMediaProduct(null)} aria-label="Fermer" className="dash-btn dash-btn-ghost dash-btn-round !min-h-[34px] !w-[34px]">
+                ✕
+              </button>
+            </div>
+            <p className="mt-2 text-[12px] text-[#8f7d77]">
+              Visibles par tous sur la fiche du compte. N’y montrez jamais l’e-mail ou le mot de passe du compte.
+            </p>
+            <div className="mt-5">
+              <MediaManager productId={mediaProduct.id} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalProduct && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mettre en avant une offre"
+          className="fixed inset-0 z-[90] grid place-items-center bg-black/75 px-4"
+          onClick={() => setModalProduct(null)}
+        >
+          <div className="dash-card w-full max-w-md p-6" onClick={(event) => event.stopPropagation()}>
+            <p className="text-[13px] text-[#b8a6a1]">Mise en avant</p>
+            <h3 className="mt-1 text-[18px] font-semibold text-white">{modalProduct.title}</h3>
+            <p className="mt-1 text-[12px] text-[#8f7d77]">{formatXof(rate)} par jour · durée 1 à 90 jours</p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {DAY_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setDays(preset)}
+                  className={`rounded-full border px-3.5 py-1.5 text-[12px] transition ${
+                    days === preset
+                      ? "border-[rgba(255,106,50,0.6)] bg-[rgba(232,71,36,0.15)] text-white"
+                      : "border-[rgba(255,236,229,0.1)] text-[#b8a6a1] hover:text-white"
+                  }`}
+                >
+                  {preset} jour{preset > 1 ? "s" : ""}
+                </button>
+              ))}
+            </div>
+
+            <label className="mt-4 block text-[12px] text-[#b8a6a1]" htmlFor="featured-days">
+              Durée (jours)
+            </label>
+            <input
+              id="featured-days"
+              type="number"
+              min={1}
+              max={90}
+              value={days}
+              onChange={(event) => setDays(Math.max(1, Math.min(90, Number(event.target.value) || 1)))}
+              className="dash-input mt-1.5 !pl-4"
+            />
+
+            <div className="mt-5 flex items-center justify-between rounded-2xl border border-[rgba(255,236,229,0.08)] px-4 py-3">
+              <span className="text-[12px] text-[#b8a6a1]">
+                {formatXof(rate)} × {days} jour{days > 1 ? "s" : ""}
+              </span>
+              <span className="text-[18px] font-semibold tabular-nums text-white">{formatXof(amount)}</span>
+            </div>
+
+            <p className="mt-3 text-[12px] text-[#8f7d77]">
+              Solde disponible : <span className="tabular-nums text-stone-200">{formatXof(available)}</span>
+              {insufficient && <span className="ml-1 text-[#fcd9a5]">— insuffisant, payez en ligne</span>}
             </p>
 
-            {error && <div className="mt-5"><Alert tone="danger">{error}</Alert></div>}
-            {notice && <div className="mt-5"><Alert tone="success">{notice}</Alert></div>}
-
-            {!dash?.seller && (
-              <div className="mt-6">
-                <Alert tone="warning">
-                  Aucun profil vendeur n’est associé à ce compte. La demande d’activation vendeur se fait auprès
-                  de l’équipe MISTERDOU.
-                </Alert>
+            {error && (
+              <div className="mt-4">
+                <Alert tone="danger">{error}</Alert>
               </div>
             )}
 
-            <section aria-label="Soldes vendeur" className="mt-8 grid gap-3 sm:grid-cols-3">
-              <Metric label="Solde disponible" value={formatXof(dash?.balance?.balanceAvailable ?? 0)} tone="gold" />
-              <Metric label="En attente de libération" value={formatXof(dash?.balance?.balancePending ?? 0)} />
-              <Metric label="Gains cumulés" value={formatXof(dash?.balance?.totalEarnings ?? 0)} tone="green" />
-            </section>
-
-            <section className="mt-10">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="lux-kicker">Mes offres</p>
-                  <h2 className="mt-2 text-2xl text-stone-100">Comptes publiés</h2>
-                </div>
-                <p className="text-[10px] uppercase tracking-[0.14em] text-stone-500">
-                  {dash?.products.length ?? 0} offre{(dash?.products.length ?? 0) > 1 ? "s" : ""}
-                </p>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {(dash?.products ?? []).map((product) => (
-                  <article key={product.id} className="lux-glass rounded-[20px] p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-lg text-stone-100">{product.title}</h3>
-                        <p className="mt-1 text-xs text-stone-500">
-                          {formatXof(product.basePrice)} ·{" "}
-                          {product.paymentMode === "INSTALLMENTS" ? "Échéancier" : "Paiement unique"}
-                        </p>
-                      </div>
-                      <StatusBadge status={product.status} />
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.07] pt-4">
-                      <p className="text-xs">
-                        {product.isFeatured ? (
-                          <span className="text-[var(--lux-gold-light)]">
-                            En avant jusqu’au{" "}
-                            {product.featuredUntil
-                              ? new Date(product.featuredUntil).toLocaleDateString("fr-FR")
-                              : "expiration"}
-                          </span>
-                        ) : (
-                          <span className="text-stone-500">Non mis en avant</span>
-                        )}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => openFeatured(product)}
-                        className="lux-btn lux-btn-ghost !min-h-[36px] !px-3 !text-[10px]"
-                      >
-                        {product.isFeatured ? "Prolonger" : "Mettre en avant"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                {(dash?.products.length ?? 0) === 0 && dash?.seller && (
-                  <p className="rounded-[18px] border border-white/[0.08] bg-[#101825]/70 p-5 text-sm text-stone-400 sm:col-span-2">
-                    Aucune offre publiée pour le moment.
-                  </p>
-                )}
-              </div>
-            </section>
-
-            <section className="mt-10 rounded-[18px] border border-white/[0.08] bg-[#111927]/65 p-4 text-xs leading-relaxed text-stone-400">
-              Après paiement confirmé, l’offre est mise en avant immédiatement ; la durée démarre à la fin de la
-              mise en avant en cours et se désactive automatiquement à expiration.
-            </section>
-          </div>
-        </main>
-
-        <LuxFooter />
-
-        {modalProduct && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mettre en avant une offre"
-            className="fixed inset-0 z-[70] grid place-items-center bg-black/70 px-4 backdrop-blur-sm"
-            onClick={() => setModalProduct(null)}
-          >
-            <div
-              className="lux-glass w-full max-w-md rounded-[22px] p-6"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <p className="lux-kicker">Mise en avant</p>
-              <h3 className="mt-2 text-xl text-stone-100">{modalProduct.title}</h3>
-              <p className="mt-1 text-xs text-stone-500">
-                {formatXof(rate)} par jour · durée 1 à 90 jours
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {DAY_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setDays(preset)}
-                    className={`rounded-full border px-3.5 py-1.5 text-xs transition ${
-                      days === preset
-                        ? "border-amber-200/30 bg-amber-300/[0.12] text-[var(--lux-gold-light)]"
-                        : "border-white/10 text-stone-400 hover:border-white/20 hover:text-stone-200"
-                    }`}
-                  >
-                    {preset} jour{preset > 1 ? "s" : ""}
-                  </button>
-                ))}
-              </div>
-
-              <label className="mt-4 block text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">
-                Durée (jours)
-              </label>
-              <TextInput
-                type="number"
-                min={1}
-                max={90}
-                value={days}
-                onChange={(event) => setDays(Math.max(1, Math.min(90, Number(event.target.value) || 1)))}
-                className="mt-2"
-              />
-
-              <div className="mt-5 flex items-center justify-between rounded-xl border border-white/[0.07] bg-black/10 px-4 py-3">
-                <span className="text-xs text-stone-400">
-                  {formatXof(rate)} × {days} jour{days > 1 ? "s" : ""}
-                </span>
-                <span className="text-lg font-semibold tabular-nums text-[var(--lux-gold-light)]">
-                  {formatXof(amount)}
-                </span>
-              </div>
-
-              <p className="mt-3 text-xs text-stone-500">
-                Solde disponible : <span className="tabular-nums text-stone-300">{formatXof(available)}</span>
-                {insufficient && <span className="ml-1 text-amber-300">— solde insuffisant</span>}
-              </p>
-
-              {error && <div className="mt-4"><Alert tone="danger">{error}</Alert></div>}
-
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                <Button
-                  className="flex-1"
-                  loading={paying === "BALANCE"}
-                  disabled={!daysValid || paying !== null || insufficient}
-                  onClick={() => void pay("BALANCE")}
-                >
-                  Payer par solde
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  loading={paying === "PAYTECH"}
-                  disabled={!daysValid || paying !== null}
-                  onClick={() => void pay("PAYTECH")}
-                >
-                  Payer en ligne
-                </Button>
-              </div>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={() => setModalProduct(null)}
-                className="mt-3 w-full text-center text-[11px] uppercase tracking-[0.14em] text-stone-500 transition hover:text-stone-300"
+                className="dash-btn dash-btn-primary flex-1"
+                disabled={!daysValid || paying !== null || insufficient}
+                onClick={() => void pay("BALANCE")}
               >
-                Annuler
+                {paying === "BALANCE" ? "Paiement…" : "Payer avec mon solde"}
+              </button>
+              <button
+                type="button"
+                className="dash-btn dash-btn-ghost flex-1"
+                disabled={!daysValid || paying !== null}
+                onClick={() => void pay("PAYTECH")}
+              >
+                {paying === "PAYTECH" ? "Redirection…" : "Payer en ligne"}
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setModalProduct(null)}
+              className="mt-3 w-full text-center text-[12px] text-[#8f7d77] transition hover:text-white"
+            >
+              Annuler
+            </button>
           </div>
-        )}
-      </div>
-    </LuxProvider>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-2xl border border-[rgba(255,255,255,0.12)] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.45)] hover:text-[var(--lux-gold-light)] sm:px-4"
-    >
-      {children}
-    </Link>
-  );
-}
-
-function Metric({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "gold" | "green" }) {
-  const color = tone === "gold" ? "text-[var(--lux-gold-light)]" : tone === "green" ? "text-emerald-300" : "text-stone-100";
-  return (
-    <div className="lux-glass rounded-[18px] p-4 sm:p-5">
-      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-stone-500">{label}</p>
-      <p className={`mt-3 text-xl font-semibold tabular-nums sm:text-2xl ${color}`}>{value}</p>
-    </div>
+        </div>
+      )}
+    </DashShell>
   );
 }

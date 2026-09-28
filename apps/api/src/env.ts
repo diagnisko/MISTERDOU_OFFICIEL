@@ -16,8 +16,20 @@ const envSchema = z.object({
   ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().max(60 * 60 * 4).default(60 * 60 * 2),
   ADMIN_SETUP_SESSION_TTL_SECONDS: z.coerce.number().int().positive().max(15 * 60).default(10 * 60),
   STORAGE_MASTER_KEY: z.string().min(32, "STORAGE_MASTER_KEY doit faire au moins 32 caractères"),
+  // Repli local (développement uniquement) quand R2 n'est pas configuré.
   STORAGE_DIR: z.string().default("./.storage"),
-  FILE_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(120),
+
+  // Cloudflare R2 (API compatible S3).
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  // Bucket PRIVÉ : pièces d'identité (chiffrées AES-256-GCM avant envoi), jamais d'accès public.
+  R2_PRIVATE_BUCKET: z.string().optional(),
+  // Bucket PUBLIC : images et vidéos des comptes, servies par R2_PUBLIC_BASE_URL.
+  R2_PUBLIC_BUCKET: z.string().optional(),
+  R2_PUBLIC_BASE_URL: z.string().url().optional(),
+  MEDIA_MAX_IMAGE_MB: z.coerce.number().positive().max(20).default(8),
+  MEDIA_MAX_VIDEO_MB: z.coerce.number().positive().max(200).default(60),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL requise"),
 
@@ -45,7 +57,22 @@ const envSchema = z.object({
 
 export type AppEnv = z.infer<typeof envSchema>;
 
-const parsed = envSchema.safeParse(process.env);
+const r2Credentials = (e: z.infer<typeof envSchema>) => Boolean(e.R2_ACCOUNT_ID && e.R2_ACCESS_KEY_ID && e.R2_SECRET_ACCESS_KEY);
+
+const parsed = envSchema
+  .superRefine((e, ctx) => {
+    if ((e.R2_PRIVATE_BUCKET || e.R2_PUBLIC_BUCKET) && !r2Credentials(e)) {
+      ctx.addIssue({ code: "custom", path: ["R2_ACCOUNT_ID"], message: "identifiants R2 incomplets (compte, clé, secret)" });
+    }
+    if (e.R2_PUBLIC_BUCKET && !e.R2_PUBLIC_BASE_URL) {
+      ctx.addIssue({ code: "custom", path: ["R2_PUBLIC_BASE_URL"], message: "URL publique requise avec R2_PUBLIC_BUCKET" });
+    }
+    // Les pièces d'identité ne doivent jamais dormir sur le disque d'un serveur de production.
+    if (e.NODE_ENV === "production" && !e.R2_PRIVATE_BUCKET) {
+      ctx.addIssue({ code: "custom", path: ["R2_PRIVATE_BUCKET"], message: "bucket privé R2 obligatoire en production" });
+    }
+  })
+  .safeParse(process.env);
 if (!parsed.success) {
   // N'exporte jamais la valeur des secrets en erreur.
   const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
