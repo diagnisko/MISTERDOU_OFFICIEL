@@ -1,4 +1,17 @@
 import type { ApiEnvelope, ApiErrorCode, PublicMeta } from "@misterdou/shared";
+import { documentLocale, hasMessage, translate } from "./i18n-core";
+
+/**
+ * Message d'erreur dans la langue choisie. En français (langue de base), le
+ * texte précis du serveur est gardé ; en anglais ou en arabe, le code d'erreur
+ * donne une traduction générique quand elle existe.
+ */
+function localizedError(code: string, serverMessage: string): string {
+  const locale = documentLocale();
+  const key = `apiError.${code}`;
+  if (locale === "fr" || !hasMessage(key)) return serverMessage;
+  return translate(locale, key);
+}
 
 const BROWSER_BASE = "";
 const SERVER_BASE = process.env.API_INTERNAL_URL ?? "http://localhost:4000";
@@ -43,7 +56,7 @@ async function request<T>(
       cache: "no-store",
     });
   } catch (err) {
-    throw new ApiClientError("INTERNAL_ERROR" as ApiErrorCode, "API injoignable", String(err));
+    throw new ApiClientError("SERVICE_UNAVAILABLE" as ApiErrorCode, localizedError("SERVICE_UNAVAILABLE", "API injoignable"), String(err));
   }
 
   let payload: ApiEnvelope = { ok: false, error: { code: "INTERNAL_ERROR" as ApiErrorCode, message: "Réponse illisible" } };
@@ -54,7 +67,7 @@ async function request<T>(
   }
 
   if (!payload.ok) {
-    throw new ApiClientError(payload.error.code, payload.error.message, payload.error.details);
+    throw new ApiClientError(payload.error.code, localizedError(payload.error.code, payload.error.message), payload.error.details);
   }
   return payload.data as T;
 }
@@ -83,7 +96,7 @@ export async function uploadFile(file: File, purpose: string): Promise<UploadRes
       cache: "no-store",
     });
   } catch (err) {
-    throw new ApiClientError("INTERNAL_ERROR" as ApiErrorCode, "Impossible d'envoyer le fichier", String(err));
+    throw new ApiClientError("INTERNAL_ERROR" as ApiErrorCode, localizedError("INTERNAL_ERROR", "Impossible d’envoyer le fichier"), String(err));
   }
 
   let payload: ApiEnvelope = { ok: false, error: { code: "INTERNAL_ERROR" as ApiErrorCode, message: "Réponse illisible" } };
@@ -93,7 +106,7 @@ export async function uploadFile(file: File, purpose: string): Promise<UploadRes
     /* ignore */
   }
   if (!payload.ok) {
-    throw new ApiClientError(payload.error.code, payload.error.message, payload.error.details);
+    throw new ApiClientError(payload.error.code, localizedError(payload.error.code, payload.error.message), payload.error.details);
   }
   return payload.data as UploadResult;
 }
@@ -118,7 +131,7 @@ export async function requestPaged<T, M extends PageMeta = PageMeta>(
       cache: "no-store",
     });
   } catch (err) {
-    throw new ApiClientError("INTERNAL_ERROR" as ApiErrorCode, "API injoignable", String(err));
+    throw new ApiClientError("SERVICE_UNAVAILABLE" as ApiErrorCode, localizedError("SERVICE_UNAVAILABLE", "API injoignable"), String(err));
   }
 
   let payload: ApiEnvelope<unknown, Record<string, unknown>> = {
@@ -132,7 +145,7 @@ export async function requestPaged<T, M extends PageMeta = PageMeta>(
   }
 
   if (!payload.ok) {
-    throw new ApiClientError(payload.error.code, payload.error.message, payload.error.details);
+    throw new ApiClientError(payload.error.code, localizedError(payload.error.code, payload.error.message), payload.error.details);
   }
 
   const raw = (payload.meta ?? {}) as Record<string, unknown>;
@@ -157,10 +170,13 @@ export const PERMISSION_MESSAGE =
   "Permission insuffisante — ce module est réservé aux rôles autorisés.";
 
 /** Message lisible pour toute erreur (403 → alerte de permission imposée). */
-export function errorMessage(err: unknown, fallback = "Une erreur est survenue."): string {
+export function errorMessage(err: unknown, fallback?: string): string {
+  const locale = documentLocale();
   if (err instanceof ApiClientError) {
-    return err.code === "FORBIDDEN" ? PERMISSION_MESSAGE : err.message;
+    if (err.code !== "FORBIDDEN") return err.message;
+    return locale === "fr" ? PERMISSION_MESSAGE : translate(locale, "apiError.FORBIDDEN");
   }
+  fallback ??= locale === "fr" ? "Une erreur est survenue." : translate(locale, "apiError.INTERNAL_ERROR");
   if (typeof err === "string" && err.trim().length > 0) return err;
   if (err instanceof Error && err.message.trim().length > 0) return err.message;
   return fallback;

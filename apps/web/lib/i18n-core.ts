@@ -14,6 +14,11 @@ export function isLocale(value: unknown): value is Locale {
 
 export type TranslateVars = Record<string, string | number>;
 
+/** true si la clé existe dans le dictionnaire de référence (français). */
+export function hasMessage(key: string): key is MessageKey {
+  return key in DICTIONARIES.fr;
+}
+
 export function translate(locale: Locale, key: MessageKey, vars?: TranslateVars): string {
   const template = DICTIONARIES[locale][key] ?? DICTIONARIES.fr[key] ?? key;
   return vars ? template.replace(/{(w+)}/g, (_, name: string) => String(vars[name] ?? "")) : template;
