@@ -47,7 +47,6 @@ export const fr = {
     "RGPD : vos données sont traitées de façon minimale, hébergées localement, et jamais revendues. eFootball est une marque de KONAMI — MISTERDOU est une plateforme tierce indépendante.",
 
   // Espace compte
-  "account.tabs": "Mon compte",
   "account.loading": "Chargement de votre compte…",
 
   // Paramètres
@@ -177,7 +176,6 @@ export const en: Translations<typeof fr> = {
   "footer.payments": "Wave / Orange Money",
   "footer.rgpd":
     "GDPR: your data is kept to a minimum, hosted locally and never sold. eFootball is a KONAMI trademark — MISTERDOU is an independent third-party platform.",
-  "account.tabs": "My account",
   "account.loading": "Loading your account…",
   "settings.appearance": "Appearance",
   "settings.appearanceLead": "Choose how the site looks on this device.",
@@ -300,7 +298,6 @@ export const ar: Translations<typeof fr> = {
   "footer.payments": "Wave / Orange Money",
   "footer.rgpd":
     "حماية البيانات: تتم معالجة بياناتك بالحد الأدنى، وتُستضاف محليًا ولا تُباع أبدًا. eFootball علامة تجارية لـ KONAMI — MISTERDOU منصة مستقلة.",
-  "account.tabs": "حسابي",
   "account.loading": "جارٍ تحميل حسابك…",
   "settings.appearance": "المظهر",
   "settings.appearanceLead": "اختر مظهر الموقع على هذا الجهاز.",

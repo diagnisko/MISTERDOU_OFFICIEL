@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { displayName, initials, logoutAccount, useAccount, type AccountUser } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
@@ -38,6 +38,7 @@ const ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUsers; se
 export function AccountMenu({ compact = false }: { compact?: boolean }) {
   const account = useAccount();
   const router = useRouter();
+  const pathname = usePathname();
   const reduce = useReducedMotion();
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -133,6 +134,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
                 key={item.href}
                 href={item.href}
                 role="menuitem"
+                aria-current={pathname === item.href ? "page" : undefined}
                 onClick={() => setOpen(false)}
                 className="dash-nav-link outline-none focus-visible:bg-white/[0.06]"
               >

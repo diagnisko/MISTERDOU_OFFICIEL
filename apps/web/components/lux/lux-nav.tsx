@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useMotionValueEvent, useScroll } from "motion/react";
+import { useEffect, useState } from "react";
+import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cx } from "./lux-fx";
 import { IconMenu, IconX } from "./lux-icons";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -21,12 +22,25 @@ const NAV_LINKS: Array<{ href: string; label: MessageKey; guestOnly?: boolean }>
   { href: "/a-propos", label: "nav.about", guestOnly: true },
 ];
 
+// Lien de l'en-tête correspondant à la page ouverte (fiche d'une offre → « Offres »).
+function activeHref(pathname: string): string | null {
+  if (pathname.startsWith("/catalogue")) return "/offres";
+  return NAV_LINKS.find((l) => pathname === l.href || pathname.startsWith(`${l.href}/`))?.href ?? null;
+}
+
 export function LuxNav({ root = false }: { root?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const { scrollY } = useScroll();
   const account = useAccount();
   const t = useT();
+  const reduce = useReducedMotion();
+  const pathname = usePathname();
+  // Au clic, le marqueur glisse tout de suite vers le lien choisi, sans
+  // attendre le chargement de la page suivante.
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => setPending(null), [pathname]);
+  const current = pending ?? activeHref(pathname);
 
   useMotionValueEvent(scrollY, "change", (v) => setScrolled(v > 12));
 
@@ -45,17 +59,33 @@ export function LuxNav({ root = false }: { root?: boolean }) {
           MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
         </a>
 
-        <ul className="hidden items-center gap-8 lg:flex">
-          {links.map((l) => (
-            <li key={l.href}>
-              <Link
-                href={linkHref(l.href)}
-                className="text-[12px] font-medium uppercase tracking-[0.18em] text-stone-400 transition-colors hover:text-stone-100"
-              >
-                {t(l.label)}
-              </Link>
-            </li>
-          ))}
+        <ul className="hidden items-center gap-1 lg:flex">
+          {links.map((l) => {
+            const active = current === l.href;
+            return (
+              <li key={l.href}>
+                <Link
+                  href={linkHref(l.href)}
+                  onClick={() => setPending(l.href)}
+                  aria-current={active ? "page" : undefined}
+                  className={cx(
+                    "relative isolate block whitespace-nowrap rounded-full px-3.5 py-2 text-[12px] font-medium uppercase tracking-[0.14em] transition-colors xl:tracking-[0.18em]",
+                    active ? "text-white" : "text-stone-400 hover:text-stone-100",
+                  )}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="lux-nav-marker"
+                      aria-hidden
+                      className="absolute inset-0 -z-10 rounded-full bg-[linear-gradient(120deg,#c83a24,#8e2014)] shadow-[0_8px_24px_-12px_rgba(232,71,36,0.8)]"
+                      transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 36 }}
+                    />
+                  )}
+                  {t(l.label)}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         <div className="flex items-center gap-2 lg:gap-3">
@@ -92,7 +122,13 @@ export function LuxNav({ root = false }: { root?: boolean }) {
               <Link
                 href={linkHref(l.href)}
                 onClick={() => setOpen(false)}
-                className="block rounded-xl px-3 py-3.5 text-[13px] font-medium uppercase tracking-[0.18em] text-stone-300 hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
+                aria-current={current === l.href ? "page" : undefined}
+                className={cx(
+                  "block rounded-xl px-3 py-3.5 text-[13px] font-medium uppercase tracking-[0.18em]",
+                  current === l.href
+                    ? "bg-[linear-gradient(120deg,#c83a24,#8e2014)] text-white"
+                    : "text-stone-300 hover:bg-[rgba(255,255,255,0.04)] hover:text-white",
+                )}
               >
                 {t(l.label)}
               </Link>
