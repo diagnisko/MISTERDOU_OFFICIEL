@@ -2,10 +2,10 @@
 // est MOCKÉ : seul le gate de configuration (GOOGLE_OAUTH_CLIENT_ID) et le
 // rattachement du compte Google (création, liaison e-mail existant, refus
 // hors CLIENT) sont vérifiés contre la base locale.
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
-import { SUITE_STARTED_AT, buildMiniApp, cleanup, createUser, tracker, track } from "./helpers.js";
+import { SUITE_STARTED_AT, buildMiniApp, cleanup, createAdmin, createUser, tracker, track } from "./helpers.js";
 import { env } from "../src/env.js";
 import { loginWithGoogle } from "../src/modules/auth/service.js";
 import { registerAuthRoutes } from "../src/modules/auth/routes.js";
@@ -46,12 +46,12 @@ describe("Connexion Google", () => {
   });
 
   it("crée un compte CLIENT au premier jeton et le reconnait au second", async () => {
+    await createAdmin(t);
     const email = `p13-google-${Date.now()}@x`;
     const token = tokenFor({ sub: "p13-sub-1", email, email_verified: true });
 
     const first = await loginWithGoogle(token, { ip: "127.0.0.1" });
     track(t, "userIds", first.user.id);
-    expect(first.phoneRequired).toBe(true);
     expect(first.sid).toBeTruthy();
     expect(first.user.email).toBe(email);
     expect(first.user.role).toBe("CLIENT");
@@ -85,7 +85,7 @@ describe("Connexion Google", () => {
     expect(row.emailVerifiedAt).toBeNull();
   });
 
-  it("refuse un jeton sans e-mail, un jeton invalide et un compte hors CLIENT", async () => {
+  it("refuse un jeton sans e-mail, un jeton invalide et un compte d'équipe", async () => {
     await expect(loginWithGoogle(tokenFor({ sub: "no-email" }), {})).rejects.toMatchObject({
       code: "INVALID_CREDENTIALS",
       message: "Jeton Google invalide",
@@ -95,10 +95,19 @@ describe("Connexion Google", () => {
       "invalid_grant",
     );
 
-    const vendor = await createUser(t, { role: "VENDOR" });
+    const staff = await createUser(t, { role: "STAFF" });
     await expect(
-      loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email }), {}),
+      loginWithGoogle(tokenFor({ sub: "p13-sub-staff", email: staff.email }), {}),
     ).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", message: "Identifiants invalides" });
+  });
+
+  it("accepte un vendeur et renvoie sa connexion précédente", async () => {
+    const vendor = await createUser(t, { role: "VENDOR" });
+    const first = await loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email }), {});
+    expect(first.user.role).toBe("VENDOR");
+    const again = await loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email }), {});
+    expect(again.previousLoginAt).not.toBeNull();
+    expect(again.created).toBe(false);
   });
 });
 
@@ -135,7 +144,6 @@ describe("Route /auth/google (inject)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.data.user.email).toBe(email);
-    expect(body.data.phoneRequired).toBe(true);
     track(t, "userIds", body.data.user.id as string);
 
     const setCookie = res.headers["set-cookie"];

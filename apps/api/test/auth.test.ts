@@ -8,7 +8,7 @@ import { verifyPassword } from "../src/lib/password.js";
 import { findActiveSession } from "../src/lib/sessions.js";
 import { ApiError } from "../src/lib/errors.js";
 import { env } from "../src/env.js";
-import { cleanup, createUser, expectApiError, marker, tracker, type Tracked } from "./helpers.js";
+import { cleanup, createAdmin, createUser, expectApiError, marker, tracker, type Tracked } from "./helpers.js";
 
 vi.mock("google-auth-library", () => ({
   OAuth2Client: class {
@@ -32,13 +32,14 @@ afterAll(async () => {
 
 describe("Inscription (§39 — inscription)", () => {
   it("crée un compte CLIENT, hache le mot de passe et ouvre une session", async () => {
+    // Un administrateur actif doit exister pour recevoir l'alerte « Nouveau client ».
+    await createAdmin(t);
     const email = `p13-${marker()}@example.com`;
     const result = await register({ firstName: "Awa", email, password: "MotDePasse123!" }, { ip: "127.0.0.1" });
     t.userIds.push(result.user.id);
 
     expect(result.user.role).toBe("CLIENT");
     expect(result.user.status).toBe("ACTIVE");
-    expect(result.user.phoneVerified).toBe(false);
     expect(result.sid).toBeTruthy();
 
     const user = await prisma.user.findUnique({ where: { id: result.user.id }, include: { role: true } });
@@ -136,14 +137,17 @@ describe("Comptes administrateurs (§39 — permissions / accès non autorisé)"
     expect(session?.isAdminSession).toBe(false);
   });
 
-  it("ADMIN avec 2FA mais sans code TOTP → refusé", async () => {
+  it("ADMIN avec 2FA : code demandé, code faux refusé, mauvais mot de passe distinct", async () => {
     const admin = await createUser(t, { role: "ADMIN", password: "MotDePasse123!", twoFactorEnabled: true });
-    const err = await expectApiError(() => loginAdmin({ email: admin.email, password: "MotDePasse123!" }, {}));
-    expect(err.code).toBe("INVALID_CREDENTIALS");
-    const err2 = await expectApiError(() =>
+    const missing = await expectApiError(() => loginAdmin({ email: admin.email, password: "MotDePasse123!" }, {}));
+    expect(missing.code).toBe("ACTION_REQUIRES_2FA");
+    const wrongCode = await expectApiError(() =>
       loginAdmin({ email: admin.email, password: "MotDePasse123!", totpCode: "000000" }, {}),
     );
-    expect(err2.code).toBe("INVALID_CREDENTIALS");
+    expect(wrongCode.code).toBe("OTP_INVALID");
+    // Mauvais mot de passe : on ne révèle pas qu'un code serait demandé.
+    const wrongPassword = await expectApiError(() => loginAdmin({ email: admin.email, password: "Faux-mot-de-passe1" }, {}));
+    expect(wrongPassword.code).toBe("INVALID_CREDENTIALS");
   });
 
   it("ADMIN refusé sur la route de connexion standard (§39 — accès non autorisé)", async () => {
@@ -170,7 +174,6 @@ describe("Connexion Google (§39 — connexion Google)", () => {
     const first = await loginWithGoogle("valid-google-token", { ip: "127.0.0.1" });
     t.userIds.push(first.user.id);
     expect(first.user.role).toBe("CLIENT");
-    expect(first.phoneRequired).toBe(true);
     expect(first.user.email).toBe("google-client@example.com");
 
     const again = await loginWithGoogle("valid-google-token", {});
@@ -197,7 +200,7 @@ describe("DTO public (jamais de champ sensible)", () => {
   it("toMeDto n'expose ni hash ni statut interne", async () => {
     const user = await createUser(t, {});
     const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-    const dto = toMeDto(row, false, "CLIENT");
+    const dto = toMeDto(row, "CLIENT");
     expect(Object.keys(dto)).not.toContain("passwordHash");
     expect(JSON.stringify(dto)).not.toContain("scrypt");
     expect(dto.id).toBe(user.id);

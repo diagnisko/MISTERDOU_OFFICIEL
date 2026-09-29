@@ -4,6 +4,8 @@
 // Sans NEXT_PUBLIC_GOOGLE_CLIENT_ID, le clic remonte un message clair (non configuré).
 // Le callback revient sur /login où l'id_token est échangé contre la session.
 
+import { useT } from "@/lib/i18n";
+
 const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 function GoogleMark() {
@@ -47,18 +49,19 @@ export function startGoogleLogin() {
 }
 
 export function GoogleButton({ onNotice }: { onNotice: (message: string) => void }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={() => {
         if (!startGoogleLogin()) {
-          onNotice("La connexion Google n'est pas encore activée. Utilisez votre e-mail et mot de passe.");
+          onNotice(t("google.unavailable"));
         }
       }}
       className="lux-btn lux-btn-ghost w-full [text-transform:none]"
     >
       <GoogleMark />
-      Continuer avec Google
+      {t("google.continue")}
     </button>
   );
 }

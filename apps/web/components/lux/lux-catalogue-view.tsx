@@ -7,6 +7,8 @@ import { SectionLabel } from "@/components/lux/lux-fx";
 import { fetchCatalogueServer, type CatalogueSort } from "@/lib/lux-catalogue";
 import { formatInt, type LuxPaymentMode } from "@/lib/lux";
 import { IconArrowLeft, IconArrowRight } from "@/components/lux/lux-icons";
+import { getServerT } from "@/lib/i18n-server";
+import type { MessageKey } from "@/lib/i18n-core";
 
 // ---------------------------------------------------------------
 // Socle commun à /offres et /pret-ou-prestation.
@@ -18,11 +20,11 @@ import { IconArrowLeft, IconArrowRight } from "@/components/lux/lux-icons";
 // serait le premier bug signalé par un client.
 // ---------------------------------------------------------------
 
-const SORTS: { value: CatalogueSort; label: string }[] = [
-  { value: "newest", label: "Nouveautés" },
-  { value: "priceAsc", label: "Prix croissant" },
-  { value: "priceDesc", label: "Prix décroissant" },
-  { value: "power", label: "Puissance" },
+const SORTS: { value: CatalogueSort; label: MessageKey }[] = [
+  { value: "newest", label: "cat.sortNewest" },
+  { value: "priceAsc", label: "cat.sortPriceAsc" },
+  { value: "priceDesc", label: "cat.sortPriceDesc" },
+  { value: "power", label: "cat.sortPower" },
 ];
 
 export interface CatalogueViewProps {
@@ -93,6 +95,7 @@ async function CatalogueBody({
   emptyText,
   aside,
 }: CatalogueViewProps) {
+  const t = await getServerT();
   const sp = await searchParams;
   const division = sp.division && sp.division !== "all" ? sp.division : null;
   const sort: CatalogueSort =
@@ -110,7 +113,7 @@ async function CatalogueBody({
       paymentMode,
     });
   } catch {
-    error = "Le catalogue est momentanément indisponible.";
+    error = t("cat.unavailable");
   }
 
   const meta = data?.meta ?? null;
@@ -127,7 +130,7 @@ async function CatalogueBody({
             <h1 className="lux-h2 text-stone-100">{title}</h1>
             {meta && (
               <span className="text-[11px] uppercase tracking-[0.24em] text-stone-400">
-                {formatInt(meta.total)} compte{meta.total > 1 ? "s" : ""}
+                {t(meta.total > 1 ? "cat.countMany" : "cat.countOne", { count: formatInt(meta.total) })}
               </span>
             )}
           </div>
@@ -136,7 +139,7 @@ async function CatalogueBody({
           {aside}
 
           <div className="mt-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer par division">
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t("cat.filterDivision")}>
               <Link
                 href={href(basePath, { division: null }, division, sort, 1)}
                 aria-current={division === null ? "page" : undefined}
@@ -146,7 +149,7 @@ async function CatalogueBody({
                     : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
                 }
               >
-                Toutes
+                {t("cat.all")}
               </Link>
               {divisions.map((d) => (
                 <Link
@@ -164,7 +167,7 @@ async function CatalogueBody({
               ))}
             </div>
 
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Trier le catalogue">
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t("cat.sortLabel")}>
               {SORTS.map((s) => (
                 <Link
                   key={s.value}
@@ -176,7 +179,7 @@ async function CatalogueBody({
                       : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
                   }
                 >
-                  {s.label}
+                  {t(s.label)}
                 </Link>
               ))}
             </div>
@@ -186,19 +189,19 @@ async function CatalogueBody({
             <div className="mt-10 rounded-[24px] border border-white/10 bg-[rgba(23,20,18,0.7)] p-10 text-center">
               <p className="text-[14px] text-stone-400">{error}</p>
               <Link href={basePath} className="lux-btn lux-btn-gold mt-6">
-                Réessayer
+                {t("product.retry")}
               </Link>
             </div>
           ) : data && data.items.length > 0 ? (
             <>
               <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {data.items.map((p, i) => (
-                  <ProductCard key={p.id} product={p} index={i} animateIn={false} />
+                  <ProductCard key={p.id} product={p} index={i} animateIn={false} installments={paymentMode === "INSTALLMENTS"} />
                 ))}
               </div>
 
               {meta && meta.totalPages > 1 && (
-                <nav aria-label="Pagination" className="mt-12 flex items-center justify-center gap-4">
+                <nav aria-label={t("cat.pagination")} className="mt-12 flex items-center justify-center gap-4">
                   <Link
                     href={href(basePath, { page: page - 1 }, division, sort, page)}
                     aria-disabled={page <= 1}
@@ -209,10 +212,10 @@ async function CatalogueBody({
                     }
                   >
                     <IconArrowLeft className="h-4 w-4" aria-hidden />
-                    Précédent
+                    {t("cat.previous")}
                   </Link>
                   <span className="text-[12px] tabular-nums tracking-[0.14em] text-stone-400">
-                    Page {meta.page} / {meta.totalPages}
+                    {t("cat.page", { page: meta.page, total: meta.totalPages })}
                   </span>
                   <Link
                     href={href(basePath, { page: page + 1 }, division, sort, page)}
@@ -223,8 +226,8 @@ async function CatalogueBody({
                         : "lux-btn lux-btn-ghost px-5"
                     }
                   >
-                    Suivant
-                    <IconArrowRight className="h-4 w-4" aria-hidden />
+                    {t("cat.next")}
+<IconArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </nav>
               )}
@@ -233,7 +236,7 @@ async function CatalogueBody({
             <div className="mt-10 rounded-[24px] border border-white/10 bg-[rgba(23,20,18,0.7)] p-10 text-center">
               <p className="text-[14px] text-stone-400">{emptyText}</p>
               <Link href={basePath} className="lux-btn lux-btn-ghost mt-6">
-                Tout afficher
+                {t("cat.showAll")}
               </Link>
             </div>
           )}

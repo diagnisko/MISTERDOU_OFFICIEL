@@ -4,7 +4,8 @@ import { motion, useReducedMotion, type Variants } from "motion/react";
 import Link from "next/link";
 import { cx, LUX_EASE } from "./lux-fx";
 import { IconArrowRight, IconCoins, IconDiamond, IconSparkle, IconStar } from "./lux-icons";
-import { divisionTier, formatFcfa, formatInt, tierLabel, tierTileClass, type LuxCardData } from "@/lib/lux";
+import { divisionTier, formatFcfa, formatInt, tierTileClass, type LuxCardData } from "@/lib/lux";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 const CARD: Variants = {
   hidden: { opacity: 0, y: 40 },
@@ -22,20 +23,23 @@ export function ProductCard({
   product,
   index = 0,
   animateIn = true,
+  installments = false,
 }: {
   product: LuxCardData;
+  /** Carte de la page mensualités : la fiche s'ouvre en mode paiement échelonné. */
+  installments?: boolean;
   index?: number;
   /** false → rendu statique immédiatement visible (SSR liste, sans animation d'entrée). */
   animateIn?: boolean;
 }) {
+  const t = useT();
   const tier = divisionTier(product.division);
   const reduce = useReducedMotion(); // (réservé : pause anim, traité par animateIn)
   const tierClass = tierTileClass(tier);
-  const tierName = tierLabel(tier);
   const glow = TIER_GLOW[tier] ?? TIER_GLOW.bronze; // teinte du dégradé du visuel
   const distFromCenter = Math.min(Math.abs(index - 2), Math.abs(index - 3));
   const delay = animateIn ? 0.04 + distFromCenter * 0.07 : 0;
-  const detailHref = `/catalogue/${product.slug}`;
+  const detailHref = `/catalogue/${product.slug}${installments ? "?mode=mensualites" : ""}`;
 
   return (
     <motion.article
@@ -45,7 +49,7 @@ export function ProductCard({
       transition={{ delay }}
       className="lux-card group/card overflow-hidden rounded-[24px]"
     >
-      <Link href={detailHref} className="block" aria-label={`Voir le compte : ${product.title}`} legacyBehavior={false}>
+      <Link href={detailHref} className="block" aria-label={t("card.viewLabel", { title: product.title })} legacyBehavior={false}>
         {/* Visuel : dégradé radial teinté par division */}
         <div
           className="lux-card-visual relative h-56"
@@ -70,13 +74,13 @@ export function ProductCard({
           <span className="absolute left-4 top-4 flex items-center gap-2.5">
             <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
             <span className="lux-glass-chip px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-stone-300">
-              {tierLabel(tier)}
+              {t(`tier.${tier}` as MessageKey)}
             </span>
           </span>
           {product.isFeatured && (
             <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
               <IconSparkle className="h-3 w-3" aria-hidden />
-              Mis en avant
+              {t("card.featured")}
             </span>
           )}
 
@@ -126,12 +130,12 @@ export function ProductCard({
           <IconDiamond className="h-3.5 w-3.5 text-[var(--lux-gold)]" aria-hidden />
           {product.schedule ? (
             product.schedule.downPayment > 0
-              ? `Apport ${formatFcfa(product.schedule.downPayment)} puis ${product.schedule.months} mensualités`
-              : `${product.schedule.months} mensualités de ${formatFcfa(product.schedule.monthlyAmount)}`
+              ? t("card.downThen", { down: formatFcfa(product.schedule.downPayment), months: product.schedule.months })
+              : t("card.monthsOf", { months: product.schedule.months, amount: formatFcfa(product.schedule.monthlyAmount) })
           ) : product.paymentMode === "INSTALLMENTS" && product.installmentMonths ? (
-            `Jusqu'à ${product.installmentMonths} mensualités`
+            t("card.upTo", { months: product.installmentMonths ?? 0 })
           ) : (
-            "Paiement comptant"
+            t("card.cash")
           )}
         </span>
 
@@ -140,7 +144,7 @@ export function ProductCard({
           className="lux-btn lux-btn-ghost w-full !min-h-[44px] text-[11px] group-hover/card:border-[rgba(255,106,50,0.45)]"
           style={{ borderRadius: 16 }}
         >
-          Voir le compte
+          {t("card.view")}
           <IconArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/card:translate-x-1" aria-hidden />
         </Link>
       </div>

@@ -14,6 +14,7 @@ import {
   notificationTypeLabel,
   type NotificationItem,
 } from "@/lib/notifications";
+import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Cloche de notifications (en-tête du site).
@@ -26,6 +27,7 @@ import {
 const POLL_INTERVAL_MS = 30000;
 
 export function NotificationBell() {
+  const t = useT();
   const router = useRouter();
   const [state, setState] = useState<"checking" | "hidden" | "visible">("checking");
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -179,11 +181,11 @@ export function NotificationBell() {
       {open && (
         <div
           role="dialog"
-          aria-label="Notifications récentes"
+          aria-label={t("bell.recent")}
           className="absolute right-0 z-[70] mt-2 w-[min(92vw,360px)] overflow-hidden rounded-[18px] border border-white/10 bg-[#050303]/97 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
         >
           <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
-            <p className="lux-kicker">Notifications</p>
+            <p className="lux-kicker">{t("bell.title")}</p>
             <button
               type="button"
               onClick={() => void markAll()}
@@ -198,7 +200,7 @@ export function NotificationBell() {
             {error && <p className="px-4 py-4 text-xs leading-relaxed text-[#fca5a5]">{error}</p>}
             {!error && items.length === 0 && (
               <p className="px-4 py-6 text-center text-xs text-stone-400">
-                Aucune notification pour le moment.
+                {t("bell.empty")}
               </p>
             )}
             <ul>
@@ -243,7 +245,7 @@ export function NotificationBell() {
               onClick={() => setOpen(false)}
               className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--lux-gold-light)] hover:underline"
             >
-              Voir toutes
+              {t("bell.seeAll")}
             </Link>
           </div>
         </div>

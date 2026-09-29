@@ -8,6 +8,7 @@ import {
   getMyOrder,
   listMyOrders,
   revealCredentials,
+  confirmReceipt,
 } from "./service.js";
 
 function authCtx(request: FastifyRequest): { actorId: string; actorRole?: RoleName; ip?: string } {
@@ -85,4 +86,13 @@ export async function registerOrderRoutes(app: FastifyInstance) {
     },
   );
 
+
+  app.post(
+    "/orders/:id/confirm-receipt",
+    { schema: { tags: ["Orders"], summary: "Confirmer la réception d'un compte (libère les fonds du vendeur)", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      return sendOk(reply, await confirmReceipt(id, authCtx(request)));
+    },
+  );
 }

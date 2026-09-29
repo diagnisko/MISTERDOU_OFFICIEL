@@ -105,7 +105,7 @@ export async function registerMediaRoutes(app: FastifyInstance) {
       if ((await countByKind(id))[kind] >= MEDIA_LIMITS[kind]) {
         throw conflict("MEDIA_LIMIT", `Maximum ${MEDIA_LIMITS[kind]} ${kind === "image" ? "images" : "vidéos"} par offre.`);
       }
-      return sendOk(reply, await createUpload(id, input.data.mimeType, input.data.sizeBytes));
+      return sendOk(reply, await createUpload(`products/${id}`, input.data.mimeType, input.data.sizeBytes));
     },
   );
 

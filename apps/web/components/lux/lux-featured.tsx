@@ -7,6 +7,7 @@ import { LuxCountdown } from "./lux-countdown";
 import { ProductCard } from "./lux-product-card";
 import { IconArrowRight } from "./lux-icons";
 import { useLux } from "./lux-data";
+import { useT } from "@/lib/i18n";
 
 const GRID: Variants = {
   hidden: {},
@@ -26,6 +27,7 @@ function CardSkeleton() {
 }
 
 export function LuxFeatured() {
+  const t = useT();
   const { seed, status, error, retry } = useLux();
   const reduce = useReducedMotion();
   // Sélection de l'accueil posée par l'admin (ordre manuel), complétée par les
@@ -42,11 +44,11 @@ export function LuxFeatured() {
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <Reveal>
-              <SectionLabel>La sélection du moment</SectionLabel>
+              <SectionLabel>{t("featured.label")}</SectionLabel>
             </Reveal>
             <IgniteHeading
               className="lux-h2 mt-5 text-stone-100"
-              parts={[{ text: "Des comptes," }, { text: " choisis.", accent: true }, { text: " Des prix, assumés." }]}
+              parts={[{ text: t("featured.h1") }, { text: t("featured.h2"), accent: true }, { text: t("featured.h3") }]}
             />
           </div>
           {promo && (
@@ -68,19 +70,19 @@ export function LuxFeatured() {
         ) : status === "error" ? (
           <div className="lux-glass mt-12 rounded-[24px] p-10 text-center">
             <p className="text-[14px] text-stone-400">
-              {error ? "Le catalogue n'a pas pu être chargé." : "Indisponible — nouvelle tentative nécessaire."}
+              {error ? t("featured.loadError") : t("featured.unavailable")}
             </p>
             <button type="button" onClick={retry} className="lux-btn lux-btn-gold mt-6">
-              Réessayer
+              {t("featured.retry")}
             </button>
           </div>
         ) : comptes.length === 0 ? (
           <div className="lux-glass mt-12 rounded-[24px] p-10 text-center">
             <p className="text-[14px] text-stone-400">
-              Aucune offre sélectionnée pour l&apos;instant — tout le catalogue reste accessible.
+              {t("featured.empty")}
             </p>
             <Link href="/offres" className="lux-btn lux-btn-gold mt-6" style={{ borderRadius: 16 }}>
-              Voir toutes les offres
+              {t("featured.seeAll")}
             </Link>
           </div>
         ) : (
@@ -99,11 +101,11 @@ export function LuxFeatured() {
 
         <Reveal delay={0.1} className="mt-12 flex flex-wrap justify-center gap-4">
           <Link href="/offres" className="lux-btn lux-btn-gold group/btn" style={{ borderRadius: 18 }}>
-            Toutes les offres
+            {t("featured.allOffers")}
             <IconArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" aria-hidden />
           </Link>
           <Link href="/pret-ou-prestation" className="lux-btn lux-btn-ghost group/btn" style={{ borderRadius: 18 }}>
-            Payer en mensualités
+            {t("featured.payMonthly")}
             <IconArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" aria-hidden />
           </Link>
         </Reveal>

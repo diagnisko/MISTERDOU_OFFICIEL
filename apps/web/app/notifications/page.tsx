@@ -18,6 +18,7 @@ import {
   type NotificationItem,
   type NotificationPreferences,
 } from "@/lib/notifications";
+import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Centre de notifications — GET /notifications (filtre unreadOnly, pagination),
@@ -30,6 +31,7 @@ const PER_PAGE = 20;
 type Tab = "all" | "unread";
 
 export default function NotificationsPage() {
+  const t = useT();
   const router = useRouter();
   const [session, setSession] = useState<SessionUser | null>(null);
   const [checking, setChecking] = useState(true);
@@ -152,7 +154,7 @@ export default function NotificationsPage() {
       const now = new Date().toISOString();
       setItems((prev) => prev.map((row) => ({ ...row, readAt: row.readAt ?? now })));
       setMeta((prev) => ({ ...prev, unread: 0 }));
-      setNotice("Toutes les notifications sont marquées comme lues.");
+      setNotice(t("notif.allRead"));
     } catch (err) {
       setError(err);
     } finally {
@@ -187,7 +189,7 @@ export default function NotificationsPage() {
         sms: next.sms,
       });
       setPrefs(saved);
-      setPrefsNotice("Préférences enregistrées.");
+      setPrefsNotice(t("notif.prefsSaved"));
     } catch (err) {
       setPrefsError(err);
     } finally {
@@ -200,7 +202,7 @@ export default function NotificationsPage() {
       <LuxShell>
         <div className="relative z-10 grid min-h-[70vh] place-items-center text-sm text-stone-400">
           <span className="flex items-center gap-3">
-            <Spinner /> Chargement de vos notifications…
+            <Spinner /> {t("notif.loading")}
           </span>
         </div>
       </LuxShell>
@@ -213,27 +215,27 @@ export default function NotificationsPage() {
     <LuxShell>
       <div className="relative z-10">
         <LuxTopBar
-          label="Espace membre"
+          label={t("notif.memberArea")}
           links={[
-            { href: "/account", label: "Mon espace" },
-            { href: "/messages", label: "Messagerie" },
-            { href: "/catalogue", label: "Catalogue" },
+            { href: "/account", label: t("notif.myAccount") },
+            { href: "/messages", label: t("notif.messaging") },
+            { href: "/offres", label: t("notif.catalogue") },
           ]}
         />
 
         <main className="mx-auto max-w-4xl px-5 py-10 md:px-8">
           <LuxPageHead
-            kicker="Centre de notifications"
-            title="Notifications"
+            kicker={t("notif.kicker")}
+            title={t("notif.title")}
             meta={
               unread > 0
-                ? `${unread.toLocaleString("fr-FR")} non lue${unread > 1 ? "s" : ""} sur ${meta.total.toLocaleString("fr-FR")}`
-                : `${meta.total.toLocaleString("fr-FR")} notification${meta.total > 1 ? "s" : ""}`
+                ? t(unread > 1 ? "notif.unreadMany" : "notif.unreadOne", { unread: unread.toLocaleString(t.intl), total: meta.total.toLocaleString(t.intl) })
+                : t(meta.total > 1 ? "notif.countMany" : "notif.countOne", { total: meta.total.toLocaleString(t.intl) })
             }
             action={
               <>
                 <Button variant="outline" loading={loading} onClick={reload}>
-                  Actualiser
+                  {t("notif.refresh")}
                 </Button>
                 <Button
                   variant="outline"
@@ -241,10 +243,10 @@ export default function NotificationsPage() {
                   disabled={unread === 0}
                   onClick={() => void markAll()}
                 >
-                  Tout marquer comme lu
+                  {t("notif.markAll")}
                 </Button>
                 <Button variant="ghost" onClick={() => void togglePrefs()} aria-expanded={prefsOpen}>
-                  Préférences
+                  {t("notif.prefs")}
                 </Button>
               </>
             }
@@ -274,11 +276,11 @@ export default function NotificationsPage() {
             />
           )}
 
-          <div className="mt-7" role="tablist" aria-label="Filtrer les notifications">
+          <div className="mt-7" role="tablist" aria-label={t("notif.filter")}>
             <div className="flex flex-wrap gap-1.5">
               {([
-                { value: "all", label: "Toutes" },
-                { value: "unread", label: "Non lues" },
+                { value: "all", label: t("notif.all") },
+                { value: "unread", label: t("notif.unread") },
               ] as const).map((option) => {
                 const active = option.value === tab;
                 return (
@@ -307,15 +309,15 @@ export default function NotificationsPage() {
           <div className="mt-4 overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#101825]/80">
             {loading ? (
               <p className="flex items-center gap-3 p-6 text-sm text-stone-400">
-                <Spinner /> Chargement des notifications…
+                <Spinner /> {t("notif.loadingList")}
               </p>
             ) : error !== null && items.length === 0 ? (
               <p className="p-6 text-sm text-stone-400">{errorMessage(error)}</p>
             ) : items.length === 0 ? (
               <p className="p-6 text-sm text-stone-400">
                 {tab === "unread"
-                  ? "Aucune notification non lue — vous êtes à jour."
-                  : "Aucune notification pour le moment."}
+                  ? t("notif.noneUnread")
+                  : t("notif.none")}
               </p>
             ) : (
               <ul className="divide-y divide-white/[0.06]">
@@ -401,6 +403,7 @@ function PreferencesPanel({
   saving: boolean;
   onSave: (prefs: NotificationPreferences) => Promise<void>;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState<NotificationPreferences | null>(prefs);
 
   useEffect(() => {
@@ -412,17 +415,17 @@ function PreferencesPanel({
 
   return (
     <section
-      aria-label="Préférences de notifications"
+      aria-label={t("notif.prefsLabel")}
       className="lux-glass mt-6 rounded-[24px] p-6"
     >
-      <p className="lux-kicker">Préférences</p>
+      <p className="lux-kicker">{t("notif.prefs")}</p>
       <h2 className="lux-serif mt-2 text-[22px] font-semibold text-stone-50">
-        Canaux de notification
+        {t("notif.channels")}
       </h2>
 
       {loading && !value && (
         <p className="mt-4 flex items-center gap-3 text-sm text-stone-400">
-          <Spinner /> Chargement des préférences…
+          <Spinner /> {t("notif.prefsLoading")}
         </p>
       )}
 
@@ -442,33 +445,32 @@ function PreferencesPanel({
         <>
           <div className="mt-5 space-y-3">
             <p className="text-xs leading-relaxed text-stone-400">
-              Les notifications critiques restent toujours affichées même si le centre est
-              désactivé.
+              {t("notif.critical")}
             </p>
             <Toggle
-              label="En application"
-              hint="Afficher les notifications dans le centre et la cloche du site."
+              label={t("notif.inApp")}
+              hint={t("notif.inAppHint")}
               checked={Boolean(value.inApp)}
               disabled={saving}
               onChange={(checked) => setDraft({ ...value, inApp: checked })}
             />
             <Toggle
-              label="Push"
-              hint="Notifications push (architecture prête)."
+              label={t("notif.push")}
+              hint={t("notif.pushHint")}
               checked={Boolean(value.push)}
               disabled={saving}
               onChange={(checked) => setDraft({ ...value, push: checked })}
             />
             <Toggle
-              label="E-mail"
-              hint="Événements importants envoyés par e-mail."
+              label={t("notif.email")}
+              hint={t("notif.emailHint")}
               checked={Boolean(value.email)}
               disabled={saving}
               onChange={(checked) => setDraft({ ...value, email: checked })}
             />
             <Toggle
-              label="SMS"
-              hint="Alertes par SMS pour les opérations sensibles."
+              label={t("notif.sms")}
+              hint={t("notif.smsHint")}
               checked={Boolean(value.sms)}
               disabled={saving}
               onChange={(checked) => setDraft({ ...value, sms: checked })}
@@ -478,11 +480,11 @@ function PreferencesPanel({
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             {value.isDefault && (
               <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">
-                Valeurs par défaut du compte
+                {t("notif.defaults")}
               </span>
             )}
             <Button loading={saving} onClick={() => draft && void onSave(draft)}>
-              Enregistrer
+              {t("notif.save")}
             </Button>
           </div>
         </>

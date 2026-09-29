@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiClientError, request } from "@/lib/api";
+import { putFile } from "@/lib/upload";
+import { useT } from "@/lib/i18n";
+import { documentLocale, translate } from "@/lib/i18n-core";
 
 // ---------------------------------------------------------------------------
 // Médias publics d'une offre (captures, vidéos). Envoi direct vers le bucket
@@ -23,32 +26,12 @@ type Upload = { name: string; progress: number; error?: string };
 
 const ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
 
-function csrfHeader(): Record<string, string> {
-  const m = document.cookie.match(/(?:^|;\s*)md_csrf=([^;]+)/);
-  return m?.[1] ? { "x-csrf-token": decodeURIComponent(m[1]) } : {};
-}
-
 function mb(bytes: number) {
-  return `${Math.round(bytes / 1024 / 1024)} Mo`;
-}
-
-// PUT avec progression. Le jeton CSRF ne part que vers notre propre API
-// (envoi local de développement), jamais vers R2.
-function putFile(url: string, file: File, headers: Record<string, string>, onProgress: (p: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    const sameOrigin = url.startsWith("/");
-    if (sameOrigin) xhr.withCredentials = true;
-    for (const [k, v] of Object.entries({ ...headers, ...(sameOrigin ? csrfHeader() : {}) })) xhr.setRequestHeader(k, v);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Envoi refusé (${xhr.status})`)));
-    xhr.onerror = () => reject(new Error("Connexion interrompue pendant l’envoi."));
-    xhr.send(file);
-  });
+  return translate(documentLocale(), "media.mb", { n: Math.round(bytes / 1024 / 1024) });
 }
 
 export function MediaManager({ productId }: { productId: string }) {
+  const t = useT();
   const [items, setItems] = useState<Media[]>([]);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
@@ -62,7 +45,7 @@ export function MediaManager({ productId }: { productId: string }) {
       setItems(data.items);
       setLimits(data.limits);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Médias indisponibles.");
+      setError(err instanceof ApiClientError ? err.message : t("media.unavailable"));
     }
   }, [productId]);
 
@@ -76,7 +59,7 @@ export function MediaManager({ productId }: { productId: string }) {
     try {
       const kind = file.type.startsWith("video/") ? "video" : "image";
       const max = kind === "video" ? limits?.videoBytes : limits?.imageBytes;
-      if (max && file.size > max) throw new Error(`Trop lourd : ${mb(max)} maximum.`);
+      if (max && file.size > max) throw new Error(t("media.tooBig", { max: mb(max) }));
       const ticket = await request<{ key: string; uploadUrl: string; headers: Record<string, string> }>(
         `/api/v1/products/${productId}/media/upload-url`,
         { method: "POST", body: JSON.stringify({ mimeType: file.type, sizeBytes: file.size }) },
@@ -88,7 +71,7 @@ export function MediaManager({ productId }: { productId: string }) {
       });
       update({ progress: 1 });
     } catch (err) {
-      update({ error: err instanceof ApiClientError || err instanceof Error ? err.message : "Envoi impossible." });
+      update({ error: err instanceof ApiClientError || err instanceof Error ? err.message : t("media.sendFailed") });
     }
   }
 
@@ -109,20 +92,20 @@ export function MediaManager({ productId }: { productId: string }) {
       await request(`/api/v1/products/${productId}/media/${id}/primary`, { method: "PATCH", body: JSON.stringify({}) });
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Action impossible.");
+      setError(err instanceof ApiClientError ? err.message : t("media.actionFailed"));
     } finally {
       setBusyId(null);
     }
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Supprimer ce média ? Il disparaîtra de la fiche publique.")) return;
+    if (!window.confirm(t("media.confirmDelete"))) return;
     setBusyId(id);
     try {
       await request(`/api/v1/products/${productId}/media/${id}`, { method: "DELETE", body: JSON.stringify({}) });
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Suppression impossible.");
+      setError(err instanceof ApiClientError ? err.message : t("media.deleteFailed"));
     } finally {
       setBusyId(null);
     }
@@ -138,11 +121,11 @@ export function MediaManager({ productId }: { productId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] text-[#8f7d77]">
           {limits
-            ? `${images}/${limits.image} images (${mb(limits.imageBytes)} max) · ${videos}/${limits.video} vidéos (${mb(limits.videoBytes)} max) · JPEG, PNG, WebP, MP4, WebM`
-            : "Chargement…"}
+            ? t("media.limits", { images, maxImages: limits.image, imageMax: mb(limits.imageBytes), videos, maxVideos: limits.video, videoMax: mb(limits.videoBytes) })
+            : t("media.loading")}
         </p>
         <label className={`dash-btn dash-btn-primary cursor-pointer ${full || pending.length > 0 ? "pointer-events-none opacity-55" : ""}`}>
-          Ajouter des fichiers
+          {t("media.add")}
           <input
             ref={inputRef}
             type="file"
@@ -168,7 +151,7 @@ export function MediaManager({ productId }: { productId: string }) {
               <div className="flex items-center justify-between gap-3">
                 <span className="truncate text-stone-200">{u.name}</span>
                 <span className={u.error ? "text-[#fca5a5]" : u.progress >= 1 ? "text-[#86efac]" : "text-[#b8a6a1]"}>
-                  {u.error ? "Échec" : u.progress >= 1 ? "Ajouté" : `${Math.round(u.progress * 100)} %`}
+                  {u.error ? t("media.failed") : u.progress >= 1 ? t("media.added") : `${Math.round(u.progress * 100)} %`}
                 </span>
               </div>
               {u.error ? (
@@ -185,7 +168,7 @@ export function MediaManager({ productId }: { productId: string }) {
 
       {items.length === 0 ? (
         <p className="mt-5 rounded-2xl border border-dashed border-[rgba(255,236,229,0.12)] p-6 text-center text-[13px] text-[#8f7d77]">
-          Aucune capture pour l’instant. Les offres avec des captures claires (équipe, pièces, division) se vendent mieux.
+          {t("media.empty")}
         </p>
       ) : (
         <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -199,7 +182,7 @@ export function MediaManager({ productId }: { productId: string }) {
                   <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover" />
                 )}
                 <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white">
-                  {m.isPrimary ? "Couverture" : m.kind === "video" ? "Vidéo" : mb(m.sizeBytes)}
+                  {m.isPrimary ? t("media.cover") : m.kind === "video" ? t("media.video") : mb(m.sizeBytes)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 p-2">

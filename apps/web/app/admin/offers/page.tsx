@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { request } from "@/lib/api";
 import { Button } from "@/components/ui";
 import { MediaManager } from "@/components/media/media-manager";
@@ -26,6 +27,7 @@ import {
 // Offres — port de la vue « offerings » de la console (modération du catalogue).
 // GET   /admin/offerings             { page, perPage, q }
 // PATCH /admin/offerings/:id/status  { status, reason }
+// Création et modification : offres MISTERDOU uniquement (/admin/offers/new).
 // ---------------------------------------------------------------------------
 
 type OfferingRow = {
@@ -84,9 +86,14 @@ export default function OffersPage() {
         title="Offres"
         meta="Catalogue et modération des offres"
         action={
-          <Button variant="outline" loading={list.refreshing} onClick={() => void list.refresh()}>
-            Actualiser
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" loading={list.refreshing} onClick={() => void list.refresh()}>
+              Actualiser
+            </Button>
+            <Link href="/admin/offers/new" className="dash-btn dash-btn-primary">
+              Nouvelle offre
+            </Link>
+          </div>
         }
       />
 
@@ -125,6 +132,11 @@ export default function OffersPage() {
                     </td>
                   ))}
                   <td className="flex gap-2 px-4 py-3.5">
+                    {row.sellerId === null && status !== "SOLD" && (
+                      <Link href={`/admin/offers/${row.id}`} className="whitespace-nowrap rounded-full border border-current/20 px-2.5 py-1 text-[12px] font-medium text-[#ff8a5c] transition hover:bg-white/[0.04]">
+                        Modifier
+                      </Link>
+                    )}
                     <RowAction label="Médias" tone="muted" onClick={() => setMedia(row)} />
                     <RowAction
                       label={status === "ACTIVE" ? "Désactiver" : "Publier"}

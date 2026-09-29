@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { ApiClientError, formatXof, request } from "@/lib/api";
 import { Alert, Button, Spinner, StatusBadge } from "@/components/ui";
 import { LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
+import { useT, type MessageKey } from "@/lib/i18n";
+import { refreshAccount } from "@/lib/account";
 
 type CheckoutState = {
   status: string;
@@ -14,6 +16,7 @@ type CheckoutState = {
   type: string;
   paymentNumber: string;
   paidAt: string | null;
+  orderId: string | null;
 };
 
 type CheckoutInit =
@@ -26,14 +29,16 @@ type Method = "wave" | "orange_money";
 
 const POLL_MS = 2500;
 
-const TYPE_LABELS: Record<string, string> = {
-  ORDER_PAYMENT: "Paiement de commande",
-  INITIAL_INSTALLMENT: "Première mensualité",
-  INSTALLMENT: "Mensualité",
-  REFUND: "Remboursement",
-};
+// Page de retour selon le motif du paiement.
+function backHref(state: { type: string; orderId: string | null }) {
+  if (state.type === "SELLER_REGISTRATION_FEE") return "/account/devenir-vendeur";
+  if (state.type === "FEATURED") return "/seller";
+  return state.orderId ? `/account/orders/${state.orderId}` : "/account/orders";
+}
+
 
 export default function CheckoutPage() {
+  const t = useT();
   const params = useParams<{ token: string }>();
   const token = params.token;
   const router = useRouter();
@@ -69,9 +74,9 @@ export default function CheckoutPage() {
       .catch((err: unknown) => {
         if (!alive) return;
         if (err instanceof ApiClientError) {
-          setLoadError(err.code === "NOT_FOUND" ? "Transaction introuvable ou expirée." : err.message);
+          setLoadError(err.code === "NOT_FOUND" ? t("pay.notFound") : err.message);
         } else {
-          setLoadError("Erreur réseau");
+          setLoadError(t("pay.network"));
         }
       })
       .finally(() => {
@@ -84,8 +89,14 @@ export default function CheckoutPage() {
 
   // Succès → redirection selon le motif du paiement (côté serveur uniquement).
   useEffect(() => {
+    // Retour sur la commande payée (identifiants, mensualités), sinon la liste.
     if (state?.status === "SUCCESS") {
-      router.replace("/account");
+      if (state.type === "SELLER_REGISTRATION_FEE") {
+        // Le compte vient de passer vendeur : le menu du profil doit le savoir.
+        void refreshAccount().then(() => router.replace("/seller"));
+        return;
+      }
+      router.replace(state.type === "FEATURED" ? "/seller" : backHref(state));
     }
   }, [state, router]);
 
@@ -136,7 +147,7 @@ export default function CheckoutPage() {
         }
         if (err.code === "CONFLICT") await refresh().catch(() => undefined);
       } else {
-        setActionError("Erreur réseau");
+        setActionError(t("pay.network"));
       }
     } finally {
       setBusyMethod(null);
@@ -147,7 +158,7 @@ export default function CheckoutPage() {
     return (
       <Main>
         <p className="flex items-center gap-2 text-sm text-muted">
-          <Spinner /> Chargement du paiement…
+          <Spinner /> {t("pay.loading")}
         </p>
       </Main>
     );
@@ -156,19 +167,19 @@ export default function CheckoutPage() {
   if (loadError) {
     return (
       <Main>
-        <p className="lux-kicker">Paiement</p>
-        <h1 className="mt-2">Paiement</h1>
+        <p className="lux-kicker">{t("pay.kicker")}</p>
+        <h1 className="mt-2">{t("pay.kicker")}</h1>
         <div className="mt-6">
-          <Alert tone="danger" title="Paiement indisponible">
+          <Alert tone="danger" title={t("pay.unavailable")}>
             {loadError}
           </Alert>
         </div>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-          <Link href="/account" className="lux-btn lux-btn-ghost lux-btn-sm">
-            Mon espace
+          <Link href="/account/orders" className="lux-btn lux-btn-ghost lux-btn-sm">
+            {t("pay.mySpace")}
           </Link>
           <Button variant="ghost" onClick={() => setAttempt((a) => a + 1)}>
-            Réessayer
+            {t("pay.retry")}
           </Button>
         </div>
       </Main>
@@ -177,29 +188,30 @@ export default function CheckoutPage() {
 
   if (!state) return null;
 
-  const typeLabel = TYPE_LABELS[state.type] ?? "Paiement";
+  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND", "SELLER_REGISTRATION_FEE"].includes(state.type)
+    ? t(`pay.type${state.type}` as MessageKey)
+    : t("pay.kicker");
 
   return (
     <Main>
-      <Link href="/account" className="mb-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400 transition-colors hover:text-[var(--lux-gold-light)]">
-        ← Mon espace
+      <Link href={backHref(state)} className="mb-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400 transition-colors hover:text-[var(--lux-gold-light)]">
+        {t("pay.back")}
       </Link>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="lux-kicker">Paiement</p>
+          <p className="lux-kicker">{t("pay.kicker")}</p>
           <h1 className="mt-2">{typeLabel}</h1>
         </div>
         <StatusBadge status={state.status} />
       </div>
 
       <div className="lux-glass mt-6 rounded-[24px] p-7">
-        <p className="lux-kicker">Montant à régler</p>
+        <p className="lux-kicker">{t("pay.amount")}</p>
         <p className="lux-serif mt-3 text-[42px] font-bold leading-none text-stone-50 tabular-nums">
           {formatXof(state.amount)}
         </p>
         <p className="mt-3 text-xs leading-relaxed text-stone-400">
-          Référence <span className="font-mono text-stone-200">{state.paymentNumber}</span> — la confirmation
-          arrive toujours du serveur, jamais de votre navigateur.
+          {t("pay.reference", { ref: state.paymentNumber })}
         </p>
       </div>
 
@@ -210,10 +222,10 @@ export default function CheckoutPage() {
       )}
       {needLogin && (
         <div className="mt-4">
-          <Alert tone="warning" title="Connexion requise">
-            Connectez-vous pour régler ce paiement, puis revenez sur cette page.{" "}
+          <Alert tone="warning" title={t("pay.loginTitle")}>
+            {t("pay.loginBody")}{" "}
             <Link href="/login" className="font-semibold text-brand underline">
-              Se connecter
+              {t("pay.login")}
             </Link>
           </Alert>
         </div>
@@ -221,10 +233,10 @@ export default function CheckoutPage() {
 
       {state.status === "PENDING" && (
         <div className="mt-6">
-          <p className="mb-3 text-sm text-muted">Choisissez votre canal de paiement :</p>
+          <p className="mb-3 text-sm text-muted">{t("pay.choose")}</p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button className="flex-1" onClick={() => start("wave")} loading={busyMethod === "wave"} disabled={busyMethod !== null}>
-              Payer avec Wave
+              {t("pay.wave")}
             </Button>
             <Button
               className="flex-1"
@@ -233,7 +245,7 @@ export default function CheckoutPage() {
               loading={busyMethod === "orange_money"}
               disabled={busyMethod !== null}
             >
-              Payer avec Orange Money
+              {t("pay.orange")}
             </Button>
           </div>
         </div>
@@ -242,36 +254,36 @@ export default function CheckoutPage() {
       {(state.status === "PROCESSING" || verifying) && (
         <div className="mt-6 rounded-2xl border border-brand/30 bg-brand/10 px-4 py-5 text-center" role="status">
           <Spinner className="mx-auto h-5 w-5 text-brand" />
-          <p className="mt-3 text-sm font-semibold">Paiement en cours de vérification…</p>
-          <p className="mt-1 text-xs text-muted">Ne fermez pas cette page, la confirmation arrive sous quelques instants.</p>
+          <p className="mt-3 text-sm font-semibold">{t("pay.verifying")}</p>
+          <p className="mt-1 text-xs text-muted">{t("pay.dontClose")}</p>
         </div>
       )}
 
       {state.status === "FAILED" && (
         <div className="mt-6">
-          <Alert tone="danger" title="Paiement échoué">
-            Le règlement n&apos;a pas abouti. Faites une nouvelle demande depuis votre espace.
+          <Alert tone="danger" title={t("pay.failedTitle")}>
+            {t("pay.failedBody")}
           </Alert>
         </div>
       )}
       {state.status === "CANCELLED" && (
         <div className="mt-6">
-          <Alert tone="warning" title="Paiement annulé">
-            Cette transaction est clôturée. Vous pouvez relancer une nouvelle demande.
+          <Alert tone="warning" title={t("pay.cancelledTitle")}>
+            {t("pay.cancelledBody")}
           </Alert>
         </div>
       )}
       {state.status === "REFUNDED" && (
         <div className="mt-6">
-          <Alert tone="info" title="Paiement remboursé">
-            Ce paiement a été remboursé. Les fonds suivent le canal utilisé à l&apos;origine.
+          <Alert tone="info" title={t("pay.refundedTitle")}>
+            {t("pay.refundedBody")}
           </Alert>
         </div>
       )}
       {state.status === "SUCCESS" && (
         <div className="mt-6">
-          <Alert tone="success" title="Paiement confirmé">
-            Redirection vers votre espace…
+          <Alert tone="success" title={t("pay.successTitle")}>
+            {t("pay.successBody")}
           </Alert>
         </div>
       )}
@@ -280,13 +292,14 @@ export default function CheckoutPage() {
 }
 
 function Main({ children }: { children: React.ReactNode }) {
+  const t = useT();
   return (
     <LuxShell>
       <LuxTopBar
-        label="Paiement sécurisé"
+        label={t("pay.secure")}
         links={[
-          { href: "/account", label: "Mon espace" },
-          { href: "/catalogue", label: "Catalogue" },
+          { href: "/account/orders", label: t("pay.mySpace") },
+          { href: "/offres", label: t("pay.catalogue") },
         ]}
       />
       <main className="relative z-10 mx-auto max-w-2xl px-5 pb-20 pt-12 md:px-8">{children}</main>

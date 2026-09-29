@@ -14,11 +14,6 @@ export async function getIntSetting(key: string, fallback: number): Promise<numb
   return typeof v === "number" ? v : fallback;
 }
 
-export async function getStringSetting(key: string, fallback: string): Promise<string> {
-  const v = await getSetting(key);
-  return typeof v === "string" ? v : fallback;
-}
-
 // Vue publique : uniquement les paramètres nécessaires à l'affichage du catalogue.
 // UNE seule requête (les trois clés sont lues en lot) : /api/v1/meta et /api/seed
 // sont appelés à chaque affichage de la landing.

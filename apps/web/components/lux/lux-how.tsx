@@ -5,38 +5,40 @@ import { useRef } from "react";
 import Link from "next/link";
 import { Reveal, SectionLabel, IgniteHeading } from "./lux-fx";
 import { IconArrowRight, IconCheck, IconLock, IconCard, IconPhone } from "./lux-icons";
+import { useT, type MessageKey } from "@/lib/i18n";
 
-type Step = { icon: typeof IconPhone; n: string; title: string; body: string };
+type Step = { icon: typeof IconPhone; n: string; title: MessageKey; body: MessageKey };
 
 const STEPS: Step[] = [
   {
     icon: IconPhone,
     n: "01",
-    title: "Inscription",
-    body: "Créez votre compte par e-mail ou avec Google, en moins d’une minute.",
+    title: "how.s1Title",
+    body: "how.s1Body",
   },
   {
     icon: IconCheck,
     n: "02",
-    title: "Vérification d'identité",
-    body: "Document d'identité et localisation vérifiés par notre équipe en quelques heures. Rien d'aléatoire.",
+    title: "how.s2Title",
+    body: "how.s2Body",
   },
   {
     icon: IconCard,
     n: "03",
-    title: "Paiement Wave / Orange Money",
-    body: "Réglez comptant ou par mensualités. La confirmation vient du serveur, toujours. Jamais de votre navigateur.",
+    title: "how.s3Title",
+    body: "how.s3Body",
   },
   {
     icon: IconLock,
     n: "04",
-    title: "Réception sécurisée",
-    body: "Les identifiants, chiffrés de bout en bout, arrivent sur votre espace uniquement après paiement confirmé.",
+    title: "how.s4Title",
+    body: "how.s4Body",
   },
 ];
 
 // Une étape s'allume quand le fil de braise l'atteint (et s'éteint si l'on remonte).
 function HowStep({ step, progress, at, reduce }: { step: Step; progress: MotionValue<number>; at: number; reduce: boolean }) {
+  const t = useT();
   const lit = useTransform(progress, [Math.max(0, at - 0.06), Math.min(1, at + 0.02)], [0, 1]);
   const dim = useTransform(lit, [0, 1], [0.45, 1]);
   const ringScale = useTransform(lit, [0, 1], [0.9, 1]);
@@ -61,14 +63,15 @@ function HowStep({ step, progress, at, reduce }: { step: Step; progress: MotionV
         <div className="lux-serif text-[40px] font-semibold leading-none text-transparent [-webkit-text-stroke:1px_rgba(255,106,50,0.6)] md:mt-6">
           {step.n}
         </div>
-        <h3 className="lux-serif mt-3 text-[20px] font-semibold text-stone-100">{step.title}</h3>
-        <p className="mt-2.5 max-w-xs text-[13.5px] leading-relaxed text-stone-400">{step.body}</p>
+        <h3 className="lux-serif mt-3 text-[20px] font-semibold text-stone-100">{t(step.title)}</h3>
+        <p className="mt-2.5 max-w-xs text-[13.5px] leading-relaxed text-stone-400">{t(step.body)}</p>
       </motion.div>
     </div>
   );
 }
 
 export function LuxHow() {
+  const t = useT();
   const reduce = useReducedMotion();
   const trackRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
@@ -81,11 +84,11 @@ export function LuxHow() {
     <section id="parcours" className="relative px-5 py-24 md:px-8 md:py-32">
       <div className="mx-auto max-w-6xl">
         <Reveal>
-          <SectionLabel>Comment ça marche</SectionLabel>
+          <SectionLabel>{t("how.label")}</SectionLabel>
         </Reveal>
         <IgniteHeading
           className="lux-h2 mt-5 max-w-2xl text-stone-100"
-          parts={[{ text: "Quatre étapes." }, { text: " Zéro compromis.", accent: true }]}
+          parts={[{ text: t("how.h1") }, { text: t("how.h2"), accent: true }]}
         />
 
         <div ref={trackRef} className="relative mt-16">
@@ -110,7 +113,7 @@ export function LuxHow() {
               duplicata — deux versions du même texte divergent toujours. */}
           <Reveal delay={0.1} className="mt-14 flex justify-center">
             <Link href="/comment-ca-marche" className="lux-btn lux-btn-ghost group/btn" style={{ borderRadius: 18 }}>
-              Voir le parcours en détail
+              {t("how.details")}
               <IconArrowRight
                 className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1"
                 aria-hidden

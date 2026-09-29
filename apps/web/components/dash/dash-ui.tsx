@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNod
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { IconClose, IconLogout, IconMenu, IconSearch } from "./dash-icons";
+import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Kit des tableaux de bord (admin + vendeur).
@@ -29,6 +30,7 @@ function initials(name: string) {
 
 /** Recherche rapide : filtre la navigation, Entrée ouvre le premier résultat. */
 function QuickJump({ items }: { items: DashNavItem[] }) {
+  const t = useT();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -59,8 +61,8 @@ function QuickJump({ items }: { items: DashNavItem[] }) {
           if (event.key === "Enter" && matches[0]) go(matches[0].href);
           if (event.key === "Escape") setOpen(false);
         }}
-        placeholder="Aller à une page…"
-        aria-label="Aller à une page"
+        placeholder={t("dash.search")}
+        aria-label={t("dash.searchLabel")}
         className="dash-input"
       />
       {open && matches.length > 0 && (
@@ -101,6 +103,7 @@ export function DashShell({
   loggingOut?: boolean;
   children: ReactNode;
 }) {
+  const t = useT();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
 
@@ -146,7 +149,7 @@ export function DashShell({
 
       <button type="button" onClick={onLogout} disabled={loggingOut} className="dash-nav-link mt-4 w-full disabled:opacity-60">
         <IconLogout size={17} />
-        {loggingOut ? "Déconnexion…" : "Se déconnecter"}
+        {loggingOut ? t("dash.loggingOut") : t("dash.logout")}
       </button>
     </div>
   );
@@ -159,10 +162,10 @@ export function DashShell({
         </aside>
 
         {drawer && (
-          <div className="fixed inset-0 z-[80] lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
-            <button type="button" aria-label="Fermer le menu" className="absolute inset-0 bg-black/70" onClick={() => setDrawer(false)} />
+          <div className="fixed inset-0 z-[80] lg:hidden" role="dialog" aria-modal="true" aria-label={t("dash.nav")}>
+            <button type="button" aria-label={t("dash.closeMenu")} className="absolute inset-0 bg-black/70" onClick={() => setDrawer(false)} />
             <aside className="dash-frame absolute inset-y-0 left-0 w-[280px] px-4 py-6">
-              <button type="button" onClick={() => setDrawer(false)} aria-label="Fermer le menu" className="dash-btn dash-btn-ghost dash-btn-round absolute right-3 top-4 !min-h-[36px] !w-[36px]">
+              <button type="button" onClick={() => setDrawer(false)} aria-label={t("dash.closeMenu")} className="dash-btn dash-btn-ghost dash-btn-round absolute right-3 top-4 !min-h-[36px] !w-[36px]">
                 <IconClose size={16} />
               </button>
               {sidebar}
@@ -172,7 +175,7 @@ export function DashShell({
 
         <div className="min-w-0">
           <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-[rgba(255,236,229,0.06)] bg-[#050303]/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-            <button type="button" onClick={() => setDrawer(true)} aria-label="Ouvrir le menu" className="dash-btn dash-btn-ghost dash-btn-round lg:hidden">
+            <button type="button" onClick={() => setDrawer(true)} aria-label={t("dash.openMenu")} className="dash-btn dash-btn-ghost dash-btn-round lg:hidden">
               <IconMenu size={18} />
             </button>
             <QuickJump items={nav} />

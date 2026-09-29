@@ -41,10 +41,13 @@ export async function loginAdmin(input: { email: string; password: string; totpC
 
   const setupRequired = !user.twoFactorEnabled;
   if (!setupRequired) {
+    // Mot de passe juste : on dit clairement ce qui manque (le code), au lieu
+    // d'un « identifiants invalides » qui faisait croire à un mauvais mot de passe.
+    if (!input.totpCode) throw badRequest("ACTION_REQUIRES_2FA", "Entrez le code à 6 chiffres de votre application d’authentification.");
     const secret = await getTotpSecret(user.id);
-    if (!secret || !input.totpCode || !verifyTotp(secret, input.totpCode)) {
+    if (!secret || !verifyTotp(secret, input.totpCode)) {
       await logAudit({ actorId: user.id, actorRole: "ADMIN", ip: ctx.ip, userAgent: ctx.userAgent, action: "ADMIN_TOTP_FAILED", resourceType: "User", resourceId: user.id, severity: "WARNING" });
-      throw badRequest("INVALID_CREDENTIALS", INVALID_LOGIN);
+      throw badRequest("OTP_INVALID", "Code d’authentification incorrect ou expiré. Utilisez le code affiché en ce moment dans l’application.");
     }
   }
 

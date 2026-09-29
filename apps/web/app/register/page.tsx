@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { request, ApiClientError } from "@/lib/api";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 import { GoogleButton } from "@/components/auth/google-button";
+import { homeForRole, setGreeting } from "@/lib/greeting";
+import { refreshAccount } from "@/lib/account";
 
 export default function RegisterPage() {
+  const t = useT();
   const router = useRouter();
   const reduce = useReducedMotion();
   const [firstName, setFirstName] = useState("");
@@ -18,7 +22,6 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,51 +32,22 @@ export default function RegisterPage() {
         method: "POST",
         body: JSON.stringify({ firstName, email, password }),
       });
-      setDone(true);
-      setTimeout(() => router.push("/account"), 1400);
+      setGreeting({ kind: "welcome", firstName });
+      await refreshAccount();
+      router.push(homeForRole("CLIENT"));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Erreur réseau");
+      setError(err instanceof ApiClientError ? err.message : t("auth.network"));
       setLoading(false);
     }
   }
 
   const shake = !reduce && error ? { x: [0, -6, 6, -4, 4, 0] } : {};
 
-  if (done) {
-    return (
-      <AuthShell
-        kicker="Nouvelle adhésion"
-        title="Bienvenue."
-        lead="Votre compte est créé et votre espace vous attend."
-      >
-        <motion.div
-          initial={reduce ? {} : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-start gap-4 rounded-2xl border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.08)] p-5"
-          role="status"
-        >
-          <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[var(--lux-gold-gradient)]">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a0503" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 12.5l5.5 5.5L20 7" />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-[var(--lux-gold-light)]">Compte créé</p>
-            <p className="mt-1 text-sm leading-relaxed text-[var(--lux-muted)]">
-              Redirection vers votre espace…
-            </p>
-          </div>
-        </motion.div>
-      </AuthShell>
-    );
-  }
-
   return (
     <AuthShell
-      kicker="Nouvelle adhésion"
-      title="Créer un compte"
-      lead="Quelques secondes suffisent — l'identité se vérifie au moment de l'achat."
+      kicker={t("auth.newMember")}
+      title={t("auth.register")}
+      lead={t("auth.registerLead")}
     >
       <div className="space-y-4">
         <GoogleButton
@@ -93,7 +67,7 @@ export default function RegisterPage() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
-            <span className={fieldLabelClass}>Prénom</span>
+            <span className={fieldLabelClass}>{t("auth.firstName")}</span>
             <input
               required
               autoComplete="given-name"
@@ -101,12 +75,12 @@ export default function RegisterPage() {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               className={inputClass}
-              placeholder="Votre prénom"
+              placeholder={t("auth.firstNamePlaceholder")}
             />
           </label>
 
           <label className="block">
-            <span className={fieldLabelClass}>E-mail</span>
+            <span className={fieldLabelClass}>{t("auth.email")}</span>
             <input
               required
               type="email"
@@ -119,7 +93,7 @@ export default function RegisterPage() {
           </label>
 
           <label className="block">
-            <span className={fieldLabelClass}>Mot de passe</span>
+            <span className={fieldLabelClass}>{t("auth.password")}</span>
             <span className="relative block">
               <input
                 required
@@ -129,12 +103,12 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={`${inputClass} pr-12`}
-                placeholder="8 caractères minimum"
+                placeholder={t("auth.passwordPlaceholder")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--lux-muted)] transition hover:text-[var(--lux-gold-light)] focus-visible:outline-2 focus-visible:outline-[rgba(232,71,36,0.5)]"
               >
                 {showPassword ? (
@@ -178,14 +152,14 @@ export default function RegisterPage() {
             className="lux-btn lux-btn-gold w-full disabled:cursor-not-allowed disabled:opacity-60"
             aria-busy={loading}
           >
-            {loading ? "Création…" : "Créer mon compte"}
+            {loading ? t("auth.creating") : t("auth.createAccount")}
           </button>
         </form>
 
         <p className="pt-1 text-center text-sm text-[var(--lux-muted)]">
-          Déjà membre ?{" "}
+          {t("auth.alreadyMember")}{" "}
           <Link href="/login" className="text-[var(--lux-gold-light)] transition hover:underline">
-            Connexion
+            {t("nav.login")}
           </Link>
         </p>
       </div>

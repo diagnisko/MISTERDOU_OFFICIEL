@@ -12,7 +12,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { prisma } from "@misterdou/db";
 import type { PaymentMode, ProductStatus, RoleName, SellerStatus, UserStatus } from "@misterdou/db";
 import { ApiError } from "../src/lib/errors.js";
-import { hashPassword, hashPasswordWith } from "../src/lib/password.js";
+import { hashPasswordWith } from "../src/lib/password.js";
 import { registerErrorHandler } from "../src/lib/error-handler.js";
 import { createSession, findActiveSession, type ActiveSession } from "../src/lib/sessions.js";
 import { deleteFile, encryptString, putFile } from "../src/lib/storage.js";
@@ -103,6 +103,10 @@ async function sweepForeignNotifications(): Promise<void> {
 
 /** Supprime dans l'ordre FK toutes les lignes créées par le fichier courant. */
 export async function cleanup(t: Tracked): Promise<void> {
+  // Discussions produit (les messages suivent le fil ; un auteur ne peut pas partir avant).
+  await prisma.productThread.deleteMany({
+    where: { OR: [{ clientId: { in: t.userIds } }, { productId: { in: t.productIds } }, { messages: { some: { authorId: { in: t.userIds } } } }] },
+  });
   // Notifications + journal (avant les entités : AuditLog.userId est SET NULL).
   await prisma.notification.deleteMany({ where: { userId: { in: t.userIds } } });
   await sweepForeignNotifications();
@@ -136,6 +140,14 @@ export async function cleanup(t: Tracked): Promise<void> {
   });
   await prisma.installmentPlan.deleteMany({
     where: { OR: [{ id: { in: t.planIds } }, { orderId: { in: ourOrderIds } }] },
+  });
+
+  // Part vendeur d'une vente (Commission → OrderItem, PendingCredit → Order).
+  await prisma.commission.deleteMany({
+    where: { OR: [{ sellerId: { in: t.sellerIds } }, { orderItem: { orderId: { in: ourOrderIds } } }] },
+  });
+  await prisma.pendingCredit.deleteMany({
+    where: { OR: [{ sellerId: { in: t.sellerIds } }, { orderId: { in: ourOrderIds } }] },
   });
 
   // Retraits (sellerId + requestedById RESTRICT).

@@ -22,6 +22,7 @@ function authGuard(req: FastifyRequest, _reply: unknown, done: (err?: Error) => 
 }
 
 const paramsSchema = z.object({ id: z.string().uuid() });
+const payBody = z.object({ months: z.number().int().min(1).max(24).default(1) });
 
 export async function registerInstallmentRoutes(app: FastifyInstance) {
   // --- Échéancier d'une commande (le client, propriétaire de la commande) ---
@@ -64,7 +65,7 @@ export async function registerInstallmentRoutes(app: FastifyInstance) {
       preHandler: authGuard,
       schema: {
         tags: ["Installments"],
-        summary: "Régler la prochaine mensualité (retourne le token de paiement)",
+        summary: "Régler une ou plusieurs mensualités d'avance (retourne le token de paiement)",
         security: [{ bearerAuth: [] }],
       },
       config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
@@ -72,7 +73,8 @@ export async function registerInstallmentRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const ctx = authCtx(request);
       const { id } = paramsSchema.parse(request.params);
-      const next = await createNextInstallmentPayment(id, ctx);
+      const { months } = payBody.parse(request.body ?? {});
+      const next = await createNextInstallmentPayment(id, ctx, months);
       await logAudit({
         actorId: ctx.actorId,
         actorRole: ctx.actorRole,

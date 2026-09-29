@@ -13,6 +13,7 @@ import { Magnetic, Reveal, cx } from "./lux-fx";
 import { IconShield } from "./lux-icons";
 import { formatInt, formatRating } from "@/lib/lux";
 import { useLux } from "./lux-data";
+import { useT } from "@/lib/i18n";
 import { HERO_FRAME_COUNT, LuxHeroScrollFrames } from "./lux-hero-scroll";
 
 const EMBERS = [
@@ -42,6 +43,7 @@ function StatSkeleton() {
 //   2. le titre s'efface, bandes cinéma, la séquence déroule le logo ;
 //   3. le logo se pose (flash d'ignition), les chiffres réels montent.
 export function LuxHero() {
+  const t = useT();
   const trackRef = useRef<HTMLElement>(null);
   const { seed, status } = useLux();
   const reduce = useReducedMotion() ?? false;
@@ -69,11 +71,11 @@ export function LuxHero() {
   const stats = useMemo(() => {
     const s = seed?.stats;
     return [
-      { key: "stock", label: "Comptes en stock", value: s ? formatInt(s.productsInStock) : null },
-      { key: "sold", label: "Comptes livrés", value: s ? formatInt(s.productsSold) : null },
-      { key: "rating", label: "Note moyenne", value: s ? formatRating(s.avgRating) : null },
+      { key: "stock", label: t("home.stock"), value: s ? formatInt(s.productsInStock) : null },
+      { key: "sold", label: t("home.sold"), value: s ? formatInt(s.productsSold) : null },
+      { key: "rating", label: t("home.rating"), value: s ? formatRating(s.avgRating) : null },
     ];
-  }, [seed]);
+  }, [seed, t]);
 
   const statsBand = (
     <div className="lux-glass w-full rounded-[26px] px-3">
@@ -87,7 +89,7 @@ export function LuxHero() {
               {loading ? (
                 <StatSkeleton />
               ) : failed ? (
-                <div className="text-[22px] text-stone-400" aria-label="Indisponible">—</div>
+                <div className="text-[22px] text-stone-400" aria-label={t("home.unavailable")}>—</div>
               ) : (
                 <div>
                   <div className="lux-serif text-[26px] font-semibold leading-none md:text-[40px]">
@@ -111,30 +113,29 @@ export function LuxHero() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--lux-gold)] opacity-70" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--lux-gold)]" />
           </span>
-          Marché sûr · Édition limitée
+          {t("home.chip")}
         </span>
       </Reveal>
       <Reveal delay={0.08}>
         <h1 className="lux-h1 lux-hero-title mt-8 text-stone-50">
-          Le pouvoir, <em className="lux-gold-text">signé</em>.
+          {t("home.title")}<em className="lux-gold-text">{t("home.titleAccent")}</em>{t("home.titleEnd")}
         </h1>
       </Reveal>
       <Reveal delay={0.16}>
         <p className="mt-6 max-w-xl text-balance text-[15px] leading-relaxed text-stone-300 md:text-lg">
-          Comptes eFootball certifiés, livrés après paiement confirmé par le serveur. Identité vérifiée,
-          paiement échelonné possible.
+          {t("home.lead")}
         </p>
       </Reveal>
       <Reveal delay={0.24}>
         <div className="mt-10 flex flex-col items-center gap-3.5 sm:flex-row">
           <Magnetic strength={0.35}>
             <Link href="/offres" className="lux-btn lux-btn-gold group/btn">
-              Explorer les comptes
+              {t("home.explore")}
             </Link>
           </Magnetic>
           <Magnetic strength={0.35}>
             <Link href="/register" className="lux-btn lux-btn-ghost group/btn">
-              Créer mon compte
+              {t("home.createAccount")}
             </Link>
           </Magnetic>
         </div>
@@ -142,7 +143,7 @@ export function LuxHero() {
       <Reveal delay={0.3}>
         <div className="mt-8 flex items-center gap-3 text-[12px] text-stone-400">
           <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
-          <span>Wave et Orange Money · vérification d’identité obligatoire</span>
+          <span>{t("home.trustLine")}</span>
         </div>
       </Reveal>
     </>
@@ -151,7 +152,7 @@ export function LuxHero() {
   // Mouvement réduit : pas d'épinglage, dernière frame fixe, tout visible.
   if (reduce) {
     return (
-      <section id="top" className="relative flex min-h-[100svh] flex-col overflow-hidden">
+      <section id="top" data-surface="dark" className="relative flex min-h-[100svh] flex-col overflow-hidden">
         <LuxHeroScrollFrames frame={frame} staticFrame={HERO_FRAME_COUNT - 1} className="absolute inset-0 opacity-50" />
         <div className="lux-hero-vignette pointer-events-none absolute inset-0" aria-hidden />
         <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-5 pb-10 pt-32 text-center md:px-8">
@@ -163,7 +164,7 @@ export function LuxHero() {
   }
 
   return (
-    <section id="top" ref={trackRef} className="relative h-[270vh] md:h-[340vh]">
+    <section id="top" data-surface="dark" ref={trackRef} className="relative h-[270vh] md:h-[340vh]">
       <div className="sticky top-0 h-[100svh] overflow-hidden">
         {/* Œuvre : séquence scrubée + recul de caméra */}
         <motion.div aria-hidden className="absolute inset-0 will-change-transform" style={{ scale: artScale, opacity: artOpacity }}>
@@ -217,7 +218,7 @@ export function LuxHero() {
           className={cx("pointer-events-none absolute bottom-8 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2 text-[11px] text-stone-400")}
           aria-hidden
         >
-          <span>Faites défiler</span>
+          <span>{t("home.scroll")}</span>
           <span className="lux-cue-line" />
         </motion.div>
       </div>

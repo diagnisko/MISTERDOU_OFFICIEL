@@ -47,6 +47,7 @@ model User {
   twoFactorEnabled                                   Boolean                 @default(false)
   lastLoginAt                                        DateTime?
   lastLoginIp                                        String?
+  avatarKey                                          String?
   deletedAt                                          DateTime?
   createdAt                                          DateTime                @default(now())
   updatedAt                                          DateTime                @updatedAt
@@ -57,6 +58,8 @@ model User {
   identityVerifications                              IdentityVerification[]  @relation("VerificationSubject")
   locations                                          Location[]
   managerProfile                                     ManagerProfile?
+  productThreads                                     ProductThread[]         @relation("ProductThreadClient")
+  productMessages                                    ProductMessage[]        @relation("ProductMessageAuthor")
   message                                            Message[]
   notifications                                      Notification[]
   notificationPreference                             NotificationPreference?
@@ -204,6 +207,7 @@ model Product {
   images                 ProductImage[]
   reviews                ProductReview[]
   promotions             Promotion[]
+  threads                ProductThread[]
 
   @@index([status, publishedAt(sort: Desc), id])
   @@index([status, basePrice])
@@ -278,24 +282,28 @@ model Promotion {
 }
 
 model Order {
-  id              String           @id @default(uuid())
-  orderNumber     String           @unique
+  id              String                    @id @default(uuid())
+  orderNumber     String                    @unique
   buyerId         String
-  status          OrderStatus      @default(PENDING_PAYMENT)
-  paymentMode     PaymentMode      @default(ONE_TIME)
+  status          OrderStatus               @default(PENDING_PAYMENT)
+  paymentMode     PaymentMode               @default(ONE_TIME)
   totalAmount     Int
-  discountAmount  Int              @default(0)
-  currency        String           @default("XOF")
+  discountAmount  Int                       @default(0)
+  currency        String                    @default("XOF")
   promotionId     String?
   deliveredAt     DateTime?
+  // Réception confirmée par le client (« Reçu ») : libère les fonds du vendeur.
+  receivedAt      DateTime?
   buyerMessage    String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
   installmentPlan InstallmentPlan?
-  buyer           User             @relation("OrderBuyer", fields: [buyerId], references: [id])
+  buyer           User                      @relation("OrderBuyer", fields: [buyerId], references: [id])
   items           OrderItem[]
   payments        Payment[]
   supportTicket   SupportTicket[]
+  pendingCredits  PendingCredit[]
+  codeRequests    VerificationCodeRequest[]
 
   @@index([buyerId, createdAt(sort: Desc)])
   // Phase 12 : /admin/plans trie les échéanciers par Order.createdAt DESC
@@ -327,28 +335,28 @@ model OrderItem {
 }
 
 model Payment {
-  id                String          @id @default(uuid())
-  paymentNumber     String          @unique
+  id                String            @id @default(uuid())
+  paymentNumber     String            @unique
   userId            String
   orderId           String?
   type              PaymentType
   amount            Int
-  currency          String          @default("XOF")
-  provider          PaymentProvider @default(PAYTECH)
-  providerReference String?         @unique
-  transactionToken  String?         @unique
-  status            PaymentStatus   @default(PENDING)
+  currency          String            @default("XOF")
+  provider          PaymentProvider   @default(PAYTECH)
+  providerReference String?           @unique
+  transactionToken  String?           @unique
+  status            PaymentStatus     @default(PENDING)
   failureReason     String?
   webhookReceivedAt DateTime?
   verifiedAt        DateTime?
   installmentPlanId String?
   installmentId     String?
   paidAt            DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   installments      Installment?
-  order             Order?          @relation(fields: [orderId], references: [id])
-  user              User            @relation(fields: [userId], references: [id])
+  order             Order?            @relation(fields: [orderId], references: [id])
+  user              User              @relation(fields: [userId], references: [id])
   featuredPurchases FeaturedProduct[]
 
   @@index([userId])
@@ -496,7 +504,7 @@ model Commission {
   status           CommissionStatus @default(RECORDED)
   releasedAt       DateTime?
   createdAt        DateTime         @default(now())
-  updatedAt        DateTime @updatedAt
+  updatedAt        DateTime         @updatedAt
   orderItem        OrderItem        @relation(fields: [orderItemId], references: [id])
   seller           Seller           @relation(fields: [sellerId], references: [id])
 
@@ -509,7 +517,7 @@ model Conversation {
   participantAUserId                         String
   participantBUserId                         String
   createdAt                                  DateTime         @default(now())
-  updatedAt                                  DateTime @updatedAt
+  updatedAt                                  DateTime         @updatedAt
   User_Conversation_participantAUserIdToUser User             @relation("Conversation_participantAUserIdToUser", fields: [participantAUserId], references: [id])
   User_Conversation_participantBUserIdToUser User             @relation("Conversation_participantBUserIdToUser", fields: [participantBUserId], references: [id])
   message                                    Message[]
@@ -534,8 +542,8 @@ model FeaturedProduct {
   expiresAt     DateTime
   status        FeaturedStatus @default(ACTIVE)
   paymentId     String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   product       Product        @relation(fields: [productId], references: [id])
   seller        Seller?        @relation(fields: [sellerId], references: [id])
   payment       Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
@@ -552,7 +560,7 @@ model ManagerProfile {
   permissions  ManagerPermission[]
   createdById  String?
   createdAt    DateTime            @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime            @updatedAt
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   managerShift ManagerShift[]
 }
@@ -593,15 +601,43 @@ model Message {
 model PendingCredit {
   id         String    @id @default(uuid())
   sellerId   String
+  orderId    String?
   amount     Int
   reference  String?
   creditedAt DateTime  @default(now())
   releasedAt DateTime?
   createdAt  DateTime  @default(now())
   seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  order      Order?    @relation(fields: [orderId], references: [id])
 
   @@index([creditedAt])
   @@index([sellerId, releasedAt])
+  @@index([orderId])
+}
+
+// Demande de code de connexion au jeu pour un compte acheté. Le code est
+// fourni par l'équipe ou le vendeur, chiffré au repos, valable peu de temps.
+model VerificationCodeRequest {
+  id            String                 @id @default(uuid())
+  orderId       String
+  requesterId   String
+  status        VerificationCodeStatus @default(PENDING)
+  codeEncrypted String?
+  providedById  String?
+  providedAt    DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  order         Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+}
+
+enum VerificationCodeStatus {
+  PENDING
+  PROVIDED
+  CANCELLED
 }
 
 model Seller {
@@ -614,7 +650,7 @@ model Seller {
   approvedBy         String?
   approvedAt         DateTime?
   createdAt          DateTime          @default(now())
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime          @updatedAt
   commission         Commission[]
   featuredProduct    FeaturedProduct[]
   pendingCredit      PendingCredit[]
@@ -649,7 +685,7 @@ model SupportTicket {
   assignedToId                          String?
   resolvedAt                            DateTime?
   createdAt                             DateTime        @default(now())
-  updatedAt                             DateTime @updatedAt
+  updatedAt                             DateTime        @updatedAt
   User_SupportTicket_assignedToIdToUser User?           @relation("SupportTicket_assignedToIdToUser", fields: [assignedToId], references: [id])
   order                                 Order?          @relation(fields: [orderId], references: [id])
   User_SupportTicket_reporterIdToUser   User            @relation("SupportTicket_reporterIdToUser", fields: [reporterId], references: [id])
@@ -668,10 +704,13 @@ model Withdrawal {
   requestedAt         DateTime         @default(now())
   processedAt         DateTime?
   processedById       String?
+  // « En traitement » : prise en charge par l'équipe avec un délai annoncé.
+  processingStartedAt DateTime?
+  etaMinutes          Int?
   rejectionReason     String?
   paymentReference    String?
   createdAt           DateTime         @default(now())
-  updatedAt           DateTime @updatedAt
+  updatedAt           DateTime         @updatedAt
   user                User             @relation(fields: [requestedById], references: [id])
   seller              Seller           @relation(fields: [sellerId], references: [id])
 
@@ -839,6 +878,7 @@ enum NotificationType {
   SYSTEM
   ORDER_DELIVERED
   ORDER_REFUNDED
+  SECURITY_ALERT
 }
 
 enum NotificationChannel {
@@ -899,6 +939,7 @@ enum ShiftDay {
 
 enum SupportCategory {
   VERIFICATION_CODE
+  SELLER_REPORT
   PAYMENT_ISSUE
   DELIVERY
   OTHER
@@ -910,4 +951,39 @@ enum SupportStatus {
   IN_PROGRESS
   RESOLVED
   CLOSED
+}
+
+// Discussion d'un client à propos d'un compte en vente (un fil par client et
+// par compte). Côté vente, répondent le vendeur du compte, les managers
+// (permission SUPPORT) et l'administrateur ; le client ne voit jamais qui.
+model ProductThread {
+  id               String           @id @default(uuid())
+  productId        String
+  clientId         String
+  lastMessageAt    DateTime         @default(now())
+  clientLastReadAt DateTime?
+  sellerLastReadAt DateTime?
+  teamLastReadAt   DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  client           User             @relation("ProductThreadClient", fields: [clientId], references: [id], onDelete: Cascade)
+  messages         ProductMessage[]
+
+  @@unique([productId, clientId])
+  @@index([clientId, lastMessageAt(sort: Desc)])
+  @@index([lastMessageAt(sort: Desc)])
+}
+
+model ProductMessage {
+  id         String        @id @default(uuid())
+  threadId   String
+  authorId   String
+  fromClient Boolean
+  content    String
+  createdAt  DateTime      @default(now())
+  thread     ProductThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author     User          @relation("ProductMessageAuthor", fields: [authorId], references: [id])
+
+  @@index([threadId, createdAt])
 }

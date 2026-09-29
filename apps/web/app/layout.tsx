@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
+import { GreetingModal } from "@/components/dash/greeting-modal";
+import { PREFERENCES_BOOT_SCRIPT } from "@/lib/preferences-boot";
 
 const serif = Cormorant_Garamond({
   subsets: ["latin"],
@@ -31,8 +33,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" className={`dark ${serif.variable} ${sans.variable}`}>
-      <body className="min-h-screen antialiased">{children}</body>
+    <html lang="fr" dir="ltr" data-theme="dark" className={`dark ${serif.variable} ${sans.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_BOOT_SCRIPT }} />
+      </head>
+      <body className="min-h-screen antialiased">
+        {children}
+        <GreetingModal />
+      </body>
     </html>
   );
 }

@@ -66,8 +66,8 @@ describe("Approbation d'un retrait", () => {
     const notification = await prisma.notification.findFirst({
       where: { userId: owner.id, type: "SELLER_PAYOUT_AVAILABLE", createdAt: { gte: SUITE_STARTED_AT } },
     });
-    expect(notification?.title).toBe("Retrait approuvé");
-    expect(notification?.message).toContain("40000 FCFA");
+    expect(notification?.title).toBe("Retrait payé");
+    expect(notification?.message).toContain((40_000).toLocaleString("fr-FR"));
   });
 
   it("refuse un identifiant inconnu ou un retrait déjà traité", async () => {

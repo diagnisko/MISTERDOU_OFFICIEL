@@ -11,7 +11,7 @@ import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
 const TAG = "Support";
 
 const SUPPORT_STATUS_VALUES = ["CREATED", "PENDING", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
-const SUPPORT_CATEGORY_VALUES = ["VERIFICATION_CODE", "PAYMENT_ISSUE", "DELIVERY", "OTHER"] as const;
+const SUPPORT_CATEGORY_VALUES = ["VERIFICATION_CODE", "SELLER_REPORT", "PAYMENT_ISSUE", "DELIVERY", "OTHER"] as const;
 
 const STATUS_LABELS: Record<(typeof SUPPORT_STATUS_VALUES)[number], string> = {
   CREATED: "Créée",

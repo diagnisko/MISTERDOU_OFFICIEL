@@ -4,6 +4,9 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { LuxProvider } from "./lux-data";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { AccountMenu } from "@/components/account/account-menu";
+import { useAccount } from "@/lib/account";
+import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Coquille des espaces applicatifs (admin, vendeur, KYC, checkout).
@@ -69,13 +72,15 @@ export function LuxTopBar({
   label: string;
   links?: { href: string; label: string }[];
 }) {
+  const t = useT();
+  const account = useAccount();
   return (
     <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-4 px-5 md:px-8">
-        <Link href="/" className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
+        <Link href={account.status === "member" ? "/offres" : "/"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
           MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
         </Link>
-        <nav aria-label="Navigation de l'espace membre" className="flex items-center gap-1 sm:gap-2">
+        <nav aria-label={t("shell.nav")} className="flex items-center gap-1 sm:gap-2">
           <NotificationBell />
           {links.map((l) => (
             <Link
@@ -86,8 +91,9 @@ export function LuxTopBar({
               {l.label}
             </Link>
           ))}
-          <span className="ml-1 hidden rounded-full border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.12)] px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[var(--lux-gold-light)] sm:inline-block">
-            {label}
+          <span className="sr-only">{label}</span>
+          <span className="ml-1">
+            <AccountMenu compact />
           </span>
         </nav>
       </div>

@@ -156,15 +156,3 @@ export function tierTileClass(tier: LuxTier): string {
   return `lux-tile-${tier}`;
 }
 
-export function tierLabel(tier: LuxTier): string {
-  switch (tier) {
-    case "platinum":
-      return "Platine";
-    case "silver":
-      return "Argent";
-    case "gold":
-      return "Or";
-    default:
-      return "Bronze";
-  }
-}

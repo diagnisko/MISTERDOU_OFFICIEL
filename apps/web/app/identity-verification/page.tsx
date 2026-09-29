@@ -1,3 +1,4 @@
+import { useT, type MessageKey } from "@/lib/i18n";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -33,6 +34,7 @@ const filePurposes = {
 type DocumentSlot = keyof typeof filePurposes;
 
 export default function IdentityVerificationPage() {
+  const t = useT();
   const [me, setMe] = useState<Me | null>(null);
   const [records, setRecords] = useState<Verification[]>([]);
   const [status, setStatus] = useState("NOT_SUBMITTED");
@@ -61,18 +63,18 @@ export default function IdentityVerificationPage() {
   }
 
   useEffect(() => {
-    void refresh().catch((err) => setError(err instanceof Error ? err.message : "Dossier indisponible")).finally(() => setLoading(false));
+    void refresh().catch((err) => setError(err instanceof Error ? err.message : t("kycp.unavailable"))).finally(() => setLoading(false));
   }, []);
 
   async function captureLocation() {
     setError(null);
     if (!navigator.geolocation) {
-      setError("La localisation n’est pas disponible sur cet appareil.");
+      setError(t("kycp.noGeo"));
       return;
     }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => setLocation({ latitude: coords.latitude, longitude: coords.longitude, consentGiven: true }),
-      () => setError("La localisation n’a pas été autorisée. Vous pouvez continuer sans la partager."),
+      () => setError(t("kycp.geoDenied")),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
   }
@@ -87,7 +89,7 @@ export default function IdentityVerificationPage() {
       const required: DocumentSlot[] = documentType === "NATIONAL_ID" ? ["front", "back", "selfie"] : ["passport", "selfie"];
       for (const slot of required) {
         const file = files[slot];
-        if (!file) throw new Error("Ajoutez chaque document demandé avant l’envoi.");
+        if (!file) throw new Error(t("kycp.missingDocs"));
         keys[slot] = (await uploadFile(file, filePurposes[slot])).key;
       }
       await request("/api/v1/kyc", {
@@ -109,9 +111,9 @@ export default function IdentityVerificationPage() {
       });
       await refresh();
       setFiles({});
-      setMessage("Votre dossier a été transmis à l’équipe de vérification.");
+      setMessage(t("kycp.sent"));
     } catch (err) {
-      const text = err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Envoi impossible";
+      const text = err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : t("kycp.sendFailed");
       setError(text);
     } finally {
       setBusy(false);
@@ -122,83 +124,83 @@ export default function IdentityVerificationPage() {
 
   return (
     <LuxShell>
-      <LuxTopBar label="Vérification" links={[{ href: "/account", label: "Mon espace" }, { href: "/catalogue", label: "Catalogue" }]} />
+      <LuxTopBar label={t("kycp.topbar")} links={[{ href: "/account", label: t("kycp.mySpace") }, { href: "/offres", label: t("pay.catalogue") }]} />
       <main className="relative z-10 mx-auto max-w-3xl px-5 pb-20 pt-10 md:px-8">
-        <LuxBack href="/account" label="Mon espace" />
+        <LuxBack href="/account" label={t("kycp.mySpace")} />
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="lux-kicker">Dossier d’identité</p>
-            <h1 className="mt-2">Vérifier mon identité</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-400">La vérification est nécessaire avant tout achat. Vos pièces restent privées et sont consultées uniquement par l’équipe autorisée.</p>
+            <p className="lux-kicker">{t("kycp.kicker")}</p>
+            <h1 className="mt-2">{t("kycp.title")}</h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-400">{t("kycp.lead")}</p>
           </div>
           {!loading && <StatusBadge status={status} />}
         </div>
 
-        {loading ? <p className="mt-10 flex items-center gap-3 text-sm text-stone-400"><Spinner /> Chargement du dossier…</p> : (
+        {loading ? <p className="mt-10 flex items-center gap-3 text-sm text-stone-400"><Spinner /> {t("kycp.loading")}</p> : (
           <div className="mt-8 space-y-5">
-            {!me && <Alert tone="warning">Connectez-vous pour accéder à votre dossier. <Link href="/login" className="ml-1 text-[var(--lux-gold-light)] hover:underline">Se connecter</Link></Alert>}
+            {!me && <Alert tone="warning">{t("kycp.loginFirst")} <Link href="/login" className="ms-1 text-[var(--lux-gold-light)] hover:underline">{t("pay.login")}</Link></Alert>}
             {error && <Alert tone="danger">{error}</Alert>}
             {message && <Alert tone="success">{message}</Alert>}
-            {records[0]?.rejectionReason && <Alert tone="warning" title="Une nouvelle soumission est nécessaire">{records[0].rejectionReason}</Alert>}
+            {records[0]?.rejectionReason && <Alert tone="warning" title={t("kycp.resubmitTitle")}>{records[0].rejectionReason}</Alert>}
 
             {canSubmit && me && (
               <form onSubmit={submit} className="lux-glass rounded-[22px] p-5 sm:p-7">
-                <p className="lux-kicker">Nouvelle demande</p>
+                <p className="lux-kicker">{t("kycp.newRequest")}</p>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <Field label="Prénom" required><TextInput required value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" maxLength={100} /></Field>
-                  <Field label="Nom" required><TextInput required value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" maxLength={100} /></Field>
-                  <Field label="Pays" required><TextInput required value={country} onChange={(event) => setCountry(event.target.value)} autoComplete="country-name" maxLength={100} /></Field>
-                  <Field label="Ville"><TextInput value={city} onChange={(event) => setCity(event.target.value)} autoComplete="address-level2" maxLength={100} /></Field>
-                  <Field label="Date de naissance"><TextInput type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} autoComplete="bday" /></Field>
-                  <Field label="Adresse"><TextInput value={address} onChange={(event) => setAddress(event.target.value)} autoComplete="street-address" maxLength={255} /></Field>
+                  <Field label={t("kycp.firstName")} required><TextInput required value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" maxLength={100} /></Field>
+                  <Field label={t("kycp.lastName")} required><TextInput required value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" maxLength={100} /></Field>
+                  <Field label={t("kycp.country")} required><TextInput required value={country} onChange={(event) => setCountry(event.target.value)} autoComplete="country-name" maxLength={100} /></Field>
+                  <Field label={t("kycp.city")}><TextInput value={city} onChange={(event) => setCity(event.target.value)} autoComplete="address-level2" maxLength={100} /></Field>
+                  <Field label={t("kycp.birthDate")}><TextInput type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} autoComplete="bday" /></Field>
+                  <Field label={t("kycp.address")}><TextInput value={address} onChange={(event) => setAddress(event.target.value)} autoComplete="street-address" maxLength={255} /></Field>
                 </div>
 
-                <Field label="Document d’identité" required>
+                <Field label={t("kycp.document")} required>
                   <SelectInput value={documentType} onChange={(event) => setDocumentType(event.target.value as "NATIONAL_ID" | "PASSPORT")}>
-                    <option value="NATIONAL_ID">Carte nationale (recto et verso)</option>
-                    <option value="PASSPORT">Passeport</option>
+                    <option value="NATIONAL_ID">{t("kycp.nationalId")}</option>
+                    <option value="PASSPORT">{t("kycp.passport")}</option>
                   </SelectInput>
                 </Field>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {(documentType === "NATIONAL_ID" ? (["front", "back"] as const) : (["passport"] as const)).map((slot) => (
-                    <Field key={slot} label={slot === "front" ? "Recto de la pièce" : slot === "back" ? "Verso de la pièce" : "Passeport"} required hint="JPEG, PNG, WebP ou PDF, 8 Mo maximum">
+                    <Field key={slot} label={slot === "front" ? t("kycp.front") : slot === "back" ? t("kycp.back") : t("kycp.passport")} required hint={t("kycp.fileHint")}>
                       <TextInput required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setFiles((prev) => ({ ...prev, [slot]: event.target.files?.[0] }))} className="file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200" />
                     </Field>
                   ))}
-                  <Field label="Photo du visage" required hint="Photo nette, JPEG, PNG ou WebP">
+                  <Field label={t("kycp.selfie")} required hint={t("kycp.selfieHint")}>
                     <TextInput required type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFiles((prev) => ({ ...prev, selfie: event.target.files?.[0] }))} className="file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200" />
                   </Field>
                 </div>
 
                 <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                  <p className="text-sm font-semibold text-stone-100">Localisation (facultative)</p>
-                  <p className="mt-1 text-xs leading-relaxed text-stone-400">Elle est demandée une seule fois, avec votre autorisation, pour compléter le dossier. Aucun suivi en arrière-plan n’est effectué.</p>
+                  <p className="text-sm font-semibold text-stone-100">{t("kycp.location")}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-stone-400">{t("kycp.locationBody")}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <Button type="button" variant="outline" onClick={captureLocation}>{location ? "Position enregistrée" : "Autoriser une fois"}</Button>
-                    {location && <span className="text-xs text-emerald-300">Position prête à être envoyée avec le dossier.</span>}
+                    <Button type="button" variant="outline" onClick={captureLocation}>{location ? t("kycp.locationSaved") : t("kycp.locationAllow")}</Button>
+                    {location && <span className="text-xs text-emerald-300">{t("kycp.locationReady")}</span>}
                   </div>
                 </div>
 
-                <Button type="submit" loading={busy} className="mt-6 w-full sm:w-auto">Transmettre mon dossier</Button>
+                <Button type="submit" loading={busy} className="mt-6 w-full sm:w-auto">{t("kycp.submit")}</Button>
               </form>
             )}
 
-            {status === "PENDING" || status === "IN_PROGRESS" ? <Alert>Votre dossier est en cours de traitement. Vous pouvez consulter ici son statut et son historique.</Alert> : null}
-            {status === "VERIFIED" ? <Alert tone="success">Votre identité est vérifiée. Vous pouvez maintenant passer commande.</Alert> : null}
+            {status === "PENDING" || status === "IN_PROGRESS" ? <Alert>{t("kycp.processing")}</Alert> : null}
+            {status === "VERIFIED" ? <Alert tone="success">{t("kycp.verified")}</Alert> : null}
 
             {records.length > 0 && (
               <section className="lux-glass rounded-[22px] p-5 sm:p-7">
-                <p className="lux-kicker">Historique</p>
+                <p className="lux-kicker">{t("kycp.history")}</p>
                 <ul className="mt-4 space-y-4">
                   {records.map((record) => <li key={record.id} className="border-t border-white/10 pt-4 first:border-0 first:pt-0">
-                    <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm font-medium text-stone-100">Demande du {new Date(record.submittedAt).toLocaleDateString("fr-FR")}</span><StatusBadge status={record.status} /></div>
-                    {record.history.length > 0 && <ol className="mt-3 space-y-2 text-xs text-stone-400">{record.history.map((entry, index) => <li key={`${record.id}-${index}`}>{new Date(entry.createdAt).toLocaleString("fr-FR")} · {entry.status}{entry.reason ? ` · ${entry.reason}` : ""}</li>)}</ol>}
+                    <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm font-medium text-stone-100">{t("kycp.requestOf", { date: new Date(record.submittedAt).toLocaleDateString(t.intl) })}</span><StatusBadge status={record.status} /></div>
+                    {record.history.length > 0 && <ol className="mt-3 space-y-2 text-xs text-stone-400">{record.history.map((entry, index) => <li key={`${record.id}-${index}`}>{new Date(entry.createdAt).toLocaleString(t.intl)} · {t(`badge.${entry.status}` as MessageKey)}{entry.reason ? ` · ${entry.reason}` : ""}</li>)}</ol>}
                   </li>)}
                 </ul>
               </section>
             )}
-            <p className="text-xs text-stone-500">Les documents sont conservés dans un stockage chiffré et ne sont jamais accessibles par une URL publique.</p>
-            <Link href="/account" className="text-xs text-[var(--lux-gold-light)] hover:underline">Retour à mon espace</Link>
+            <p className="text-xs text-stone-500">{t("kycp.storage")}</p>
+            <Link href="/account" className="text-xs text-[var(--lux-gold-light)] hover:underline">{t("kycp.backToAccount")}</Link>
           </div>
         )}
       </main>

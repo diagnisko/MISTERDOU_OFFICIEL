@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { request, ApiClientError } from "@/lib/api";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 import { GoogleButton } from "@/components/auth/google-button";
+import { landingAfterLogin, setGreeting } from "@/lib/greeting";
+import { refreshAccount } from "@/lib/account";
 
-function homeFor(role: string | undefined): string {
-  if (role === "ADMIN" || role === "STAFF") return "/admin";
-  return "/account";
+type LoginUser = { role: string; firstName: string | null };
+
+function destination(role: string | undefined): string {
+  return landingAfterLogin(role, new URLSearchParams(window.location.search).get("next"));
 }
 
 export default function LoginPage() {
+  const t = useT();
   const router = useRouter();
   const reduce = useReducedMotion();
   const [email, setEmail] = useState("");
@@ -34,7 +39,7 @@ export default function LoginPage() {
     const cleanUrl = () => window.history.replaceState(null, "", window.location.pathname);
 
     if (!idToken) {
-      if (oauthError) setError("La connexion Google a été annulée. Réessayez ou utilisez votre e-mail.");
+      if (oauthError) setError(t("auth.googleCancelled"));
       cleanUrl();
       return;
     }
@@ -42,7 +47,7 @@ export default function LoginPage() {
     const expected = sessionStorage.getItem("md_google_state");
     sessionStorage.removeItem("md_google_state");
     if (!state || state !== expected) {
-      setError("Échange Google interrompu (état invalide). Réessayez.");
+      setError(t("auth.googleInterrupted"));
       cleanUrl();
       return;
     }
@@ -50,14 +55,20 @@ export default function LoginPage() {
     (async () => {
       setLoading(true);
       try {
-        const res = await request<{ user: { role: string } }>("/api/v1/auth/google", {
+        const res = await request<{ user: LoginUser; created: boolean; previousLoginAt: string | null }>("/api/v1/auth/google", {
           method: "POST",
           body: JSON.stringify({ idToken }),
         });
-        router.push(homeFor(res.user?.role));
+        setGreeting(
+          res.created
+            ? { kind: "welcome", firstName: res.user?.firstName }
+            : { kind: "return", firstName: res.user?.firstName, previousLoginAt: res.previousLoginAt },
+        );
+        await refreshAccount();
+        router.push(destination(res.user?.role));
         router.refresh();
       } catch (err) {
-        setError(err instanceof ApiClientError ? err.message : "Erreur réseau");
+        setError(err instanceof ApiClientError ? err.message : t("auth.network"));
         setLoading(false);
         cleanUrl();
       }
@@ -70,14 +81,16 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await request<{ user: { role: string } }>("/api/v1/auth/login", {
+      const res = await request<{ user: LoginUser; previousLoginAt: string | null }>("/api/v1/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      router.push(homeFor(res.user?.role));
+      setGreeting({ kind: "return", firstName: res.user?.firstName, previousLoginAt: res.previousLoginAt });
+      await refreshAccount();
+      router.push(destination(res.user?.role));
       router.refresh();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Erreur réseau");
+      setError(err instanceof ApiClientError ? err.message : t("auth.network"));
       setLoading(false);
     }
   }
@@ -86,9 +99,9 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      kicker="Espace membres"
-      title="Se connecter"
-      lead="Vos comptes, vos ventes et vos achats — réunis dans un espace sécurisé."
+      kicker={t("auth.memberArea")}
+      title={t("auth.login")}
+      lead={t("auth.loginLead")}
     >
       <div className="space-y-4">
         <GoogleButton
@@ -101,14 +114,14 @@ export default function LoginPage() {
         <div className="flex items-center gap-4 py-1">
           <span className="h-px flex-1 bg-[var(--lux-line)]" aria-hidden />
           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--lux-muted)]">
-            ou par e-mail
+            {t("auth.orEmail")}
           </span>
           <span className="h-px flex-1 bg-[var(--lux-line)]" aria-hidden />
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
-            <span className={fieldLabelClass}>E-mail</span>
+            <span className={fieldLabelClass}>{t("auth.email")}</span>
             <input
               required
               type="email"
@@ -121,7 +134,7 @@ export default function LoginPage() {
           </label>
 
           <label className="block">
-            <span className={fieldLabelClass}>Mot de passe</span>
+            <span className={fieldLabelClass}>{t("auth.password")}</span>
             <span className="relative block">
               <input
                 required
@@ -134,7 +147,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--lux-muted)] transition hover:text-[var(--lux-gold-light)] focus-visible:outline-2 focus-visible:outline-[rgba(232,71,36,0.5)]"
               >
                 {showPassword ? (
@@ -178,14 +191,14 @@ export default function LoginPage() {
             className="lux-btn lux-btn-gold w-full disabled:cursor-not-allowed disabled:opacity-60"
             aria-busy={loading}
           >
-            {loading ? "Connexion…" : "Se connecter"}
+            {loading ? t("auth.loggingIn") : t("auth.login")}
           </button>
         </form>
 
         <p className="pt-1 text-center text-sm text-[var(--lux-muted)]">
-          Pas de compte ?{" "}
+          {t("auth.noAccount")}{" "}
           <Link href="/register" className="text-[var(--lux-gold-light)] transition hover:underline">
-            Inscription
+            {t("auth.signUp")}
           </Link>
         </p>
       </div>

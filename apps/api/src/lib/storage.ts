@@ -32,10 +32,6 @@ function localPath(objectKey: string): string {
   return path.join(env.STORAGE_DIR, ...objectKey.split("/"));
 }
 
-export async function ensureStorageDir(): Promise<void> {
-  if (!privateBucket()) await fs.mkdir(env.STORAGE_DIR, { recursive: true });
-}
-
 function seal(buffer: Buffer, mime: string): Buffer {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", ENCRYPTION_KEY, iv);

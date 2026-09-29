@@ -26,14 +26,8 @@ export type Schedule = {
   installments: ScheduleLine[];
 };
 
-export async function fetchSchedule(orderId: string): Promise<Schedule | null> {
-  const data = await request<{ orderId: string; schedule: Schedule | null }>(
-    `/api/v1/orders/${orderId}/installments`,
-  );
-  return data.schedule;
-}
-
-export async function payNextInstallment(orderId: string): Promise<{
+/** Règle la prochaine mensualité, ou plusieurs d'avance (`months`). */
+export async function payNextInstallment(orderId: string, months = 1): Promise<{
   orderId: string;
   orderNumber: string;
   amount: number;
@@ -43,6 +37,6 @@ export async function payNextInstallment(orderId: string): Promise<{
 }> {
   return request(`/api/v1/orders/${orderId}/installments/pay`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({ months }),
   });
 }

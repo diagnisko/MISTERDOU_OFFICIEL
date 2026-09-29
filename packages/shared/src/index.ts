@@ -176,6 +176,7 @@ export type SupportStatus = (typeof SUPPORT_STATUSES)[number];
 
 export const SUPPORT_CATEGORIES = [
   "VERIFICATION_CODE",
+  "SELLER_REPORT",
   "PAYMENT_ISSUE",
   "DELIVERY",
   "OTHER",
@@ -231,6 +232,7 @@ export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 // ---------------------------------------------------------------------------
 
 export const API_ERROR_CODES = [
+  "SERVICE_UNAVAILABLE",
   "VALIDATION_ERROR",
   "UNAUTHORIZED",
   "FORBIDDEN",
@@ -259,6 +261,7 @@ export const API_ERROR_CODES = [
   "FILE_TYPE_INVALID",
   "MEDIA_LIMIT",
   "MEDIA_EXISTS",
+  "PRODUCT_RESERVED",
   "FILE_ACCESS_DENIED",
   "LOCATION_CONSENT_REQUIRED",
   "SELF_ACTION",
@@ -281,6 +284,9 @@ export const API_ERROR_CODES = [
   "FEATURED_UNAVAILABLE",
   "PROMO_OVERLAP",
   "ALREADY_CANCELLED",
+  // Vendeur : sa propre offre, adhésion
+  "OWN_OFFER",
+  "SELLER_ALREADY_ACTIVE",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
@@ -309,21 +315,6 @@ export const loginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
-
-export const otpRequestSchema = z.object({
-  countryCode,
-  phoneNumber,
-});
-
-export type OtpRequestInput = z.infer<typeof otpRequestSchema>;
-
-export const otpVerifySchema = z.object({
-  countryCode,
-  phoneNumber,
-  code: oneTimePassword,
-});
-
-export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
 
 export const googleOAuthSchema = z.object({
   idToken: z.string().min(10, "idToken invalide"),
@@ -445,7 +436,6 @@ export const meDtoSchema = z.object({
   phoneNumber: z.string().nullable(),
   status: z.enum(USER_STATUSES),
   twoFactorEnabled: z.boolean(),
-  phoneVerified: z.boolean(),
   createdAt: z.string(),
 });
 

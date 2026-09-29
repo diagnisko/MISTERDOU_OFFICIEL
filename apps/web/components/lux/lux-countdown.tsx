@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { IconSparkle } from "./lux-icons";
+import { useT } from "@/lib/i18n";
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -18,6 +19,7 @@ function pad(n: number) {
 
 // Compte à rebours réel, alimenté par endsAt d'une ligne promotion de la BDD.
 export function LuxCountdown({ endsAtIso, className = "" }: { endsAtIso: string; className?: string }) {
+  const t = useT();
   const now = useNow();
   const ends = Date.parse(endsAtIso);
   const diff = Math.max(0, ends - now);
@@ -30,13 +32,13 @@ export function LuxCountdown({ endsAtIso, className = "" }: { endsAtIso: string;
 
   const label =
     days > 0
-      ? `${days} j ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+      ? `${t("countdown.days", { days })} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
       : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 
   return (
-    <span className={`lux-glass-chip text-[11px] text-[var(--lux-gold-light)] ${className}`} role="status" aria-label={`Fin de l'offre dans ${label}`}>
+    <span className={`lux-glass-chip text-[11px] text-[var(--lux-gold-light)] ${className}`} role="status" aria-label={t("countdown.ends", { time: label })}>
       <IconSparkle className="h-3.5 w-3.5 text-[var(--lux-gold)]" />
-      <span className="sr-only">Limité — fin dans </span>
+      <span className="sr-only">{t("countdown.limited")}</span>
       <span className="tabular-nums">{label}</span>
     </span>
   );

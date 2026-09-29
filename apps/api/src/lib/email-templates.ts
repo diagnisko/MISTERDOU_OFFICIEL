@@ -30,6 +30,7 @@ export const EMAIL_TEMPLATES: Partial<Record<NotificationType, EmailTemplate>> =
   SELLER_PAYOUT_AVAILABLE: template("Votre paiement vendeur est disponible"),
   ADMIN_ALERT: template("Alerte administrateur MISTERDOU"),
   FEATURED_EXPIRED: template("Votre mise en avant a expiré"),
+  SECURITY_ALERT: template("Alerte de sécurité sur votre compte"),
 };
 
 export function isCriticalEmailType(type: NotificationType): boolean {

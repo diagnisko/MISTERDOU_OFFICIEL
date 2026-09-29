@@ -101,7 +101,7 @@ export default function PromotionsPage() {
       <AdminPageHead
         kicker="Visibilité"
         title="Promotions"
-        meta="Promotions à fenêtre de dates et historique des mises en avant payantes."
+        meta="Baisses de prix datées sur les offres MISTERDOU. Les vendeurs mettent leurs offres en avant eux-mêmes par forfait : activation au paiement, fin automatique ; l’historique est ci-dessous, en lecture seule."
         action={
           <>
             <Button variant="outline" loading={promos.refreshing} onClick={() => void promos.refresh()}>
@@ -179,7 +179,7 @@ export default function PromotionsPage() {
         <div>
           <p className="lux-kicker">Mises en avant</p>
           <p className="mt-2 text-sm text-stone-400">
-            Historique des achats de visibilité — aucune action de modération n’est exposée par l’API.
+            Forfaits achetés par les vendeurs : ils s’activent au paiement et prennent fin d’eux-mêmes.
           </p>
         </div>
         <Button variant="outline" loading={featured.refreshing} onClick={() => void featured.refresh()}>
@@ -269,7 +269,7 @@ function CreatePromotionModal({
 
   useEffect(() => {
     let active = true;
-    requestPaged<OfferingRow>(`/api/v1/admin/offerings${buildQuery({ page: 1, perPage: 100 })}`)
+    requestPaged<OfferingRow>(`/api/v1/admin/offerings${buildQuery({ page: 1, perPage: 100, owner: "platform" })}`)
       .then((result) => {
         if (active) setOfferings(result.items);
       })

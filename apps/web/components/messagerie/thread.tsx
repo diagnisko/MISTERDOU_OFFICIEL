@@ -11,6 +11,8 @@ import {
   sendConversationMessage,
 } from "./api";
 import type { MessageItem } from "./types";
+import { useT } from "@/lib/i18n";
+import { documentIntl } from "@/lib/i18n-core";
 
 // ---------------------------------------------------------------------------
 // Fil de discussion — implémentation unique partagée par /messages (membre)
@@ -37,7 +39,7 @@ function buildRows(messages: MessageItem[]): Row[] {
       rows.push({
         kind: "date",
         id: `day-${day}`,
-        label: date.toLocaleDateString("fr-FR", {
+        label: date.toLocaleDateString(documentIntl(), {
           weekday: "long",
           day: "numeric",
           month: "long",
@@ -53,7 +55,7 @@ function buildRows(messages: MessageItem[]): Row[] {
 function timeOf(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString(documentIntl(), { hour: "2-digit", minute: "2-digit" });
 }
 
 export function ConversationThread({
@@ -69,6 +71,7 @@ export function ConversationThread({
   onSent?: () => void;
   className?: string;
 }) {
+  const t = useT();
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -235,13 +238,13 @@ export function ConversationThread({
       >
         {loading && (
           <p className="flex items-center gap-3 py-8 text-sm text-stone-400">
-            <Spinner /> Chargement de la conversation…
+            <Spinner /> {t("thread.loading")}
           </p>
         )}
 
         {!loading && loadingMore && (
           <p className="flex items-center gap-2 pb-1 text-[11px] text-stone-500">
-            <Spinner className="h-3.5 w-3.5" /> Chargement des messages plus anciens…
+            <Spinner className="h-3.5 w-3.5" /> {t("thread.loadingOlder")}
           </p>
         )}
 
@@ -249,14 +252,14 @@ export function ConversationThread({
           <div className="space-y-3 py-4">
             <Alert tone="danger">{errorMessage(error)}</Alert>
             <Button variant="outline" onClick={() => setReloadToken((token) => token + 1)}>
-              Réessayer
+              {t("thread.retry")}
             </Button>
           </div>
         )}
 
         {!loading && empty && !error && (
           <p className="py-10 text-center text-sm text-stone-400">
-            Aucun message pour l’instant — écrivez le premier.
+            {t("thread.empty")}
           </p>
         )}
 
@@ -301,12 +304,12 @@ export function ConversationThread({
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
             rows={2}
-            aria-label="Votre message"
-            placeholder="Écrire un message… (Entrée pour envoyer, Maj + Entrée pour une nouvelle ligne)"
+            aria-label={t("thread.inputLabel")}
+            placeholder={t("thread.placeholder")}
             className="min-h-[46px] w-full resize-none rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-white/[0.04] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-500 focus:border-[rgba(232,71,36,0.6)]"
           />
           <Button type="submit" loading={sending} disabled={!draft.trim()}>
-            Envoyer
+            {t("thread.send")}
           </Button>
         </div>
       </form>
@@ -315,6 +318,7 @@ export function ConversationThread({
 }
 
 function MessageBubble({ message, mine }: { message: MessageItem; mine: boolean }) {
+  const t = useT();
   if (message.isSystem) {
     return (
       <p className="py-1 text-center text-[11px] leading-relaxed text-stone-400">{message.content}</p>
@@ -339,7 +343,7 @@ function MessageBubble({ message, mine }: { message: MessageItem; mine: boolean 
           {message.content}
         </p>
         {message.attachmentKey && (
-          <p className="mt-1.5 text-[10px] uppercase tracking-[0.14em] text-stone-400">Pièce jointe</p>
+          <p className="mt-1.5 text-[10px] uppercase tracking-[0.14em] text-stone-400">{t("thread.attachment")}</p>
         )}
         <p className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums text-stone-400">
           {mine && message.readAt && <span className="text-[var(--lux-gold-light)]">Lu</span>}

@@ -6,10 +6,9 @@ import { request, requestPaged, type PageMeta } from "./api";
 // GET /support/tickets/mine, GET|PATCH /admin/support/tickets[/:id].
 // ---------------------------------------------------------------------------
 
-export type SupportTicketStatus = "CREATED" | "PENDING" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
-
 export const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
   VERIFICATION_CODE: "Aide au code de vérification",
+  SELLER_REPORT: "Signalement d’un vendeur",
   PAYMENT_ISSUE: "Problème de paiement",
   DELIVERY: "Livraison",
   OTHER: "Autre",
@@ -17,6 +16,7 @@ export const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
 
 export const SUPPORT_CATEGORY_OPTIONS = [
   { value: "VERIFICATION_CODE", label: "Aide au code de vérification" },
+  { value: "SELLER_REPORT", label: "Signalement d’un vendeur" },
   { value: "PAYMENT_ISSUE", label: "Problème de paiement" },
   { value: "DELIVERY", label: "Livraison" },
   { value: "OTHER", label: "Autre" },
@@ -33,11 +33,6 @@ export const SUPPORT_STATUS_OPTIONS = [
 
 export function supportCategoryLabel(category: string): string {
   return SUPPORT_CATEGORY_LABELS[category] ?? category;
-}
-
-export function supportStatusLabel(status: string): string {
-  const found = SUPPORT_STATUS_OPTIONS.find((option) => option.value === status);
-  return found ? found.label : status;
 }
 
 /** Statuts clos : plus aucune action possible côté demandeur. */

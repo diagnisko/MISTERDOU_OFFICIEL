@@ -1,10 +1,10 @@
-import { randomBytes } from "node:crypto";
 import { prisma } from "@misterdou/db";
 import type { PaymentStatus, PaymentType, Prisma, RoleName } from "@misterdou/db";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { deliverOrderAfterSuccess } from "../../modules/orders/service.js";
 import { applyDownPayment, applyInstallmentPayment } from "../../modules/installments/service.js";
 import { activateFeatured } from "../../modules/promotions/service.js";
+import { activateSeller } from "../../modules/seller/join.js";
 import { notifyUser } from "../../lib/notify.js";
 import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
@@ -16,10 +16,6 @@ import {
   isProviderConfigured,
   type CheckoutMethod,
 } from "./paytech.js";
-
-export function randomTransactionToken(): string {
-  return "mdpay_" + randomBytes(18).toString("base64url");
-}
 
 export interface PaymentContext {
   actorId?: string;
@@ -143,6 +139,10 @@ export async function settlePayment(
           // fin en cours (jamais de perte de jours déjà payés).
           await activateFeatured(tx, payment);
           break;
+        case "SELLER_REGISTRATION_FEE":
+          // Frais d'adhésion : le compte passe vendeur aussitôt.
+          await activateSeller(tx, payment);
+          break;
       }
     }
     return tx.payment.findUnique({ where: { id: payment.id } });
@@ -182,7 +182,7 @@ export async function settlePayment(
     await notifyUser(payment.userId, "PAYMENT_CONFIRMED", {
       title: "Paiement confirmé",
       message: `Votre paiement de ${payment.amount.toLocaleString("fr-FR")} FCFA a été confirmé.`,
-      actionUrl: "/account",
+      actionUrl: "/account/orders",
       priority: "CRITICAL",
     });
   } else {
@@ -191,7 +191,7 @@ export async function settlePayment(
       message: `Votre paiement de ${payment.amount.toLocaleString("fr-FR")} FCFA a échoué${
         opts.failureReason ? ` : ${opts.failureReason}` : "."
       }`,
-      actionUrl: "/account",
+      actionUrl: "/account/orders",
     });
   }
 
@@ -285,6 +285,8 @@ export type CheckoutState = {
   type: PaymentType;
   paymentNumber: string;
   paidAt: string | null;
+  /** Commande concernée : le client y est renvoyé après paiement. */
+  orderId: string | null;
 };
 
 export async function getCheckoutState(transactionToken: string): Promise<CheckoutState> {
@@ -321,6 +323,7 @@ export async function getCheckoutState(transactionToken: string): Promise<Checko
     type: payment.type,
     paymentNumber: payment.paymentNumber,
     paidAt: payment.paidAt?.toISOString() ?? null,
+    orderId: payment.orderId,
   };
 }
 
