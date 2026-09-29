@@ -1,13 +1,13 @@
 {
   // Site MISTERDOU (Next.js via OpenNext) sur Cloudflare Workers.
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "misterdou-web",
+  "name": "misterdou-officiel",
   "main": "cloudflare-worker.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [
-    { "binding": "WORKER_SELF_REFERENCE", "service": "misterdou-web" },
+    { "binding": "WORKER_SELF_REFERENCE", "service": "misterdou-officiel" },
     // L'API (deploy/api) : /api/* et rendus serveur.
     { "binding": "API", "service": "misterdou-api" }
   ],

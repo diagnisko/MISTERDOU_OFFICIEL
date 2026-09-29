@@ -4,7 +4,7 @@ Tout tourne chez Cloudflare, sur le compte déjà relié au GitHub du projet :
 
 | Partie | Où | Fichiers |
 |---|---|---|
-| Site (Next.js) | Worker `misterdou-web`, via OpenNext | `apps/web/wrangler.jsonc`, `apps/web/cloudflare-worker.ts`, `apps/web/open-next.config.ts` |
+| Site (Next.js) | Worker `misterdou-officiel`, via OpenNext | `apps/web/wrangler.jsonc`, `apps/web/cloudflare-worker.ts`, `apps/web/open-next.config.ts` |
 | API (Fastify) | Worker `misterdou-api` + Container (image Docker) | `deploy/api/`, `apps/api/Dockerfile`, `.dockerignore` |
 | Base de données | Neon (inchangé) | — |
 | Fichiers | R2 : bucket privé (pièces d'identité) et bucket public (photos, vidéos) | — |
@@ -24,7 +24,7 @@ envoi sur `master`, Cloudflare construit et met en ligne les deux Workers.
 
 1. **Offre Workers payante** (Workers & Pages > Plans) : obligatoire pour les Containers.
 2. **Sous-domaine workers.dev** (Workers & Pages) : l'adresse du site sera
-   `https://misterdou-web.<sous-domaine>.workers.dev`.
+   `https://misterdou-officiel.diagnisko21.workers.dev`.
 3. **R2** : créer deux buckets, par exemple `misterdou-private` et `misterdou-media`.
    - Sur `misterdou-media` : activer l'accès public (URL `r2.dev` ou domaine) et ajouter une
      règle CORS autorisant `PUT` et `GET` depuis l'adresse du site.
@@ -37,14 +37,14 @@ envoi sur `master`, Cloudflare construit et met en ligne les deux Workers.
    | Project name | `misterdou-api` (doit être identique au `name` de `deploy/api/wrangler.jsonc`) |
    | Production branch | `master` |
    | Root directory (Path) | `deploy/api` |
-   | Build command | `pnpm install --frozen-lockfile --filter "@misterdou/deploy-api..."` |
+   | Build command | (vide : Cloudflare installe les dépendances lui-même) |
    | Deploy command | `npx wrangler deploy` |
 
 5. **Secrets de l'API** (`misterdou-api` > Settings > Variables and Secrets, type *Secret*) :
 
    | Nom | Valeur |
    |---|---|
-   | `WEB_ORIGIN`, `API_PUBLIC_URL` | adresse du site (`https://misterdou-web.<sous-domaine>.workers.dev`, sans `/` final) |
+   | `WEB_ORIGIN`, `API_PUBLIC_URL` | adresse du site (`https://misterdou-officiel.diagnisko21.workers.dev`, sans `/` final) |
    | `DATABASE_URL` | URL Neon de production (`?sslmode=require`) |
    | `COOKIE_SECRET` | 48 caractères aléatoires ou plus |
    | `STORAGE_MASTER_KEY` | la même clé qu'aujourd'hui (sinon les pièces déjà chiffrées deviennent illisibles) |
@@ -61,21 +61,21 @@ envoi sur `master`, Cloudflare construit et met en ligne les deux Workers.
 
    | Réglage | Valeur |
    |---|---|
-   | Project name | `misterdou-web` |
+   | Project name | `misterdou-officiel` |
    | Production branch | `master` |
    | Root directory (Path) | `apps/web` |
-   | Build command | `pnpm install --frozen-lockfile --filter "@misterdou/web..." && pnpm run cf:build` |
+   | Build command | `pnpm run cf:build` |
    | Deploy command | `pnpm run cf:deploy` |
 
 ## Vérifier
 
 - `https://<site>/api/v1/health` répond `ok`.
-- Journaux : Workers & Pages > `misterdou-api` (ou `misterdou-web`) > Logs.
+- Journaux : Workers & Pages > `misterdou-api` (ou `misterdou-officiel`) > Logs.
 
 ## À savoir
 
 - `PAYTECH_SANDBOX` vaut `true` dans `deploy/api/wrangler.jsonc` : paiements de test
   tant que PayTech n'est pas branché en réel.
-- Domaine personnalisé (`misterdou.com`) : l'ajouter sur `misterdou-web` (Settings >
+- Domaine personnalisé (`misterdou.com`) : l'ajouter sur `misterdou-officiel` (Settings >
   Domains & Routes), mettre à jour `WEB_ORIGIN` et `API_PUBLIC_URL`, et ajouter le domaine
   à la règle CORS du bucket des médias.

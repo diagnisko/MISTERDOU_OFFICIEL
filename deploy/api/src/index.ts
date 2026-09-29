@@ -4,7 +4,7 @@ import { env as workerEnv } from "cloudflare:workers";
 // ---------------------------------------------------------------------------
 // API MISTERDOU sur Cloudflare : ce Worker lance l'API (image apps/api/Dockerfile)
 // dans un Container et lui transmet les requêtes. Il n'a pas d'adresse publique :
-// le site (Worker misterdou-web) l'appelle par une liaison de service, pour
+// le site (Worker misterdou-officiel) l'appelle par une liaison de service, pour
 // /api/* comme pour ses rendus serveur.
 // ---------------------------------------------------------------------------
 
