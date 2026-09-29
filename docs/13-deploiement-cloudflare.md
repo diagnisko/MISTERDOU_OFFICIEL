@@ -1,6 +1,6 @@
 # Déploiement sur Cloudflare
 
-Tout tourne chez Cloudflare :
+Tout tourne chez Cloudflare, sur le compte déjà relié au GitHub du projet :
 
 | Partie | Où | Fichiers |
 |---|---|---|
@@ -17,31 +17,34 @@ Une seule instance de l'API tourne (`max_instances: 1`), pour que les tâches de
 (échéances, forfaits de mise en avant, libération des fonds vendeurs) ne tournent jamais
 en double. Un déclencheur toutes les 30 minutes la réveille si elle s'est endormie.
 
-La mise en ligne se fait par GitHub Actions (`.github/workflows/deploy.yml`) à chaque
-envoi sur `master` : Docker et la mémoire nécessaires à la construction sont fournis par
-GitHub.
+La mise en ligne se fait par la connexion Git de Cloudflare (Workers Builds) : à chaque
+envoi sur `master`, Cloudflare construit et met en ligne les deux Workers.
 
 ## Mise en place (une fois)
 
 1. **Offre Workers payante** (Workers & Pages > Plans) : obligatoire pour les Containers.
-2. **Sous-domaine workers.dev** (Workers & Pages > Overview) : l'adresse du site sera
+2. **Sous-domaine workers.dev** (Workers & Pages) : l'adresse du site sera
    `https://misterdou-web.<sous-domaine>.workers.dev`.
 3. **R2** : créer deux buckets, par exemple `misterdou-private` et `misterdou-media`.
    - Sur `misterdou-media` : activer l'accès public (URL `r2.dev` ou domaine) et ajouter une
      règle CORS autorisant `PUT` et `GET` depuis l'adresse du site.
    - Créer un jeton R2 (R2 > Manage API tokens) en lecture et écriture sur ces deux buckets.
-4. **Jeton Cloudflare pour GitHub** (My Profile > API Tokens > Create Token > modèle
-   *Edit Cloudflare Workers*, limité à ce compte). Si le déploiement signale un droit
-   manquant sur les Containers, ajouter la permission *Containers: Edit*.
-5. **GitHub** (dépôt > Settings > Secrets and variables > Actions) :
-   - secrets `CLOUDFLARE_API_TOKEN` et `CLOUDFLARE_ACCOUNT_ID` ;
-   - variable `SITE_URL` = adresse du site (sans `/` final).
-6. Lancer le déploiement (Actions > Déploiement Cloudflare > Run workflow).
-7. **Secrets de l'API** (Workers & Pages > `misterdou-api` > Settings > Variables and
-   Secrets, type *Secret*) :
+4. **Worker de l'API, en premier** (le site dépend de lui) : Workers & Pages > Create >
+   Import a repository > dépôt `MISTERDOU_OFFICIEL`.
+
+   | Réglage | Valeur |
+   |---|---|
+   | Project name | `misterdou-api` (doit être identique au `name` de `deploy/api/wrangler.jsonc`) |
+   | Production branch | `master` |
+   | Root directory (Path) | `deploy/api` |
+   | Build command | `pnpm install --frozen-lockfile --filter "@misterdou/deploy-api..."` |
+   | Deploy command | `npx wrangler deploy` |
+
+5. **Secrets de l'API** (`misterdou-api` > Settings > Variables and Secrets, type *Secret*) :
 
    | Nom | Valeur |
    |---|---|
+   | `WEB_ORIGIN`, `API_PUBLIC_URL` | adresse du site (`https://misterdou-web.<sous-domaine>.workers.dev`, sans `/` final) |
    | `DATABASE_URL` | URL Neon de production (`?sslmode=require`) |
    | `COOKIE_SECRET` | 48 caractères aléatoires ou plus |
    | `STORAGE_MASTER_KEY` | la même clé qu'aujourd'hui (sinon les pièces déjà chiffrées deviennent illisibles) |
@@ -50,7 +53,19 @@ GitHub.
    | `SMTP_URL`, `EMAIL_FROM` | envoi des e-mails (facultatif) |
    | `PAYTECH_*`, `GOOGLE_OAUTH_*` | quand ces services sont prêts |
 
-   Après l'ajout des secrets, relancer le workflow : le serveur redémarre avec eux.
+   Toujours en type *Secret* : une variable simple ajoutée dans le tableau de bord serait
+   effacée à la mise en ligne suivante. Après l'ajout, relancer la construction
+   (Deployments > Retry) pour que le serveur redémarre avec eux.
+
+6. **Worker du site** : Import a repository > même dépôt.
+
+   | Réglage | Valeur |
+   |---|---|
+   | Project name | `misterdou-web` |
+   | Production branch | `master` |
+   | Root directory (Path) | `apps/web` |
+   | Build command | `pnpm install --frozen-lockfile --filter "@misterdou/web..." && pnpm run cf:build` |
+   | Deploy command | `pnpm run cf:deploy` |
 
 ## Vérifier
 
@@ -61,5 +76,6 @@ GitHub.
 
 - `PAYTECH_SANDBOX` vaut `true` dans `deploy/api/wrangler.jsonc` : paiements de test
   tant que PayTech n'est pas branché en réel.
-- Un domaine personnalisé s'ajoute plus tard sur `misterdou-web` (Settings > Domains &
-  Routes) ; mettre alors `SITE_URL` à jour et relancer le déploiement.
+- Domaine personnalisé (`misterdou.com`) : l'ajouter sur `misterdou-web` (Settings >
+  Domains & Routes), mettre à jour `WEB_ORIGIN` et `API_PUBLIC_URL`, et ajouter le domaine
+  à la règle CORS du bucket des médias.
