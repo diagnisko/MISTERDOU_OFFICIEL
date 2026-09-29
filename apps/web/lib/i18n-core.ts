@@ -24,3 +24,10 @@ export type T = ((key: MessageKey, vars?: TranslateVars) => string) & { locale: 
 export function makeT(locale: Locale): T {
   return Object.assign((key: MessageKey, vars?: TranslateVars) => translate(locale, key, vars), { locale, intl: INTL_LOCALE[locale] });
 }
+
+/** Locale d'affichage lue sur <html lang> (utilitaires hors composant) ; français par défaut. */
+export function documentIntl(): string {
+  if (typeof document === "undefined") return INTL_LOCALE[DEFAULT_LOCALE];
+  const lang = document.documentElement.lang;
+  return INTL_LOCALE[isLocale(lang) ? lang : DEFAULT_LOCALE];
+}

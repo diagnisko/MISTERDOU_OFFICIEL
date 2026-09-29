@@ -1,6 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Kit UI — design system MISTERDOU (univers [data-lux] : slate & or, verre,
@@ -166,9 +167,11 @@ const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
+  const t = useT();
   const s = STATUS_STYLES[status];
   if (!s) return <Badge>{status}</Badge>;
-  return <Badge cls={s.cls}>{s.label}</Badge>;
+  // Libellé traduit ; le français de STATUS_STYLES reste la référence.
+  return <Badge cls={s.cls}>{t(`badge.${status}` as MessageKey)}</Badge>;
 }
 
 export function Badge({ children, cls = "" }: { children: ReactNode; cls?: string }) {
@@ -191,6 +194,7 @@ export function ListPager({
   hidden?: boolean;
   onPage: (page: number) => void;
 }) {
+  const t = useT();
   if (hidden) return null;
   const perPage = Math.max(1, meta.perPage);
   const totalPages = Math.max(1, Math.ceil(meta.total / perPage));
@@ -200,9 +204,11 @@ export function ListPager({
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-400">
       <span className="tabular-nums">
-        {((meta.page - 1) * perPage + 1).toLocaleString("fr-FR")}–
-        {Math.min(meta.total, meta.page * perPage).toLocaleString("fr-FR")} sur{" "}
-        {meta.total.toLocaleString("fr-FR")}
+        {t("pager.range", {
+          from: ((meta.page - 1) * perPage + 1).toLocaleString(t.intl),
+          to: Math.min(meta.total, meta.page * perPage).toLocaleString(t.intl),
+          total: meta.total.toLocaleString(t.intl),
+        })}
       </span>
       <div className="flex items-center gap-2">
         <button
@@ -211,10 +217,10 @@ export function ListPager({
           disabled={meta.page <= 1}
           onClick={() => onPage(meta.page - 1)}
         >
-          Précédent
+          {t("pager.previous")}
         </button>
         <span className="tabular-nums">
-          Page {meta.page} / {totalPages}
+          {t("pager.page", { page: meta.page, total: totalPages })}
         </span>
         <button
           type="button"
@@ -222,7 +228,7 @@ export function ListPager({
           disabled={meta.page >= totalPages}
           onClick={() => onPage(meta.page + 1)}
         >
-          Suivant
+          {t("pager.next")}
         </button>
       </div>
     </div>

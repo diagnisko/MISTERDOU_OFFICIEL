@@ -21,7 +21,7 @@ const COLUMNS: { title: MessageKey; links: { label: MessageKey; href: string }[]
       { label: "footer.member", href: "/account" },
       { label: "nav.register", href: "/register" },
       { label: "nav.login", href: "/login" },
-      { label: "footer.verification", href: "/verification" },
+      { label: "footer.verification", href: "/identity-verification" },
     ],
   },
   {

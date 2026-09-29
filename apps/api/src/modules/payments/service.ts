@@ -285,6 +285,8 @@ export type CheckoutState = {
   type: PaymentType;
   paymentNumber: string;
   paidAt: string | null;
+  /** Commande concernée : le client y est renvoyé après paiement. */
+  orderId: string | null;
 };
 
 export async function getCheckoutState(transactionToken: string): Promise<CheckoutState> {
@@ -321,6 +323,7 @@ export async function getCheckoutState(transactionToken: string): Promise<Checko
     type: payment.type,
     paymentNumber: payment.paymentNumber,
     paidAt: payment.paidAt?.toISOString() ?? null,
+    orderId: payment.orderId,
   };
 }
 
