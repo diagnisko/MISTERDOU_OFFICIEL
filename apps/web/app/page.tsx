@@ -1,40 +1,33 @@
-"use client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { SESSION_COOKIE_NAME } from "@misterdou/shared";
+import { LuxHome } from "@/components/lux/lux-home";
+import { homeForRole } from "@/lib/greeting";
 
-import { LuxProvider, LuxPerfLed } from "@/components/lux/lux-data";
-import { LuxNav } from "@/components/lux/lux-nav";
-import { LuxHero } from "@/components/lux/lux-hero";
-import { LuxMarquee } from "@/components/lux/lux-marquee";
-import { LuxWhy } from "@/components/lux/lux-why";
-import { LuxFeatured } from "@/components/lux/lux-featured";
-import { LuxHow } from "@/components/lux/lux-how";
-import { LuxPricing } from "@/components/lux/lux-pricing";
-import { LuxCta } from "@/components/lux/lux-cta";
-import { LuxFooter } from "@/components/lux/lux-footer";
+const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? "http://localhost:4000";
 
-export default function Home() {
-  return (
-    <LuxProvider>
-      <div data-lux className="relative min-h-screen overflow-x-clip text-stone-100">
-        <div className="lux-bg" aria-hidden />
+// Rôle du membre connecté, ou null. Seule une session confirmée par l'API
+// compte : un cookie périmé laisse voir la page d'accueil normalement.
+async function memberRole(): Promise<string | null> {
+  const jar = await cookies();
+  if (!jar.get(SESSION_COOKIE_NAME)) return null;
+  try {
+    const res = await fetch(`${API_INTERNAL_URL}/api/v1/auth/me`, {
+      headers: { cookie: jar.toString() },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: { user?: { role?: string } } };
+    return body.data?.user?.role ?? null;
+  } catch {
+    return null;
+  }
+}
 
-        <LuxNav />
-        <main className="relative z-10">
-          <LuxHero />
-          <LuxMarquee />
-          <LuxWhy />
-          <div className="lux-defer">
-            <LuxFeatured />
-            <LuxHow />
-            <LuxPricing />
-            <LuxCta />
-          </div>
-        </main>
-        <div className="lux-defer">
-          <LuxFooter />
-        </div>
-
-        <LuxPerfLed />
-      </div>
-    </LuxProvider>
-  );
+// La page d'accueil (présentation, « Créer mon compte ») est pour les visiteurs :
+// un membre connecté arrive directement sur les offres.
+export default async function Home() {
+  const role = await memberRole();
+  if (role) redirect(homeForRole(role));
+  return <LuxHome />;
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LuxProvider } from "./lux-data";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AccountMenu } from "@/components/account/account-menu";
+import { useAccount } from "@/lib/account";
 import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
@@ -72,10 +73,11 @@ export function LuxTopBar({
   links?: { href: string; label: string }[];
 }) {
   const t = useT();
+  const account = useAccount();
   return (
     <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-4 px-5 md:px-8">
-        <Link href="/" className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
+        <Link href={account.status === "member" ? "/offres" : "/"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
           MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
         </Link>
         <nav aria-label={t("shell.nav")} className="flex items-center gap-1 sm:gap-2">

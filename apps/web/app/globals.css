@@ -1024,8 +1024,15 @@ body {
   box-shadow: 0 40px 120px -60px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* Position dans une couche : une classe « absolute » posée sur la carte
+   (menus déroulants, infobulles) doit l'emporter. Hors couche, ce
+   « relative » écrasait toutes les classes Tailwind de position. */
+@layer components {
+  .dash-card {
+    position: relative;
+  }
+}
 .dash-card {
-  position: relative;
   border-radius: 20px;
   background: linear-gradient(180deg, #140a08 0%, #0d0605 100%);
   border: 1px solid rgba(255, 236, 229, 0.075);

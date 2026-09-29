@@ -39,7 +39,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
       )}
     >
       <nav aria-label={t("nav.main")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:h-[72px] md:px-8">
-        <a href={root ? "/" : "#top"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
+        <a href={account.status === "member" ? "/offres" : root ? "/" : "#top"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
           MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
         </a>
 
