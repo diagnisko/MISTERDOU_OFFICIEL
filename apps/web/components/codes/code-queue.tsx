@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { errorMessage, request } from "@/lib/api";
 import { Alert, Spinner } from "@/components/ui";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
+import { useT } from "@/lib/i18n";
+import type { T } from "@/lib/i18n";
 
 type CodeRequestRow = {
   id: string;
@@ -18,11 +20,11 @@ type CodeRequestRow = {
   providedBy: string | null;
 };
 
-const timeFr = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const timeFr = (iso: string, locale: string) => new Date(iso).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-function waitingFor(iso: string) {
+function waitingFor(iso: string, t: T) {
   const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  return minutes < 1 ? "à l’instant" : minutes < 60 ? `il y a ${minutes} min` : `il y a ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  return minutes < 1 ? t("codes.justNow") : minutes < 60 ? t("codes.minutesAgo", { n: minutes }) : t("codes.hoursAgo", { h: Math.floor(minutes / 60), m: minutes % 60 });
 }
 
 // ---------------------------------------------------------------------------
@@ -32,6 +34,7 @@ function waitingFor(iso: string) {
 // ---------------------------------------------------------------------------
 
 export function CodeQueue({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const [rows, setRows] = useState<CodeRequestRow[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,7 @@ export function CodeQueue({ compact = false }: { compact?: boolean }) {
       setRows(data.items);
       setError(null);
     } catch (err) {
-      setError(errorMessage(err, "Demandes indisponibles."));
+      setError(errorMessage(err, t("codes.unavailable")));
     }
   }, [showAll]);
 
@@ -57,17 +60,17 @@ export function CodeQueue({ compact = false }: { compact?: boolean }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-stone-400">
-          {rows === null ? "Chargement…" : pending.length === 0 ? "Aucune demande en attente." : `${pending.length} client${pending.length > 1 ? "s" : ""} en attente d’un code.`}
+          {rows === null ? t("codes.loading") : pending.length === 0 ? t("codes.none") : pending.length > 1 ? t("codes.waitingMany", { n: pending.length }) : t("codes.waitingOne")}
         </p>
         <label className="flex items-center gap-2 text-[12.5px] text-stone-400">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="accent-[#ff6a32]" />
-          Afficher aussi les codes déjà fournis
+          {t("codes.showAll")}
         </label>
       </div>
       {error && <Alert tone="danger">{error}</Alert>}
       {rows === null && !error && (
         <p className="flex items-center gap-2 text-[13px] text-stone-400">
-          <Spinner className="h-4 w-4" /> Chargement des demandes…
+          <Spinner className="h-4 w-4" /> {t("codes.loadingList")}
         </p>
       )}
       <ul className={compact ? "space-y-2" : "space-y-3"}>
@@ -78,6 +81,7 @@ export function CodeQueue({ compact = false }: { compact?: boolean }) {
 }
 
 function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<void> }) {
+  const t = useT();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +95,7 @@ function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<v
       setCode("");
       await onDone();
     } catch (err) {
-      setError(errorMessage(err, "Envoi impossible."));
+      setError(errorMessage(err, t("codes.sendFailed")));
       await onDone();
     } finally {
       setBusy(false);
@@ -108,14 +112,14 @@ function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<v
         <div className="min-w-0">
           <p className="truncate text-[14px] font-semibold text-stone-100">{row.productTitle}</p>
           <p className="mt-0.5 text-[12px] text-stone-400">
-            {row.orderNumber} · {row.buyerName} · demandé {waitingFor(row.requestedAt)}
+            {row.orderNumber} · {row.buyerName} · {t("codes.requested", { ago: waitingFor(row.requestedAt, t) })}
           </p>
         </div>
         {row.status !== "PENDING" && (
           <p className="text-right text-[12px] text-stone-400">
-            {row.status === "PROVIDED" ? "Code actif" : "Code expiré"}
-            {row.providedAt && ` · fourni ${timeFr(row.providedAt)}`}
-            {row.providedBy && <span className="block text-stone-500">par {row.providedBy}</span>}
+            {row.status === "PROVIDED" ? t("codes.active") : t("codes.expired")}
+            {row.providedAt && t("codes.providedAt", { date: timeFr(row.providedAt, t.intl) })}
+            {row.providedBy && <span className="block text-stone-500">{t("codes.by", { name: row.providedBy === "Vous" ? t("chat.you") : row.providedBy === "Équipe MISTERDOU" ? t("chat.team") : row.providedBy })}</span>}
           </p>
         )}
       </div>
@@ -126,8 +130,8 @@ function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<v
             onChange={(e) => setCode(e.target.value)}
             inputMode="text"
             autoComplete="one-time-code"
-            placeholder="Code reçu du jeu"
-            aria-label={`Code pour ${row.orderNumber}`}
+            placeholder={t("codes.placeholder")}
+            aria-label={t("codes.inputLabel", { order: row.orderNumber })}
             maxLength={32}
             className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 font-mono text-[15px] tracking-[0.15em] text-stone-100 placeholder:font-sans placeholder:tracking-normal placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
           />
@@ -137,7 +141,7 @@ function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<v
             className="lux-btn lux-btn-gold !min-h-[44px] text-[12px] uppercase tracking-[0.14em] disabled:opacity-50"
             style={{ borderRadius: 14 }}
           >
-            {busy ? "Envoi…" : "Envoyer au client"}
+            {busy ? t("codes.sending") : t("codes.send")}
           </button>
         </form>
       )}

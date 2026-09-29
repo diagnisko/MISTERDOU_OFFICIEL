@@ -2,25 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CodeQueue } from "@/components/codes/code-queue";
-import { SELLER_NAV } from "@/components/seller/seller-nav";
+import { sellerNav } from "@/components/seller/seller-nav";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiClientError, request, formatXof } from "@/lib/api";
 import { Alert, Spinner, StatusBadge } from "@/components/ui";
 import { MediaManager } from "@/components/media/media-manager";
-import { AreaChart, DashHeading, DashShell, KpiCard, Panel, type DashNavItem } from "@/components/dash/dash-ui";
-import {
-  IconChat,
-  IconClock,
-  IconCoins,
-  IconHome,
-  IconLifebuoy,
-  IconList,
-  IconPercent,
-  IconStore,
-  IconUsers,
-  IconWallet,
-} from "@/components/dash/dash-icons";
+import { AreaChart, DashHeading, DashShell, KpiCard, Panel } from "@/components/dash/dash-ui";
+import { IconClock, IconCoins, IconPercent, IconWallet } from "@/components/dash/dash-icons";
+import { useT } from "@/lib/i18n";
+import { WithdrawalsPanel, type SellerWithdrawal } from "@/components/seller/withdrawals-panel";
 
 // ---------------------------------------------------------------------------
 // Espace vendeur — soldes, gains, ventes récentes et mise en avant (§13, §18).
@@ -53,6 +44,8 @@ type Dashboard = {
     isFeatured: boolean;
   }[];
   dailyRate: number;
+  minWithdrawal: number;
+  withdrawals: SellerWithdrawal[];
   salesByMonth: { month: string; net: number; count: number }[];
   recentSales: {
     id: string;
@@ -83,6 +76,7 @@ const DAY_PRESETS = [1, 5, 10, 30];
 
 
 export default function SellerPage() {
+  const t = useT();
   const router = useRouter();
   const [dash, setDash] = useState<Dashboard | null>(null);
   const [me, setMe] = useState<Me | null>(null);
@@ -105,7 +99,7 @@ export default function SellerPage() {
       if (err instanceof ApiClientError && (err.code === "UNAUTHORIZED" || err.code === "FORBIDDEN")) {
         router.replace("/login");
       } else {
-        setError(err instanceof ApiClientError ? err.message : "Impossible de charger votre espace vendeur.");
+        setError(err instanceof ApiClientError ? err.message : t("seller.loadFailed"));
       }
     } finally {
       setLoading(false);
@@ -138,7 +132,11 @@ export default function SellerPage() {
       });
       if (result.activated) {
         setNotice(
-          `Mise en avant activée pendant ${result.days} jour${result.days > 1 ? "s" : ""} — ${formatXof(result.amount)} débités du solde${result.featuredUntil ? `, jusqu’au ${new Date(result.featuredUntil).toLocaleDateString("fr-FR")}` : ""}.`,
+          t("seller.featuredOn", {
+            duration: t(result.days > 1 ? "seller.dayMany" : "seller.dayOne", { n: result.days }),
+            amount: formatXof(result.amount),
+            until: result.featuredUntil ? t("seller.featuredUntil", { date: new Date(result.featuredUntil).toLocaleDateString(t.intl) }) : "",
+          }),
         );
         setModalProduct(null);
         await load();
@@ -148,9 +146,9 @@ export default function SellerPage() {
         router.push(result.checkoutUrl);
         return;
       }
-      setError("Réponse de paiement incomplète, réessayez.");
+      setError(t("seller.incomplete"));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Paiement impossible pour le moment.");
+      setError(err instanceof ApiClientError ? err.message : t("seller.payFailed"));
     } finally {
       setPaying(null);
     }
@@ -170,11 +168,11 @@ export default function SellerPage() {
   const available = dash?.balance?.balanceAvailable ?? 0;
   const insufficient = available < amount;
   const daysValid = Number.isInteger(days) && days >= 1 && days <= 90;
-  const name = [me?.firstName, me?.lastName].filter(Boolean).join(" ") || "Vendeur";
+  const name = [me?.firstName, me?.lastName].filter(Boolean).join(" ") || t("seller.fallbackName");
   const salesChart = (dash?.salesByMonth ?? []).map((m) => {
     const [y, mo] = m.month.split("-").map(Number);
     return {
-      label: new Date(Date.UTC(y!, mo! - 1, 1)).toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" }).replace(".", ""),
+      label: new Date(Date.UTC(y!, mo! - 1, 1)).toLocaleDateString(t.intl, { month: "short", timeZone: "UTC" }).replace(".", ""),
       primary: m.net,
     };
   });
@@ -183,7 +181,7 @@ export default function SellerPage() {
     return (
       <div data-lux className="dash-root grid place-items-center text-sm text-[#b8a6a1]">
         <span className="flex items-center gap-3">
-          <Spinner /> Ouverture de l’espace vendeur…
+          <Spinner /> {t("seller.opening")}
         </span>
       </div>
     );
@@ -191,8 +189,8 @@ export default function SellerPage() {
 
   return (
     <DashShell
-      nav={SELLER_NAV}
-      areaLabel="Espace vendeur"
+      nav={sellerNav(t)}
+      areaLabel={t("seller.area")}
       user={{ name, email: me?.email }}
       onLogout={() => void logout()}
       loggingOut={loggingOut}
@@ -205,11 +203,11 @@ export default function SellerPage() {
       }
     >
       <DashHeading
-        greeting={me?.firstName ? `Bonjour ${me.firstName}` : "Espace vendeur"}
-        title="Vos ventes"
+        greeting={me?.firstName ? t("seller.hello", { name: me.firstName }) : t("seller.area")}
+        title={t("seller.title")}
         actions={
-          <Link href="/catalogue" className="dash-btn dash-btn-ghost">
-            Voir le catalogue
+          <Link href="/offres" className="dash-btn dash-btn-ghost">
+            {t("seller.seeCatalogue")}
           </Link>
         }
       />
@@ -228,47 +226,55 @@ export default function SellerPage() {
       {!dash?.seller && (
         <div className="mt-6">
           <Alert tone="warning">
-            Aucun profil vendeur n’est associé à ce compte. La demande d’activation vendeur se fait auprès de
-            l’équipe MISTERDOU.
+            {t("seller.noProfile")}
           </Alert>
         </div>
       )}
 
-      <section aria-label="Soldes" className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label={t("seller.balances")} className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           hero
           icon={IconWallet}
-          label="Solde disponible"
+          label={t("seller.available")}
           value={formatXof(dash?.balance?.balanceAvailable ?? 0)}
-          hint="Retirable ou utilisable pour la mise en avant"
+          hint={t("seller.availableHint")}
         />
         <KpiCard
           icon={IconClock}
-          label="En attente de libération"
+          label={t("seller.pending")}
           value={formatXof(dash?.balance?.balancePending ?? 0)}
-          hint="Ventes récentes en période de sécurité"
+          hint={t("seller.pendingHint")}
         />
         <KpiCard
           icon={IconCoins}
-          label="Gains cumulés"
+          label={t("seller.earnings")}
           value={formatXof(dash?.balance?.totalEarnings ?? 0)}
-          hint="Net vendeur depuis l’ouverture"
+          hint={t("seller.earningsHint")}
         />
         <KpiCard
           icon={IconPercent}
-          label="Commissions versées"
+          label={t("seller.commissions")}
           value={formatXof(dash?.balance?.totalCommissionPaid ?? 0)}
-          hint="Part de la plateforme sur vos ventes"
+          hint={t("seller.commissionsHint")}
         />
       </section>
 
+      {dash?.seller && (
+        <WithdrawalsPanel
+          available={dash.balance?.balanceAvailable ?? 0}
+          minAmount={dash.minWithdrawal}
+          withdrawals={dash.withdrawals}
+          onDone={load}
+        />
+      )}
+
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-        <Panel title="Gains nets sur 6 mois">
-          <AreaChart data={salesChart} primaryLabel="Gains nets" format={formatXof} />
+        <Panel title={t("seller.chart")}>
+          <AreaChart data={salesChart} primaryLabel={t("seller.chartLabel")} format={formatXof} />
         </Panel>
-        <Panel title="Ventes récentes">
+        <Panel title={t("seller.recent")}>
           {(dash?.recentSales.length ?? 0) === 0 ? (
-            <p className="text-[13px] text-[#8f7d77]">Vos ventes apparaîtront ici dès le premier paiement confirmé.</p>
+            <p className="text-[13px] text-[#8f7d77]">{t("seller.recentEmpty")}</p>
           ) : (
             <ul className="space-y-1">
               {dash!.recentSales.map((sale) => (
@@ -276,13 +282,13 @@ export default function SellerPage() {
                   <div className="min-w-0">
                     <p className="truncate text-[13px] text-white">{sale.title}</p>
                     <p className="text-[11px] text-[#8f7d77]">
-                      {new Date(sale.createdAt).toLocaleDateString("fr-FR")} · commission {formatXof(sale.commissionAmount)}
+                      {new Date(sale.createdAt).toLocaleDateString(t.intl)} · {t("seller.commission", { amount: formatXof(sale.commissionAmount) })}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-[13px] font-semibold tabular-nums text-white">+{formatXof(sale.netToSeller)}</p>
                     <span className={`dash-pill mt-1 ${sale.status === "RELEASED" ? "dash-pill-paid" : "dash-pill-due"}`}>
-                      {sale.status === "RELEASED" ? "Disponible" : "En attente"}
+                      {sale.status === "RELEASED" ? t("seller.released") : t("seller.onHold")}
                     </span>
                   </div>
                 </li>
@@ -293,9 +299,9 @@ export default function SellerPage() {
       </section>
 
       <section id="codes" className="dash-card mt-4 scroll-mt-24 p-5">
-        <h2 className="text-[15px] font-semibold text-stone-100">Codes de vérification</h2>
+        <h2 className="text-[15px] font-semibold text-stone-100">{t("seller.codesTitle")}</h2>
         <p className="mb-4 mt-0.5 text-[12px] text-[#8f7d77]">
-          Vos acheteurs vous demandent le code reçu par le jeu. Envoyez-le ici : il leur reste 10 minutes pour l’utiliser.
+          {t("seller.codesLead")}
         </p>
         <CodeQueue compact />
       </section>
@@ -303,25 +309,25 @@ export default function SellerPage() {
       <section className="dash-card mt-4 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-[15px] font-semibold text-stone-100">Mes offres</h2>
+            <h2 className="text-[15px] font-semibold text-stone-100">{t("seller.offers")}</h2>
             <p className="mt-0.5 text-[12px] text-[#8f7d77]">
-              Mise en avant à {formatXof(rate)} par jour, payable depuis votre solde ou en ligne.
+              {t("seller.offersLead", { rate: formatXof(rate) })}
             </p>
           </div>
           <span className="text-[12px] text-[#8f7d77]">
-            {dash?.products.length ?? 0} offre{(dash?.products.length ?? 0) > 1 ? "s" : ""}
+            {t((dash?.products.length ?? 0) > 1 ? "seller.offersCountMany" : "seller.offersCountOne", { n: dash?.products.length ?? 0 })}
           </span>
         </div>
         <div className="-mx-5 mt-3 overflow-x-auto">
           <table className="dash-table w-full min-w-[680px] border-collapse">
             <thead>
               <tr>
-                <th className="pl-5">Compte</th>
-                <th>Prix</th>
-                <th>État</th>
-                <th>Mise en avant</th>
+                <th className="ps-5">{t("seller.colAccount")}</th>
+                <th>{t("seller.colPrice")}</th>
+                <th>{t("seller.colState")}</th>
+                <th>{t("seller.colFeatured")}</th>
                 <th className="pr-5">
-                  <span className="sr-only">Action</span>
+                  <span className="sr-only">{t("seller.colAction")}</span>
                 </th>
               </tr>
             </thead>
@@ -329,7 +335,7 @@ export default function SellerPage() {
               {(dash?.products.length ?? 0) === 0 && (
                 <tr>
                   <td colSpan={5} className="pl-5 text-[#8f7d77]">
-                    Aucune offre publiée pour le moment.
+                    {t("seller.noOffers")}
                   </td>
                 </tr>
               )}
@@ -340,7 +346,7 @@ export default function SellerPage() {
                       {product.title}
                     </Link>
                     <p className="text-[11px] text-[#8f7d77]">
-                      {product.paymentMode === "INSTALLMENTS" ? "Échéancier" : "Paiement unique"}
+                      {product.paymentMode === "INSTALLMENTS" ? t("seller.modeMonthly") : t("seller.modeOnce")}
                     </p>
                   </td>
                   <td className="whitespace-nowrap tabular-nums">{formatXof(product.basePrice)}</td>
@@ -350,10 +356,10 @@ export default function SellerPage() {
                   <td>
                     {product.isFeatured ? (
                       <span className="dash-pill dash-pill-paid">
-                        Jusqu’au {product.featuredUntil ? new Date(product.featuredUntil).toLocaleDateString("fr-FR") : "—"}
+                        {t("seller.until", { date: product.featuredUntil ? new Date(product.featuredUntil).toLocaleDateString(t.intl) : "—" })}
                       </span>
                     ) : (
-                      <span className="dash-pill dash-pill-none">Non</span>
+                      <span className="dash-pill dash-pill-none">{t("seller.no")}</span>
                     )}
                   </td>
                   <td className="whitespace-nowrap pr-5 text-right">
@@ -362,14 +368,14 @@ export default function SellerPage() {
                       onClick={() => setMediaProduct(product)}
                       className="dash-btn dash-btn-ghost mr-2 !min-h-[34px] !text-[12px]"
                     >
-                      Médias
+                      {t("seller.media")}
                     </button>
                     <button
                       type="button"
                       onClick={() => openFeatured(product)}
                       className="dash-btn dash-btn-ghost !min-h-[34px] !text-[12px]"
                     >
-                      {product.isFeatured ? "Prolonger" : "Mettre en avant"}
+                      {product.isFeatured ? t("seller.extend") : t("seller.feature")}
                     </button>
                   </td>
                 </tr>
@@ -383,22 +389,22 @@ export default function SellerPage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Médias de l’offre ${mediaProduct.title}`}
+          aria-label={t("seller.mediaOf", { title: mediaProduct.title })}
           className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-black/75 p-4"
           onClick={() => setMediaProduct(null)}
         >
           <div className="dash-card my-auto w-full max-w-2xl p-6" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[13px] text-[#b8a6a1]">Captures et vidéos publiques</p>
+                <p className="text-[13px] text-[#b8a6a1]">{t("seller.mediaKicker")}</p>
                 <h3 className="mt-1 text-[18px] font-semibold text-white">{mediaProduct.title}</h3>
               </div>
-              <button type="button" onClick={() => setMediaProduct(null)} aria-label="Fermer" className="dash-btn dash-btn-ghost dash-btn-round !min-h-[34px] !w-[34px]">
+              <button type="button" onClick={() => setMediaProduct(null)} aria-label={t("seller.close")} className="dash-btn dash-btn-ghost dash-btn-round !min-h-[34px] !w-[34px]">
                 ✕
               </button>
             </div>
             <p className="mt-2 text-[12px] text-[#8f7d77]">
-              Visibles par tous sur la fiche du compte. N’y montrez jamais l’e-mail ou le mot de passe du compte.
+              {t("seller.mediaWarning")}
             </p>
             <div className="mt-5">
               <MediaManager productId={mediaProduct.id} />
@@ -411,14 +417,14 @@ export default function SellerPage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Mettre en avant une offre"
+          aria-label={t("seller.featureDialog")}
           className="fixed inset-0 z-[90] grid place-items-center bg-black/75 px-4"
           onClick={() => setModalProduct(null)}
         >
           <div className="dash-card w-full max-w-md p-6" onClick={(event) => event.stopPropagation()}>
-            <p className="text-[13px] text-[#b8a6a1]">Mise en avant</p>
+            <p className="text-[13px] text-[#b8a6a1]">{t("seller.featureKicker")}</p>
             <h3 className="mt-1 text-[18px] font-semibold text-white">{modalProduct.title}</h3>
-            <p className="mt-1 text-[12px] text-[#8f7d77]">{formatXof(rate)} par jour · durée 1 à 90 jours</p>
+            <p className="mt-1 text-[12px] text-[#8f7d77]">{t("seller.perDay", { rate: formatXof(rate) })}</p>
 
             <div className="mt-5 flex flex-wrap gap-2">
               {DAY_PRESETS.map((preset) => (
@@ -432,13 +438,13 @@ export default function SellerPage() {
                       : "border-[rgba(255,236,229,0.1)] text-[#b8a6a1] hover:text-white"
                   }`}
                 >
-                  {preset} jour{preset > 1 ? "s" : ""}
+                  {t(preset > 1 ? "seller.dayMany" : "seller.dayOne", { n: preset })}
                 </button>
               ))}
             </div>
 
             <label className="mt-4 block text-[12px] text-[#b8a6a1]" htmlFor="featured-days">
-              Durée (jours)
+              {t("seller.duration")}
             </label>
             <input
               id="featured-days"
@@ -452,14 +458,14 @@ export default function SellerPage() {
 
             <div className="mt-5 flex items-center justify-between rounded-2xl border border-[rgba(255,236,229,0.08)] px-4 py-3">
               <span className="text-[12px] text-[#b8a6a1]">
-                {formatXof(rate)} × {days} jour{days > 1 ? "s" : ""}
+                {formatXof(rate)} × {t(days > 1 ? "seller.dayMany" : "seller.dayOne", { n: days })}
               </span>
               <span className="text-[18px] font-semibold tabular-nums text-white">{formatXof(amount)}</span>
             </div>
 
             <p className="mt-3 text-[12px] text-[#8f7d77]">
-              Solde disponible : <span className="tabular-nums text-stone-200">{formatXof(available)}</span>
-              {insufficient && <span className="ml-1 text-[#fcd9a5]">— insuffisant, payez en ligne</span>}
+              {t("seller.balanceLine")}<span className="tabular-nums text-stone-200">{formatXof(available)}</span>
+              {insufficient && <span className="ms-1 text-[#fcd9a5]">{t("seller.insufficient")}</span>}
             </p>
 
             {error && (
@@ -475,7 +481,7 @@ export default function SellerPage() {
                 disabled={!daysValid || paying !== null || insufficient}
                 onClick={() => void pay("BALANCE")}
               >
-                {paying === "BALANCE" ? "Paiement…" : "Payer avec mon solde"}
+                {paying === "BALANCE" ? t("seller.paying") : t("seller.payBalance")}
               </button>
               <button
                 type="button"
@@ -483,7 +489,7 @@ export default function SellerPage() {
                 disabled={!daysValid || paying !== null}
                 onClick={() => void pay("PAYTECH")}
               >
-                {paying === "PAYTECH" ? "Redirection…" : "Payer en ligne"}
+                {paying === "PAYTECH" ? t("seller.redirecting") : t("seller.payOnline")}
               </button>
             </div>
             <button
@@ -491,7 +497,7 @@ export default function SellerPage() {
               onClick={() => setModalProduct(null)}
               className="mt-3 w-full text-center text-[12px] text-[#8f7d77] transition hover:text-white"
             >
-              Annuler
+              {t("seller.cancel")}
             </button>
           </div>
         </div>

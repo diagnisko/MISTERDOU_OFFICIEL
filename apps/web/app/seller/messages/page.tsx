@@ -4,11 +4,13 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashShell } from "@/components/dash/dash-ui";
 import { ChatInbox } from "@/components/chat/product-chat";
-import { SELLER_NAV } from "@/components/seller/seller-nav";
+import { sellerNav } from "@/components/seller/seller-nav";
 import { Spinner } from "@/components/ui";
 import { displayName, logoutAccount, useAccount } from "@/lib/account";
+import { useT } from "@/lib/i18n";
 
 export default function SellerMessagesPage() {
+  const t = useT();
   const account = useAccount();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -21,7 +23,7 @@ export default function SellerMessagesPage() {
     return (
       <div data-lux className="dash-root grid place-items-center text-sm text-[#b8a6a1]">
         <span className="flex items-center gap-3">
-          <Spinner /> Ouverture de l’espace vendeur…
+          <Spinner /> {t("seller.opening")}
         </span>
       </div>
     );
@@ -29,8 +31,8 @@ export default function SellerMessagesPage() {
 
   return (
     <DashShell
-      nav={SELLER_NAV}
-      areaLabel="Espace vendeur"
+      nav={sellerNav(t)}
+      areaLabel={t("seller.area")}
       user={{ name: displayName(account.user), email: account.user.email }}
       loggingOut={loggingOut}
       onLogout={() => {
@@ -38,10 +40,10 @@ export default function SellerMessagesPage() {
         void logoutAccount().finally(() => router.replace("/"));
       }}
     >
-      <h1 className="mb-1 text-[22px] font-semibold text-white">Discussions clients</h1>
-      <p className="mb-5 text-[13px] text-[#8f7d77]">Les questions des acheteurs sur vos comptes. L’équipe MISTERDOU peut aussi répondre à votre place.</p>
+      <h1 className="mb-1 text-[22px] font-semibold text-white">{t("sellermsg.title")}</h1>
+      <p className="mb-5 text-[13px] text-[#8f7d77]">{t("sellermsg.lead")}</p>
       <Suspense>
-        <ChatInbox source="inbox" basePath="/seller/messages" emptyText="Aucune question pour l’instant. Elles apparaîtront ici dès qu’un client vous écrit." />
+        <ChatInbox source="inbox" basePath="/seller/messages" emptyText={t("sellermsg.empty")} />
       </Suspense>
     </DashShell>
   );
