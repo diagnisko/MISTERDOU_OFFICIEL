@@ -10,7 +10,8 @@ import { LOCALE_KEY, THEME_KEY } from "./preferences-boot";
 // ---------------------------------------------------------------------------
 
 export type Theme = "dark" | "light";
-export type Locale = "fr" | "en" | "ar";
+import type { Locale } from "./i18n-core";
+export type { Locale };
 
 export const LOCALES: Array<{ value: Locale; label: string; native: string }> = [
   { value: "fr", label: "Français", native: "Français" },
@@ -48,6 +49,12 @@ function update(patch: Partial<Prefs>) {
   try {
     localStorage.setItem(THEME_KEY, prefs.theme);
     localStorage.setItem(LOCALE_KEY, prefs.locale);
+  } catch {
+    /* stockage indisponible : la préférence vaut pour cette visite */
+  }
+  // Cookie : les pages rendues côté serveur lisent aussi la langue.
+  try {
+    document.cookie = `${LOCALE_KEY}=${prefs.locale}; path=/; max-age=31536000; samesite=lax`;
   } catch {
     /* stockage indisponible : la préférence vaut pour cette visite */
   }

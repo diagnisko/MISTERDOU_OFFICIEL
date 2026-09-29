@@ -4,8 +4,10 @@ import { useRef } from "react";
 import Link from "next/link";
 import { Magnetic, OrbGlide, Reveal, IgniteHeading } from "./lux-fx";
 import { IconArrowRight } from "./lux-icons";
+import { useT } from "@/lib/i18n";
 
 export function LuxCta() {
+  const t = useT();
   const ref = useRef<HTMLElement>(null);
 
   return (
@@ -17,29 +19,28 @@ export function LuxCta() {
 
       <div className="relative z-10 mx-auto max-w-3xl text-center">
         <Reveal>
-          <span className="lux-glass-chip text-[10px] text-stone-300">Rejoignez le marché sûr</span>
+          <span className="lux-glass-chip text-[10px] text-stone-300">{t("cta.chip")}</span>
         </Reveal>
         <IgniteHeading
           className="lux-h2 mt-7 text-stone-100"
-          parts={[{ text: "Votre carrière mérite des armes" }, { text: " à la hauteur.", accent: true }]}
+          parts={[{ text: t("cta.h1") }, { text: t("cta.h2"), accent: true }]}
         />
         <Reveal delay={0.16}>
           <p className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-stone-400">
-            Comptes certifiés, identité vérifiée, paiement échelonné. L'achat comme la revente, sans friction,
-            sans zone grise.
+            {t("cta.lead")}
           </p>
         </Reveal>
         <Reveal delay={0.24}>
           <div className="mt-10 flex flex-col items-center justify-center gap-3.5 sm:flex-row">
             <Magnetic strength={0.35}>
               <Link href="/register" className="lux-btn lux-btn-gold group/btn">
-                Créer mon compte
+                {t("home.createAccount")}
                 <IconArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" aria-hidden />
               </Link>
             </Magnetic>
             <Magnetic strength={0.35}>
               <Link href="/login" className="lux-btn lux-btn-ghost group/btn">
-                Se connecter
+                {t("auth.login")}
               </Link>
             </Magnetic>
           </div>

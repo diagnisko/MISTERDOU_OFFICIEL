@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ApiClientError, request } from "@/lib/api";
 import { refreshAccount, useAccount } from "@/lib/account";
 import { useT } from "@/lib/i18n";
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const account = useAccount();
   const prefs = usePreferences();
   const t = useT();
+  const router = useRouter();
 
   if (account.status !== "member") return null;
 
@@ -64,7 +66,10 @@ export default function SettingsPage() {
               role="radio"
               lang={l.value}
               aria-checked={prefs.locale === l.value}
-              onClick={() => setLocale(l.value)}
+              onClick={() => {
+                setLocale(l.value);
+                router.refresh(); // pages rendues côté serveur
+              }}
               className={optionClass(prefs.locale === l.value)}
             >
               {l.native}

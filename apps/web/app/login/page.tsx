@@ -42,7 +42,7 @@ export default function LoginPage() {
     const cleanUrl = () => window.history.replaceState(null, "", window.location.pathname);
 
     if (!idToken) {
-      if (oauthError) setError("La connexion Google a été annulée. Réessayez ou utilisez votre e-mail.");
+      if (oauthError) setError(t("auth.googleCancelled"));
       cleanUrl();
       return;
     }
@@ -50,7 +50,7 @@ export default function LoginPage() {
     const expected = sessionStorage.getItem("md_google_state");
     sessionStorage.removeItem("md_google_state");
     if (!state || state !== expected) {
-      setError("Échange Google interrompu (état invalide). Réessayez.");
+      setError(t("auth.googleInterrupted"));
       cleanUrl();
       return;
     }

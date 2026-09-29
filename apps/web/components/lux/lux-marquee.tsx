@@ -11,6 +11,7 @@ import {
   useTransform,
   useVelocity,
 } from "motion/react";
+import { useT } from "@/lib/i18n";
 import { IconStar } from "./lux-icons";
 
 const WORDS = ["Division 1", "Legend", "Ikon", "Epic", "Division 2", "Élite", "Rare", "Certifié"];
@@ -22,11 +23,12 @@ function wrap(min: number, max: number, v: number) {
 }
 
 function Row() {
+  const t = useT();
   return (
     <span className="flex shrink-0 items-center">
       {WORDS.map((w) => (
         <span key={w} className="flex items-center">
-          <span className="lux-marquee-item whitespace-nowrap px-8">{w}</span>
+          <span className="lux-marquee-item whitespace-nowrap px-8">{w === "Élite" ? t("marquee.elite") : w === "Certifié" ? t("marquee.certified") : w}</span>
           <IconStar filled className="lux-marquee-star" aria-hidden />
         </span>
       ))}

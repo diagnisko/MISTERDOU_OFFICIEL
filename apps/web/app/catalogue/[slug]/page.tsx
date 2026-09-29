@@ -22,6 +22,7 @@ import { divisionTier, formatFcfa, formatInt, tierLabel, tierTileClass } from "@
 import { ApiClientError } from "@/lib/api";
 import { createOrder } from "@/lib/orders";
 import { SellerChatBox } from "@/components/chat/seller-chat-box";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 function BuyButton({
   productId,
@@ -30,6 +31,7 @@ function BuyButton({
   productId: string;
   paymentMode: "ONE_TIME" | "INSTALLMENTS";
 }) {
+  const t = useT();
   const [state, setState] = useState<"idle" | "busy" | "needLogin" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const split = paymentMode === "INSTALLMENTS";
@@ -43,11 +45,11 @@ function BuyButton({
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "UNAUTHORIZED") {
         setState("needLogin");
-        setMessage("Connectez-vous pour finaliser votre achat.");
+        setMessage(t("product.loginToBuy"));
         return;
       }
       setState("error");
-      setMessage(err instanceof Error ? err.message : "Achat impossible pour le moment");
+      setMessage(err instanceof Error ? err.message : t("product.buyFailed"));
     }
   }
 
@@ -61,10 +63,10 @@ function BuyButton({
         style={{ borderRadius: 18 }}
       >
         {state === "busy"
-          ? "Préparation de la commande…"
+          ? t("product.preparing")
           : split
-            ? "Démarrer le paiement en plusieurs fois"
-            : "Acheter sur l'espace sécurisé"}
+            ? t("product.startMonthly")
+            : t("product.buy")}
         <IconArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" aria-hidden />
       </button>
       {message && (
@@ -72,7 +74,7 @@ function BuyButton({
           {state === "needLogin" && (
             <>
               <Link href="/login" className="text-[var(--lux-gold-light)] underline underline-offset-2">
-                Se connecter
+                {t("product.login")}
               </Link>{" "}
               — {message}
             </>
@@ -94,6 +96,7 @@ function Gallery({
   title: string;
   badges: React.ReactNode;
 }) {
+  const t = useT();
   const [active, setActive] = useState(0);
   const current = media[Math.min(active, media.length - 1)]!;
   const imageCount = media.filter((m) => m.kind === "image").length;
@@ -102,26 +105,26 @@ function Gallery({
       <div className="relative aspect-[16/10] overflow-hidden rounded-[28px] border border-[var(--lux-line)] bg-black">
         {current.kind === "video" ? (
           <video key={current.id} src={current.url} controls playsInline preload="metadata" className="h-full w-full bg-black object-contain">
-            Votre navigateur ne lit pas cette vidéo.
+            {t("product.noVideo")}
           </video>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element -- bucket public R2, domaine configurable
           <img
             src={current.url}
-            alt={`${title} — capture ${media.filter((m) => m.kind === "image").indexOf(current) + 1} sur ${imageCount}`}
+            alt={t("product.capture", { title, n: media.filter((m) => m.kind === "image").indexOf(current) + 1, total: imageCount })}
             className="h-full w-full object-cover"
           />
         )}
         {current.kind === "image" && badges}
       </div>
       {media.length > 1 && (
-        <ul className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Médias du compte">
+        <ul className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label={t("product.media")}>
           {media.map((m, i) => (
             <li key={m.id} className="shrink-0">
               <button
                 type="button"
                 onClick={() => setActive(i)}
-                aria-label={m.kind === "video" ? `Lire la vidéo ${i + 1}` : `Afficher la capture ${i + 1}`}
+                aria-label={m.kind === "video" ? t("product.playVideo", { n: i + 1 }) : t("product.showCapture", { n: i + 1 })}
                 aria-pressed={i === active}
                 className={cx(
                   "relative block h-16 w-24 overflow-hidden rounded-xl border transition",
@@ -164,6 +167,7 @@ const TIER_GLOW: Record<string, string> = {
 };
 
 function DetailHub() {
+  const t = useT();
   const params = useParams<{ slug: string }>();
   const slug = params.slug as string;
   const installmentsMode = useSearchParams().get("mode") === "mensualites";
@@ -207,16 +211,16 @@ function DetailHub() {
       <main className="relative z-10 px-5 pt-32 md:px-8 md:pt-40">
         <div className="mx-auto max-w-5xl">
           <div className="lux-glass rounded-[24px] p-12 text-center">
-            <SectionLabel>Introuvable</SectionLabel>
+            <SectionLabel>{t("product.notFound")}</SectionLabel>
             <p className="mt-4 text-[14px] text-stone-400">
-              Ce compte n&apos;existe pas, n&apos;est plus en ligne, ou le réseau a failli.
+              {t("product.notFoundBody")}
             </p>
             <div className="mt-8 flex justify-center gap-4">
               <Link href="/catalogue" className="lux-btn lux-btn-gold px-6" style={{ borderRadius: 16 }}>
-                Revenir au catalogue
+                {t("product.backToCatalogue")}
               </Link>
               <button type="button" onClick={() => setAttempt((a) => a + 1)} className="lux-btn lux-btn-ghost" style={{ borderRadius: 16 }}>
-                Réessayer
+                {t("product.retry")}
               </button>
             </div>
           </div>
@@ -239,14 +243,14 @@ function DetailHub() {
     <main className="relative z-10 px-5 pt-32 md:px-8 md:pt-40">
       <div className="mx-auto max-w-5xl">
         {/* Fil d'Ariane */}
-        <nav aria-label="Fil d'Ariane" className="mb-8 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-400">
+        <nav aria-label={t("product.breadcrumb")} className="mb-8 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-400">
           <Link href="/" className="transition-colors hover:text-stone-200">
-            Accueil
-          </Link>
+            {t("product.home")}
+</Link>
           <span aria-hidden>/</span>
           <Link href="/catalogue" className="transition-colors hover:text-stone-200">
-            Catalogue
-          </Link>
+            {t("product.catalogue")}
+</Link>
           <span aria-hidden>/</span>
           <span className="text-stone-300">{item.title}</span>
         </nav>
@@ -256,7 +260,7 @@ function DetailHub() {
             <Gallery media={item.media} title={item.title} badges={<>
                 <span className="lux-glass-chip pointer-events-none absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
                   <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
-                  {tierLabel(tier)}
+                  {t(`tier.${tier}` as MessageKey)}
                 </span>
                 {item.isFeatured && (
                   <span className="pointer-events-none absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
@@ -275,7 +279,7 @@ function DetailHub() {
             >
               <span className="lux-glass-chip absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
                 <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
-                {tierLabel(tier)}
+                {t(`tier.${tier}` as MessageKey)}
               </span>
               {item.isFeatured && (
                 <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
@@ -286,12 +290,12 @@ function DetailHub() {
 
               <div className="flex flex-col gap-1">
                 <span className="lux-serif text-[76px] font-bold leading-none text-stone-50">{formatInt(item.teamPower)}</span>
-                <span className="text-[11px] uppercase tracking-[0.32em] text-stone-400">OVR — puissance</span>
+                <span className="text-[11px] uppercase tracking-[0.32em] text-stone-400">{t("product.power")}</span>
               </div>
               <div className="flex flex-col items-center gap-1.5 text-[13px] text-stone-300">
                 <IconCoins className="h-6 w-6 text-[var(--lux-gold-light)]" aria-hidden />
                 <span className="lux-serif text-[20px] font-bold text-stone-100 tabular-nums">{formatInt(item.coins)}</span>
-                <span className="text-[9px] uppercase tracking-[0.3em] text-stone-400">Coins</span>
+                <span className="text-[9px] uppercase tracking-[0.3em] text-stone-400">{t("product.coins")}</span>
               </div>
             </div>
 
@@ -301,7 +305,7 @@ function DetailHub() {
           {/* Infos */}
           <div className="flex flex-col gap-5">
             <div>
-              <SectionLabel>Compte {tierLabel(tier)}</SectionLabel>
+              <SectionLabel>{t("product.account", { tier: t(`tier.${tier}` as MessageKey) })}</SectionLabel>
               <h1 className="lux-serif mt-3 text-[34px] font-bold leading-tight text-stone-50 md:text-[40px]">{item.title}</h1>
               {typeof item.avgRating === "number" && item.reviewCount > 0 && (
                 <span className="mt-3 flex items-center gap-2 text-[12px] text-stone-400">
@@ -311,7 +315,7 @@ function DetailHub() {
                     ))}
                   </span>
                   <span className="tabular-nums">
-                    {(item.avgRating ?? 0).toFixed(1).replace(".", ",")}/5 · {item.reviewCount} avis
+                    {t("product.reviews", { rating: (item.avgRating ?? 0).toFixed(1).replace(".", ","), count: item.reviewCount })}
                   </span>
                 </span>
               )}
@@ -332,41 +336,41 @@ function DetailHub() {
 
             <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-stone-400">
               <IconDiamond className="h-3.5 w-3.5 text-[var(--lux-gold)]" aria-hidden />
-              {split && item.installmentMonths ? `Paiement en ${item.installmentMonths} mensualités` : "Paiement comptant"}
+              {split && item.installmentMonths ? t("product.payMonthly", { months: item.installmentMonths }) : t("product.payCash")}
             </span>
             {split && item.installmentDownPayment !== null && (
               <p className="text-[13px] leading-relaxed text-stone-400">
-                Entrée <span className="text-stone-200 tabular-nums">{formatFcfa(item.installmentDownPayment)}</span>, puis{" "}
-                <span className="text-stone-200 tabular-nums">
-                  {formatFcfa(Math.round((item.price - item.installmentDownPayment) / Math.max(1, item.installmentMonths ?? 1)))}
-                </span>{" "}
-                /mois sur {item.installmentMonths} mois, sous réserve d&apos;éligibilité.
+                {t("product.downPayment", {
+                  down: formatFcfa(item.installmentDownPayment),
+                  monthly: formatFcfa(Math.round((item.price - item.installmentDownPayment) / Math.max(1, item.installmentMonths ?? 1))),
+                  months: item.installmentMonths ?? 0,
+                })}
               </p>
             )}
 
-            <p className="text-[14px] leading-relaxed text-stone-400">{item.description || "Fiche détaillée disponible sur l'espace acheteur."}</p>
+            <p className="text-[14px] leading-relaxed text-stone-400">{item.description || t("product.noDescription")}</p>
 
             <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />
             {canSplit && !split && (
               <Link href={`/catalogue/${item.slug}?mode=mensualites`} className="text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
-                Ce compte existe aussi en paiement par mensualités →
+                {t("product.alsoMonthly")}
               </Link>
             )}
             {split && (
               <Link href={`/catalogue/${item.slug}`} className="text-[12.5px] text-stone-400 underline-offset-2 hover:underline">
-                Préférer le paiement comptant
-              </Link>
+                {t("product.preferCash")}
+</Link>
             )}
             <SellerChatBox productId={item.id} slug={item.slug} />
             {split && (
               <p className="flex items-center gap-2 text-[11px] text-stone-400">
                 <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
-                L&apos;accès au compte est livré après solde complet de l&apos;échéancier — suivi depuis « Mes commandes ».
+                {t("product.deliveredAfter")}
               </p>
             )}
             <p className="flex items-center gap-2 text-[11px] text-stone-400">
               <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
-              La transaction se finalise dans votre espace, après connexion et vérification.
+              {t("product.finalize")}
             </p>
           </div>
         </div>
@@ -375,17 +379,16 @@ function DetailHub() {
         {item.extraInfo && (
           <div className="mt-12 grid gap-5 md:grid-cols-2">
             <div className="lux-glass rounded-[24px] p-7">
-              <h2 className="text-[12px] font-semibold uppercase tracking-[0.22em] text-stone-300">Points forts</h2>
+              <h2 className="text-[12px] font-semibold uppercase tracking-[0.22em] text-stone-300">{t("product.highlights")}</h2>
               <p className="mt-4 text-[14px] leading-relaxed text-stone-400">{item.extraInfo}</p>
             </div>
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
-                <Stat label="Division" value={item.division} />
-                <Stat label="Promo" value={isPromo ? "Active" : "Aucune"} />
+                <Stat label={t("product.division")} value={item.division} />
+                <Stat label={t("product.promo")} value={isPromo ? t("product.promoActive") : t("product.promoNone")} />
               </div>
               <p className="text-[12px] leading-relaxed text-stone-400">
-                Prix effectif servi par le serveur — les codes de promotion et le paiement en plusieurs
-                fois sont validés à la commande, jamais affichés localement.
+                {t("product.priceNote")}
               </p>
             </div>
           </div>
@@ -394,8 +397,8 @@ function DetailHub() {
         <div className="mt-12">
           <Link href="/catalogue" className="lux-btn lux-btn-ghost" style={{ borderRadius: 16 }}>
             <IconArrowLeft className="h-4 w-4" aria-hidden />
-            Tout le catalogue
-          </Link>
+            {t("product.allCatalogue")}
+</Link>
         </div>
       </div>
     </main>

@@ -15,15 +15,16 @@ import {
   type ThreadMessage,
   type ThreadSummary,
 } from "@/lib/product-chat";
+import { useT } from "@/lib/i18n";
 
 const POLL_MS = 6_000;
 
-function when(iso: string) {
+function when(iso: string, locale: string) {
   const d = new Date(iso);
   const today = new Date();
   return d.toDateString() === today.toDateString()
-    ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    ? d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString(locale, { day: "numeric", month: "short" });
 }
 
 // ---------------------------------------------------------------------------
@@ -33,12 +34,15 @@ function when(iso: string) {
 // ---------------------------------------------------------------------------
 
 export function MessageList({ messages, showAuthors }: { messages: ThreadMessage[]; showAuthors: boolean }) {
+  const t = useT();
   const end = useRef<HTMLDivElement>(null);
+  // Libellés génériques renvoyés par l'API en français.
+  const authorLabel = (a: string) => (a === "Vous" ? t("chat.you") : a === "Vendeur" ? t("chat.seller") : a === "Équipe MISTERDOU" ? t("chat.team") : a);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
 
-  if (messages.length === 0) return <p className="py-8 text-center text-[13px] text-stone-500">Aucun message pour l’instant.</p>;
+  if (messages.length === 0) return <p className="py-8 text-center text-[13px] text-stone-500">{t("chat.noMessages")}</p>;
   return (
     <div className="space-y-3">
       {messages.map((m, i) => {
@@ -46,7 +50,7 @@ export function MessageList({ messages, showAuthors }: { messages: ThreadMessage
         const grouped = prev && prev.author === m.author && prev.ownSide === m.ownSide;
         return (
           <div key={m.id} className={`flex flex-col ${m.ownSide ? "items-end" : "items-start"}`}>
-            {showAuthors && !grouped && <span className="mb-1 px-1 text-[11px] text-stone-500">{m.author}</span>}
+            {showAuthors && !grouped && <span className="mb-1 px-1 text-[11px] text-stone-500">{authorLabel(m.author)}</span>}
             <div
               className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed ${
                 m.ownSide
@@ -56,7 +60,7 @@ export function MessageList({ messages, showAuthors }: { messages: ThreadMessage
             >
               {m.content}
             </div>
-            <span className="mt-0.5 px-1 text-[10.5px] text-stone-600">{when(m.createdAt)}</span>
+            <span className="mt-0.5 px-1 text-[10.5px] text-stone-600">{when(m.createdAt, t.intl)}</span>
           </div>
         );
       })}
@@ -65,7 +69,8 @@ export function MessageList({ messages, showAuthors }: { messages: ThreadMessage
   );
 }
 
-export function Composer({ onSend, placeholder = "Votre message…" }: { onSend: (text: string) => Promise<void>; placeholder?: string }) {
+export function Composer({ onSend, placeholder }: { onSend: (text: string) => Promise<void>; placeholder?: string }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +85,7 @@ export function Composer({ onSend, placeholder = "Votre message…" }: { onSend:
       await onSend(content);
       setText("");
     } catch (err) {
-      setError(errorMessage(err, "Envoi impossible."));
+      setError(errorMessage(err, t("chat.sendFailed")));
     } finally {
       setBusy(false);
     }
@@ -103,8 +108,8 @@ export function Composer({ onSend, placeholder = "Votre message…" }: { onSend:
           onKeyDown={onKey}
           rows={2}
           maxLength={2000}
-          placeholder={placeholder}
-          aria-label="Message"
+          placeholder={placeholder ?? t("chat.placeholder")}
+          aria-label={t("chat.message")}
           className="min-h-[46px] flex-1 resize-none rounded-2xl border border-white/10 bg-black/20 px-3.5 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
         />
         <button
@@ -113,16 +118,17 @@ export function Composer({ onSend, placeholder = "Votre message…" }: { onSend:
           className="lux-btn lux-btn-gold !min-h-[46px] shrink-0 px-5 text-[12px] uppercase tracking-[0.12em] disabled:opacity-50"
           style={{ borderRadius: 16 }}
         >
-          {busy ? "…" : "Envoyer"}
+          {busy ? "…" : t("chat.send")}
         </button>
       </div>
-      <p className="text-[11px] text-stone-600">Entrée pour envoyer · Maj + Entrée pour un retour à la ligne</p>
+      <p className="text-[11px] text-stone-600">{t("chat.hint")}</p>
     </form>
   );
 }
 
 /** Un fil ouvert : en-tête produit, messages rafraîchis, saisie. */
 export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActivity?: () => void }) {
+  const t = useT();
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,7 +137,7 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
       setThread(await fetchThread(threadId));
       setError(null);
     } catch (err) {
-      setError(errorMessage(err, "Discussion indisponible."));
+      setError(errorMessage(err, t("chat.unavailable")));
     }
   }, [threadId]);
 
@@ -146,7 +152,7 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
   if (!thread) {
     return (
       <p className="flex items-center gap-2 p-4 text-[13px] text-stone-400">
-        <Spinner className="h-4 w-4" /> Chargement de la discussion…
+        <Spinner className="h-4 w-4" /> {t("chat.loadingThread")}
       </p>
     );
   }
@@ -160,12 +166,12 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
             {thread.product.title}
           </Link>
           <p className="text-[12px] text-stone-400">
-            {thread.side === "client" ? `Discussion avec ${thread.counterpart === "Vendeur" ? "le vendeur" : thread.counterpart}` : `Client : ${thread.counterpart}`}
-            {!thread.product.available && " · plus en vente"}
+            {thread.side === "client" ? (thread.counterpart === "Vendeur" ? t("chat.withSeller") : t("chat.with", { name: thread.counterpart })) : t("chat.client", { name: thread.counterpart })}
+            {!thread.product.available && t("chat.soldOut")}
           </p>
         </div>
         {thread.side === "team" && (
-          <span className="shrink-0 rounded-full border border-[rgba(134,239,172,0.3)] px-2.5 py-1 text-[10.5px] text-[#86efac]">Auteurs visibles</span>
+          <span className="shrink-0 rounded-full border border-[rgba(134,239,172,0.3)] px-2.5 py-1 text-[10.5px] text-[#86efac]">{t("chat.authorsVisible")}</span>
         )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -173,7 +179,7 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
       </div>
       <div className="border-t border-white/[0.06] p-3">
         <Composer
-          placeholder={thread.side === "client" ? "Écrire au vendeur…" : "Répondre au client…"}
+          placeholder={thread.side === "client" ? t("chat.writeSeller") : t("chat.replyClient")}
           onSend={async (content) => {
             await replyInThread(thread.id, content);
             await load();
@@ -181,7 +187,7 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
           }}
         />
         {thread.side === "seller" && (
-          <p className="mt-2 text-[11px] text-stone-600">Le client ne voit pas qui répond : vos réponses et celles de l’équipe apparaissent comme « Vendeur ».</p>
+          <p className="mt-2 text-[11px] text-stone-600">{t("chat.sellerNote")}</p>
         )}
       </div>
     </div>
@@ -203,6 +209,7 @@ function Thumb({ url }: { url: string | null }) {
 // ---------------------------------------------------------------------------
 
 export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "inbox"; basePath: string; emptyText: string }) {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const selected = params.get("thread");
@@ -214,7 +221,7 @@ export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "i
       setItems(source === "mine" ? await fetchMyThreads() : (await fetchInbox()).items);
       setError(null);
     } catch (err) {
-      setError(errorMessage(err, "Discussions indisponibles."));
+      setError(errorMessage(err, t("chat.listUnavailable")));
     }
   }, [source]);
 
@@ -235,7 +242,7 @@ export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "i
         )}
         {items === null && !error && (
           <p className="flex items-center gap-2 p-4 text-[13px] text-stone-400">
-            <Spinner className="h-4 w-4" /> Chargement…
+            <Spinner className="h-4 w-4" /> {t("chat.loading")}
           </p>
         )}
         {items?.length === 0 && <p className="p-5 text-[13px] leading-relaxed text-stone-400">{emptyText}</p>}
@@ -254,7 +261,7 @@ export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "i
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-[13.5px] font-semibold text-stone-100">{item.product.title}</span>
-                    <span className="shrink-0 text-[10.5px] text-stone-500">{when(item.lastMessageAt)}</span>
+                    <span className="shrink-0 text-[10.5px] text-stone-500">{when(item.lastMessageAt, t.intl)}</span>
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span className={`truncate text-[12.5px] ${item.unread > 0 ? "text-stone-200" : "text-stone-500"}`}>
@@ -277,14 +284,14 @@ export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "i
         {selected ? (
           <>
             <button type="button" onClick={() => open(null)} className="px-4 pt-3 text-left text-[12.5px] text-stone-400 md:hidden">
-              ← Toutes les discussions
+              {t("chat.allThreads")}
             </button>
             <div className="min-h-0 flex-1">
               <ThreadPanel key={selected} threadId={selected} onActivity={() => void load()} />
             </div>
           </>
         ) : (
-          <p className="m-auto max-w-xs text-center text-[13px] text-stone-500">Choisissez une discussion pour l’afficher.</p>
+          <p className="m-auto max-w-xs text-center text-[13px] text-stone-500">{t("chat.pick")}</p>
         )}
       </section>
     </div>
