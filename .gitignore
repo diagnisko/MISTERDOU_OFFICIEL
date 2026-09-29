@@ -12,6 +12,10 @@ dist/
 .next/
 **/.next-console/
 **/.next-local/
+# Cloudflare (OpenNext, Wrangler)
+.open-next/
+.wrangler/
+.dev.vars*
 out/
 build/
 .turbo/

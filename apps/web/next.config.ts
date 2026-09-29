@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
   productionBrowserSourceMaps: false,
+  // Cloudflare Workers : pas de service d'optimisation d'images (les deux
+  // visuels concernés sont déjà dimensionnés).
+  images: { unoptimized: true },
   async rewrites() {
     // Le navigateur appelle /api/* en same-origin → l'API est en proxy (pas de CORS, cookies OK)
     return [{ source: "/api/:path*", destination: `${API_INTERNAL}/api/:path*` }];

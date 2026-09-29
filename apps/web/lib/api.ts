@@ -14,7 +14,6 @@ function localizedError(code: string, serverMessage: string): string {
 }
 
 const BROWSER_BASE = "";
-const SERVER_BASE = process.env.API_INTERNAL_URL ?? "http://localhost:4000";
 
 export class ApiClientError extends Error {
   readonly code: ApiErrorCode;

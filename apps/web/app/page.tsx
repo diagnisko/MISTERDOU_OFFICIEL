@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import { SESSION_COOKIE_NAME } from "@misterdou/shared";
 import { LuxHome } from "@/components/lux/lux-home";
 import { homeForRole } from "@/lib/greeting";
-
-const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? "http://localhost:4000";
+import { serverApiFetch } from "@/lib/server-api";
 
 // Rôle du membre connecté, ou null. Seule une session confirmée par l'API
 // compte : un cookie périmé laisse voir la page d'accueil normalement.
@@ -12,7 +11,7 @@ async function memberRole(): Promise<string | null> {
   const jar = await cookies();
   if (!jar.get(SESSION_COOKIE_NAME)) return null;
   try {
-    const res = await fetch(`${API_INTERNAL_URL}/api/v1/auth/me`, {
+    const res = await serverApiFetch("/api/v1/auth/me", {
       headers: { cookie: jar.toString() },
       cache: "no-store",
     });

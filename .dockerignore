@@ -1,0 +1,19 @@
+# Contexte de construction de l'image API (racine du dépôt).
+# Jamais de secrets ni de dépendances locales dans l'image.
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/.next
+**/.next-local
+**/.open-next
+**/.wrangler
+**/.storage
+.git
+.claude
+logs
+docs
+packages/db/generated
+# Seul le manifeste du site est utile (lockfile de l'espace de travail).
+apps/web/**
+!apps/web/package.json

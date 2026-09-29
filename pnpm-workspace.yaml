@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "deploy/*"
 
 onlyBuiltDependencies:
   - "prisma"
@@ -10,4 +11,5 @@ onlyBuiltDependencies:
   - "@tailwindcss/oxide"
   - "sharp"
   - "esbuild"
+  - "workerd"
   - "unrs-resolver"

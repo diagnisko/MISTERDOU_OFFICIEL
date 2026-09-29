@@ -5,6 +5,7 @@ import { LuxFooter } from "@/components/lux/lux-footer";
 import { ProductCard } from "@/components/lux/lux-product-card";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { fetchCatalogueServer, type CatalogueSort } from "@/lib/lux-catalogue";
+import { serverApiFetch } from "@/lib/server-api";
 import { formatInt, type LuxPaymentMode } from "@/lib/lux";
 import { IconArrowLeft, IconArrowRight } from "@/components/lux/lux-icons";
 import { getServerT } from "@/lib/i18n-server";
@@ -105,7 +106,7 @@ async function CatalogueBody({
   let data: Awaited<ReturnType<typeof fetchCatalogueServer>> | null = null;
   let error: string | null = null;
   try {
-    data = await fetchCatalogueServer({
+    data = await fetchCatalogueServer(serverApiFetch, {
       division: division ?? undefined,
       sort,
       page,

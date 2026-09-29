@@ -5,7 +5,7 @@
 // - `fetchCatalogue`            → client Next (proxy /api via rewrite),
 //   avec cache court (20 s, aligné Cache-Control serveur).
 // - `fetchCatalogueServer`      → SSR : appel direct à l'API interne
-//   (URL absolue API_INTERNAL_URL), cache serveur court.
+//   (lib/server-api : liaison Cloudflare ou API_INTERNAL_URL), cache serveur court.
 // - `fetchCatalogueDetail(Server)` → fiche produit (client / SSR).
 // ---------------------------------------------------------------
 
@@ -54,7 +54,6 @@ export interface CatalogueParams {
   paymentMode?: LuxPaymentMode;
 }
 
-const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? "http://localhost:4000";
 
 function buildQuery(params: CatalogueParams = {}): string {
   const qs = new URLSearchParams();
@@ -100,12 +99,17 @@ export async function fetchCatalogue(params: CatalogueParams = {}, force = false
 }
 
 /** Grille liste — Server Component (SSR), URL absolue API interne. */
-export async function fetchCatalogueServer(params: CatalogueParams = {}, force = false): Promise<CatalogueData> {
+// `fetchApi` : lib/server-api (fourni par l'appelant serveur, ce module étant aussi chargé côté navigateur).
+export async function fetchCatalogueServer(
+  fetchApi: (path: string, init?: RequestInit) => Promise<Response>,
+  params: CatalogueParams = {},
+  force = false,
+): Promise<CatalogueData> {
   const key = buildQuery(params);
   const hit = cache.get(`srv:${key}`);
   if (!force && hit && Date.now() - hit.at < TTL_MS) return hit.data;
 
-  const res = await fetch(`${API_INTERNAL_URL}/api/catalogue?${key}`, {
+  const res = await fetchApi(`/api/catalogue?${key}`, {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",

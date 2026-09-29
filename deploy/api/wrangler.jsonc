@@ -1,0 +1,31 @@
+{
+  // API MISTERDOU : Worker + Container (voir src/index.ts et apps/api/Dockerfile).
+  // Les secrets se règlent dans Cloudflare (Workers & Pages > misterdou-api >
+  // Settings > Variables and Secrets), jamais dans ce fichier.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "misterdou-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Pas d'adresse publique : seul le site l'appelle (liaison de service).
+  "workers_dev": false,
+  "containers": [
+    {
+      "class_name": "ApiContainer",
+      "image": "../../apps/api/Dockerfile",
+      "image_build_context": "../..",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "API", "class_name": "ApiContainer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ApiContainer"] }],
+  "triggers": { "crons": ["*/30 * * * *"] },
+  "vars": {
+    "NODE_ENV": "production",
+    "PAYTECH_SANDBOX": "true"
+  },
+  "observability": { "enabled": true }
+}
