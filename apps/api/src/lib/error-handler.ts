@@ -29,6 +29,22 @@ export function registerErrorHandler(app: FastifyInstance) {
       });
     }
 
+    // Base injoignable ou connexion coupée (réveil de Neon, réseau) : erreur
+    // passagère, on invite à réessayer plutôt qu'afficher une panne.
+    const connectionLost =
+      error instanceof Prisma.PrismaClientInitializationError ||
+      (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1008", "P1017"].includes(error.code));
+    if (connectionLost) {
+      request.log.warn({ err: error }, "[db] connexion indisponible");
+      return reply
+        .status(503)
+        .header("Retry-After", "5")
+        .send({
+          ok: false,
+          error: { code: "SERVICE_UNAVAILABLE", message: "Connexion momentanément interrompue. Réessayez dans quelques secondes." },
+        });
+    }
+
     // Erreurs Prisma / DB
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {

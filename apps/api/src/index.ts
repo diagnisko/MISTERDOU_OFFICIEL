@@ -6,6 +6,7 @@ import { logger } from "./lib/logger.js";
 import { startPaymentReconciliation } from "./modules/payments/service.js";
 import { startInstallmentJobs } from "./modules/installments/service.js";
 import { startPromotionJobs } from "./modules/promotions/service.js";
+import { startSellerPayoutJobs } from "./modules/orders/fulfillment.js";
 
 async function main() {
   const app = await buildApp();
@@ -22,6 +23,9 @@ async function main() {
 
   // Promotions & mises en avant : expiration + synchronisation des statuts.
   startPromotionJobs();
+
+  // Fonds vendeurs : libération automatique après le délai de sécurité.
+  startSellerPayoutJobs();
 
   const shutdown = async (signal: string) => {
     logger.info(`Signal ${signal} reçu — arrêt propre…`);

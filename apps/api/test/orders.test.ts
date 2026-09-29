@@ -170,7 +170,7 @@ describe("Création d'une commande", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("fait respecter le mode de paiement de l'offre (comptant ↔ tranches)", async () => {
+  it("accepte le comptant sur toute offre, réserve les tranches aux offres éligibles", async () => {
     const user = await buyer();
     const oneTime = await createProduct(t, { paymentMode: "ONE_TIME" });
     const split = await createProduct(t, {
@@ -183,8 +183,12 @@ describe("Création d'une commande", () => {
     const errComptant = await expectApiError(() => newOrder(user.id, oneTime.id, { paymentMode: "INSTALLMENTS" }));
     expect(errComptant.code).toBe("INSTALLMENTS_UNAVAILABLE");
 
-    const errTranches = await expectApiError(() => newOrder(user.id, split.id, { paymentMode: "ONE_TIME" }));
-    expect(errTranches.code).toBe("INSTALLMENTS_REQUIRED");
+    // Page « Offres » : un compte ouvert aux tranches s'achète aussi en une fois.
+    const comptant = await newOrder(user.id, split.id, { paymentMode: "ONE_TIME" });
+    expect(comptant.amount).toBe(100_000);
+    const payment = await prisma.payment.findFirstOrThrow({ where: { order: { id: comptant.orderId } } });
+    expect(payment.type).toBe("ORDER_PAYMENT");
+    expect(payment.amount).toBe(100_000);
   });
 
   it("refuse l'échelonné si l'offre n'est pas éligible (mois absents ou apport ≥ total)", async () => {

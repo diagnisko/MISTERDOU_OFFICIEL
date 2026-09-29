@@ -351,17 +351,49 @@ export async function listWithdrawals(args: WithdrawalListArgs) {
   };
 }
 
+export const WITHDRAWAL_ETAS = [30, 60, 720] as const;
+
+export async function startWithdrawalProcessing(id: string, etaMinutes: number, actor: OpsActor) {
+  const withdrawal = await prisma.withdrawal.findUnique({
+    where: { id },
+    select: { id: true, amount: true, status: true, sellerId: true, seller: { select: { userId: true } } },
+  });
+  if (!withdrawal) throw notFound("Retrait introuvable.");
+  const res = await prisma.withdrawal.updateMany({
+    where: { id, status: "PENDING" },
+    data: { status: "PROCESSING", processingStartedAt: new Date(), etaMinutes, processedById: actor.actorId },
+  });
+  if (res.count === 0) throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
+
+  await audit(actor, "WITHDRAWAL_PROCESSING", {
+    resourceType: "Withdrawal",
+    resourceId: id,
+    metadata: { amount: withdrawal.amount, etaMinutes, sellerId: withdrawal.sellerId },
+    severity: "WARNING",
+  });
+  const delay = etaMinutes < 60 ? `${etaMinutes} minutes` : `${Math.round(etaMinutes / 60)} heure${etaMinutes >= 120 ? "s" : ""}`;
+  await notifyUser(withdrawal.seller.userId, "SELLER_PAYOUT_AVAILABLE", {
+    title: "Retrait en cours de traitement",
+    message: `Votre retrait de ${withdrawal.amount.toLocaleString("fr-FR")} FCFA est pris en charge. Délai maximum : ${delay}.`,
+    actionUrl: "/seller",
+    priority: "NORMAL",
+  });
+  return { id, status: "PROCESSING" as const, etaMinutes };
+}
+
 export async function approveWithdrawal(id: string, paymentReference: string, actor: OpsActor) {
   const withdrawal = await prisma.withdrawal.findUnique({
     where: { id },
     select: { id: true, amount: true, status: true, sellerId: true, seller: { select: { userId: true } } },
   });
   if (!withdrawal) throw notFound("Retrait introuvable.");
-  if (withdrawal.status !== "PENDING") throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
+  if (withdrawal.status !== "PENDING" && withdrawal.status !== "PROCESSING") {
+    throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
+  }
 
   await prisma.$transaction(async (tx) => {
     const res = await tx.withdrawal.updateMany({
-      where: { id, status: "PENDING" },
+      where: { id, status: { in: ["PENDING", "PROCESSING"] } },
       data: { status: "APPROVED", processedAt: new Date(), processedById: actor.actorId, paymentReference },
     });
     if (res.count === 0) throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
@@ -374,8 +406,8 @@ export async function approveWithdrawal(id: string, paymentReference: string, ac
     severity: "CRITICAL",
   });
   await notifyUser(withdrawal.seller.userId, "SELLER_PAYOUT_AVAILABLE", {
-    title: "Retrait approuvé",
-    message: `Votre retrait de ${withdrawal.amount} FCFA a été approuvé (réf. ${paymentReference}).`,
+    title: "Retrait payé",
+    message: `Votre retrait de ${withdrawal.amount.toLocaleString("fr-FR")} FCFA a été envoyé (réf. ${paymentReference}).`,
     actionUrl: "/seller",
     priority: "NORMAL",
   });
@@ -388,11 +420,13 @@ export async function rejectWithdrawal(id: string, reason: string, actor: OpsAct
     select: { id: true, amount: true, status: true, sellerId: true, seller: { select: { userId: true } } },
   });
   if (!withdrawal) throw notFound("Retrait introuvable.");
-  if (withdrawal.status !== "PENDING") throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
+  if (withdrawal.status !== "PENDING" && withdrawal.status !== "PROCESSING") {
+    throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
+  }
 
   await prisma.$transaction(async (tx) => {
     const res = await tx.withdrawal.updateMany({
-      where: { id, status: "PENDING" },
+      where: { id, status: { in: ["PENDING", "PROCESSING"] } },
       data: { status: "REJECTED", rejectionReason: reason, processedAt: new Date(), processedById: actor.actorId },
     });
     if (res.count === 0) throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
@@ -557,7 +591,7 @@ export async function collectInstallment(input: PlanCollectInput, actor: OpsActo
   await notifyUser(order.buyerId, "PAYMENT_CONFIRMED", {
     title: "Paiement encaissé",
     message: `${amount} FCFA encaissés pour la tranche ${installment.index} de la commande ${order.orderNumber}.`,
-    actionUrl: "/account",
+    actionUrl: "/account/orders",
     priority: "NORMAL",
   });
 
@@ -687,7 +721,7 @@ export async function settlePlan(planId: string, reference: string | undefined, 
     await notifyUser(order.buyerId, "PAYMENT_CONFIRMED", {
       title: "Plan soldé",
       message: `L'échéancier de la commande ${order.orderNumber} est entièrement soldé.`,
-      actionUrl: "/account",
+      actionUrl: "/account/orders",
       priority: "CRITICAL",
     });
   }
@@ -801,7 +835,7 @@ export async function refundPayment(id: string, reason: string, actor: OpsActor)
     await notifyUser(payment.userId, "ORDER_REFUNDED", {
       title: "Remboursement effectué",
       message: `${payment.amount} FCFA remboursés pour la commande.`,
-      actionUrl: "/account",
+      actionUrl: "/account/orders",
       priority: "CRITICAL",
     });
   }

@@ -15,6 +15,7 @@ import { requireAuth, requireAdminSetupSession, requireAdminSession, setSessionC
 import { revokeSession } from "../../lib/sessions.js";
 import { logAudit, randomCsrfToken } from "../../lib/audit.js";
 import { env } from "../../env.js";
+import { publicUrl } from "../../lib/media.js";
 import { confirmAdminTotp, loginAdmin, startAdminTotpSetup } from "../admin-console/auth.js";
 
 const setPhoneSchema = z.object({
@@ -62,7 +63,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       resourceType: "User",
       resourceId: result.user.id,
     });
-    return sendOk(reply, { user: result.user });
+    return sendOk(reply, { user: result.user, previousLoginAt: result.previousLoginAt });
   });
 
   app.post("/auth/google", { schema: { tags: ["Auth"], summary: "Connexion avec Google (OAuth2 : idToken)" }, config: rate(5) }, async (request, reply) => {
@@ -80,7 +81,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       resourceType: "User",
       resourceId: result.user.id,
     });
-    return sendOk(reply, { user: result.user, phoneRequired: result.phoneRequired });
+    return sendOk(reply, {
+      user: result.user,
+      phoneRequired: result.phoneRequired,
+      created: result.created,
+      previousLoginAt: result.previousLoginAt,
+    });
   });
 
   app.post("/auth/admin/login", { schema: { tags: ["Auth"], summary: "Connexion administrateur avec MFA" }, config: rate(5) }, async (request, reply) => {
@@ -137,13 +143,26 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       where: { userId: auth.user.id, status: "VERIFIED" },
       select: { id: true },
     });
-    const verification = await prisma.identityVerification.findFirst({
-      where: { userId: auth.user.id },
-      orderBy: { submittedAt: "desc" },
-      select: { status: true },
-    });
+    const [verification, seller] = await Promise.all([
+      prisma.identityVerification.findFirst({
+        where: { userId: auth.user.id },
+        orderBy: { submittedAt: "desc" },
+        select: { status: true },
+      }),
+      prisma.seller.findUnique({ where: { userId: auth.user.id }, select: { status: true } }),
+    ]);
     return sendOk(reply, {
       user: { ...toMeDto(auth.user, Boolean(pv), auth.user.role?.name ?? "CLIENT"), kycStatus: verification?.status ?? "NOT_SUBMITTED" },
+      // Profil affiché dans le menu et la page « Mon profil » (jamais le hash).
+      profile: {
+        avatarUrl: auth.user.avatarKey ? publicUrl(auth.user.avatarKey) : null,
+        hasPassword: Boolean(auth.user.passwordHash),
+        googleLinked: Boolean(auth.user.googleSub),
+        country: auth.user.country,
+        city: auth.user.city,
+        isSeller: seller !== null,
+        sellerStatus: seller?.status ?? null,
+      },
     });
   });
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiClientError, request } from "@/lib/api";
+import { putFile } from "@/lib/upload";
 
 // ---------------------------------------------------------------------------
 // Médias publics d'une offre (captures, vidéos). Envoi direct vers le bucket
@@ -23,29 +24,8 @@ type Upload = { name: string; progress: number; error?: string };
 
 const ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
 
-function csrfHeader(): Record<string, string> {
-  const m = document.cookie.match(/(?:^|;\s*)md_csrf=([^;]+)/);
-  return m?.[1] ? { "x-csrf-token": decodeURIComponent(m[1]) } : {};
-}
-
 function mb(bytes: number) {
   return `${Math.round(bytes / 1024 / 1024)} Mo`;
-}
-
-// PUT avec progression. Le jeton CSRF ne part que vers notre propre API
-// (envoi local de développement), jamais vers R2.
-function putFile(url: string, file: File, headers: Record<string, string>, onProgress: (p: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    const sameOrigin = url.startsWith("/");
-    if (sameOrigin) xhr.withCredentials = true;
-    for (const [k, v] of Object.entries({ ...headers, ...(sameOrigin ? csrfHeader() : {}) })) xhr.setRequestHeader(k, v);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Envoi refusé (${xhr.status})`)));
-    xhr.onerror = () => reject(new Error("Connexion interrompue pendant l’envoi."));
-    xhr.send(file);
-  });
 }
 
 export function MediaManager({ productId }: { productId: string }) {

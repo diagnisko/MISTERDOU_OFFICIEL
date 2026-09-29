@@ -8,7 +8,7 @@ import { verifyPassword } from "../src/lib/password.js";
 import { findActiveSession } from "../src/lib/sessions.js";
 import { ApiError } from "../src/lib/errors.js";
 import { env } from "../src/env.js";
-import { cleanup, createUser, expectApiError, marker, tracker, type Tracked } from "./helpers.js";
+import { cleanup, createAdmin, createUser, expectApiError, marker, tracker, type Tracked } from "./helpers.js";
 
 vi.mock("google-auth-library", () => ({
   OAuth2Client: class {
@@ -32,6 +32,8 @@ afterAll(async () => {
 
 describe("Inscription (§39 — inscription)", () => {
   it("crée un compte CLIENT, hache le mot de passe et ouvre une session", async () => {
+    // Un administrateur actif doit exister pour recevoir l'alerte « Nouveau client ».
+    await createAdmin(t);
     const email = `p13-${marker()}@example.com`;
     const result = await register({ firstName: "Awa", email, password: "MotDePasse123!" }, { ip: "127.0.0.1" });
     t.userIds.push(result.user.id);

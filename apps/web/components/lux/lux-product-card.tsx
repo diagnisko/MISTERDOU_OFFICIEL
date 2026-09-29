@@ -22,8 +22,11 @@ export function ProductCard({
   product,
   index = 0,
   animateIn = true,
+  installments = false,
 }: {
   product: LuxCardData;
+  /** Carte de la page mensualités : la fiche s'ouvre en mode paiement échelonné. */
+  installments?: boolean;
   index?: number;
   /** false → rendu statique immédiatement visible (SSR liste, sans animation d'entrée). */
   animateIn?: boolean;
@@ -35,7 +38,7 @@ export function ProductCard({
   const glow = TIER_GLOW[tier] ?? TIER_GLOW.bronze; // teinte du dégradé du visuel
   const distFromCenter = Math.min(Math.abs(index - 2), Math.abs(index - 3));
   const delay = animateIn ? 0.04 + distFromCenter * 0.07 : 0;
-  const detailHref = `/catalogue/${product.slug}`;
+  const detailHref = `/catalogue/${product.slug}${installments ? "?mode=mensualites" : ""}`;
 
   return (
     <motion.article

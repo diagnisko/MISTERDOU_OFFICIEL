@@ -35,7 +35,7 @@ export function maxBytes(kind: MediaKind): number {
 }
 
 function localPath(key: string): string {
-  if (!/^products\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|webm)$/.test(key)) {
+  if (!/^(products|avatars)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|webm)$/.test(key)) {
     throw badRequest("FILE_ACCESS_DENIED", "Clé média invalide");
   }
   return path.join(env.STORAGE_DIR, "public", ...key.split("/"));
@@ -73,14 +73,30 @@ export async function readLocalMedia(key: string): Promise<Buffer> {
 
 // --- Parcours d'envoi ------------------------------------------------------
 
-export async function createUpload(productId: string, mime: string, size: number) {
+export interface UploadRules {
+  kinds?: MediaKind[];
+  maxBytes?: number;
+}
+
+function limitFor(kind: MediaKind, rules?: UploadRules) {
+  return rules?.maxBytes ?? maxBytes(kind);
+}
+
+// keyPrefix : "products/<productId>" ou "avatars/<userId>".
+export async function createUpload(keyPrefix: string, mime: string, size: number, rules?: UploadRules) {
   const type = MEDIA_TYPES[mime];
-  if (!type) throw badRequest("FILE_TYPE_INVALID", "Formats acceptés : JPEG, PNG, WebP, MP4, WebM.");
-  if (!Number.isInteger(size) || size <= 0 || size > maxBytes(type.kind)) {
-    const limit = type.kind === "image" ? env.MEDIA_MAX_IMAGE_MB : env.MEDIA_MAX_VIDEO_MB;
-    throw badRequest("FILE_TOO_LARGE", `Taille maximale : ${limit} Mo pour une ${type.kind === "image" ? "image" : "vidéo"}.`);
+  if (!type || (rules?.kinds && !rules.kinds.includes(type.kind))) {
+    const imagesOnly = rules?.kinds?.length === 1 && rules.kinds[0] === "image";
+    throw badRequest("FILE_TYPE_INVALID", imagesOnly ? "Formats acceptés : JPEG, PNG, WebP." : "Formats acceptés : JPEG, PNG, WebP, MP4, WebM.");
   }
-  const key = `products/${productId}/${randomUUID()}.${type.ext}`;
+  const limit = limitFor(type.kind, rules);
+  if (!Number.isInteger(size) || size <= 0 || size > limit) {
+    throw badRequest(
+      "FILE_TOO_LARGE",
+      `Taille maximale : ${Math.round(limit / 1024 / 1024)} Mo pour une ${type.kind === "image" ? "image" : "vidéo"}.`,
+    );
+  }
+  const key = `${keyPrefix}/${randomUUID()}.${type.ext}`;
   const bucket = publicBucket();
   if (bucket) {
     const uploadUrl = await getSignedUrl(
@@ -119,7 +135,7 @@ function magicMatches(mime: string, head: Buffer): boolean {
 }
 
 // Vérifie l'objet réellement déposé ; le supprime s'il ne correspond pas.
-export async function confirmUpload(key: string, mime: string): Promise<{ sizeBytes: number }> {
+export async function confirmUpload(key: string, mime: string, rules?: UploadRules): Promise<{ sizeBytes: number }> {
   const type = MEDIA_TYPES[mime];
   if (!type) throw badRequest("FILE_TYPE_INVALID", "Format non pris en charge.");
   const bucket = publicBucket();
@@ -139,7 +155,7 @@ export async function confirmUpload(key: string, mime: string): Promise<{ sizeBy
     size = file.length;
     head = file.subarray(0, 32);
   }
-  if (size <= 0 || size > maxBytes(type.kind) || !magicMatches(mime, head)) {
+  if (size <= 0 || size > limitFor(type.kind, rules) || !magicMatches(mime, head)) {
     await deleteMedia(key);
     throw badRequest("FILE_TYPE_INVALID", "Le fichier reçu ne correspond pas au format annoncé.");
   }

@@ -193,7 +193,7 @@ async function CatalogueBody({
             <>
               <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {data.items.map((p, i) => (
-                  <ProductCard key={p.id} product={p} index={i} animateIn={false} />
+                  <ProductCard key={p.id} product={p} index={i} animateIn={false} installments={paymentMode === "INSTALLMENTS"} />
                 ))}
               </div>
 

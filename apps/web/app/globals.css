@@ -1322,3 +1322,135 @@ button.dash-card:hover {
     scroll-behavior: auto;
   }
 }
+
+/* ============================================================
+   Thème clair (Paramètres → Apparence). Appliqué par <html data-theme="light">.
+   Tailwind 4 lit ses couleurs dans des variables : on redéfinit la palette
+   (blanc → encre, pierres claires ↔ foncées) plutôt que de toucher chaque page.
+   Les teintes « blanc à x % » deviennent ainsi des voiles d'encre, lisibles
+   sur fond clair. Les zones marquées data-surface="dark" (visuel du hero)
+   gardent la palette sombre.
+   ============================================================ */
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --color-white: #1d1210;
+  --color-stone-50: #1c1917;
+  --color-stone-100: #231a17;
+  --color-stone-200: #3a2f2b;
+  --color-stone-300: #4f433f;
+  --color-stone-400: #665853;
+  --color-stone-500: #7b6c66;
+  --color-stone-600: #a39690;
+  --color-stone-700: #cfc6c1;
+  --color-stone-800: #e6dfdb;
+  --color-stone-900: #f3eeeb;
+  --color-stone-950: #faf7f5;
+  --color-background: #faf6f3;
+  --color-foreground: #1d1210;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5eeea;
+  --color-border: #e8d8d1;
+  --color-muted: #6c5a54;
+  --color-muted-strong: #463733;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] [data-lux] {
+  --lux-bg: #faf6f3;
+  --lux-surface: #ffffff;
+  --lux-surface-2: #f5eeea;
+  --lux-text: #1d1210;
+  --lux-muted: #6c5a54;
+  --lux-line: rgba(70, 25, 15, 0.12);
+  --lux-gold-light: #c2410c;
+  --lux-aurora: radial-gradient(60% 45% at 85% -5%, rgba(255, 106, 50, 0.14), transparent 70%),
+    radial-gradient(45% 35% at 0% 100%, rgba(232, 71, 36, 0.08), transparent 70%), #faf6f3;
+}
+
+html[data-theme="light"] body {
+  background: #faf6f3;
+  color: #1d1210;
+}
+
+/* Zones qui restent sombres (visuel du hero) : palette d'origine. */
+html[data-theme="light"] [data-surface="dark"] {
+  --color-white: #ffffff;
+  --color-stone-50: #fafaf9;
+  --color-stone-100: #f5f5f4;
+  --color-stone-200: #e7e5e4;
+  --color-stone-300: #d6d3d1;
+  --color-stone-400: #a8a29e;
+  --color-stone-500: #78716c;
+  --color-stone-600: #57534e;
+  --lux-text: #fff7f2;
+  --lux-muted: #b8a6a1;
+  --lux-gold-light: #ff7a45;
+  color: #fff7f2;
+}
+
+/* Boutons et pastilles sur dégradé braise : le texte reste blanc. */
+html[data-theme="light"] [class*="bg-[linear-gradient"],
+html[data-theme="light"] [class*="bg-[#ff6a32]"],
+html[data-theme="light"] [class*="bg-[var(--lux-gold)]"],
+html[data-theme="light"] .dash-btn-primary {
+  --color-white: #ffffff;
+}
+
+/* Surfaces maison */
+html[data-theme="light"] .lux-nav-bar {
+  background: rgba(250, 246, 243, 0.86);
+  border-bottom: 1px solid rgba(70, 25, 15, 0.1);
+  backdrop-filter: blur(18px);
+}
+html[data-theme="light"] .lux-glass,
+html[data-theme="light"] [data-lux] .glass {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(70, 25, 15, 0.1);
+  box-shadow: 0 10px 30px -18px rgba(70, 25, 15, 0.25);
+}
+html[data-theme="light"] .lux-btn-ghost {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(70, 25, 15, 0.16);
+  color: #1d1210;
+}
+html[data-theme="light"] .dash-root {
+  background: #f7f2ef;
+}
+html[data-theme="light"] .dash-frame,
+html[data-theme="light"] .dash-card {
+  background: #ffffff;
+  border-color: rgba(70, 25, 15, 0.1);
+  box-shadow: 0 1px 2px rgba(70, 25, 15, 0.06), 0 12px 30px -22px rgba(70, 25, 15, 0.3);
+}
+html[data-theme="light"] .lux-skeleton {
+  background: linear-gradient(90deg, #efe7e3 25%, #f8f3f0 45%, #efe7e3 65%);
+}
+
+/* Couleurs écrites en dur les plus fréquentes */
+html[data-theme="light"] .bg-\[\#050303\],
+html[data-theme="light"] .bg-\[\#050303\]\/78,
+html[data-theme="light"] .bg-\[\#050303\]\/80,
+html[data-theme="light"] .bg-\[\#050303\]\/90 {
+  background-color: rgba(250, 246, 243, 0.92);
+}
+html[data-theme="light"] .bg-\[\#101825\]\/60,
+html[data-theme="light"] .bg-\[\#101825\]\/80 {
+  background-color: #ffffff;
+}
+html[data-theme="light"] .text-\[\#b8a6a1\],
+html[data-theme="light"] .text-\[\#8f7d77\],
+html[data-theme="light"] .text-\[\#8a7771\] {
+  color: #6c5a54;
+}
+html[data-theme="light"] .text-\[\#fca5a5\] { color: #b91c1c; }
+html[data-theme="light"] .text-\[\#6ee7b7\],
+html[data-theme="light"] .text-\[\#86efac\] { color: #047857; }
+html[data-theme="light"] .text-\[\#fbbf24\],
+html[data-theme="light"] .text-\[\#f59e0b\] { color: #b45309; }
+html[data-theme="light"] .text-\[\#ff8a5c\],
+html[data-theme="light"] .text-\[\#ff6a32\] { color: #c2410c; }
+html[data-theme="light"] [class*="border-[rgba(255,236,229"],
+html[data-theme="light"] [class*="border-[rgba(255,255,255"] {
+  border-color: rgba(70, 25, 15, 0.12);
+}

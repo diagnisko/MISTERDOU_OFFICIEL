@@ -97,7 +97,7 @@ export async function register(input: RegisterInput, ctx: { ip?: string; userAge
 export async function login(
   input: LoginInput,
   ctx: { ip?: string; userAgent?: string },
-): Promise<{ user: MeDto; sid: string }> {
+): Promise<{ user: MeDto; sid: string; previousLoginAt: string | null }> {
   const email = input.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({
     where: { email },
@@ -110,9 +110,11 @@ export async function login(
 
   const ok = await verifyPassword(input.password, user.passwordHash);
   if (!ok) throw badRequest("INVALID_CREDENTIALS", INVALID);
-  if (user.role.name !== "CLIENT" && user.role.name !== "STAFF") throw badRequest("INVALID_CREDENTIALS", INVALID);
+  // Les administrateurs passent par /auth/admin/login (2FA).
+  if (user.role.name === "ADMIN") throw badRequest("INVALID_CREDENTIALS", INVALID);
   if (user.status !== "ACTIVE") throw badRequest("ACCOUNT_SUSPENDED", "Compte suspendu. Contactez l'administration.");
 
+  const previousLoginAt = user.lastLoginAt?.toISOString() ?? null;
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined },
@@ -126,7 +128,7 @@ export async function login(
     ttlSeconds: env.SESSION_TTL_SECONDS,
   });
 
-  return { user: toMeDto(user, false, user.role.name), sid };
+  return { user: toMeDto(user, false, user.role.name), sid, previousLoginAt };
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +252,7 @@ export async function verifyOtp(
 export async function loginWithGoogle(
   idToken: string,
   ctx: { ip?: string; userAgent?: string },
-): Promise<{ user: MeDto; sid: string; phoneRequired: boolean }> {
+): Promise<{ user: MeDto; sid: string; phoneRequired: boolean; created: boolean; previousLoginAt: string | null }> {
   if (!env.GOOGLE_OAUTH_CLIENT_ID) {
     throw badRequest(
       "GOOGLE_OAUTH_NOT_CONFIGURED",
@@ -291,7 +293,14 @@ export async function loginWithGoogle(
     where: { id: user.id },
     include: { role: { select: { name: true } } },
   });
-  if (complete.role.name !== "CLIENT") throw badRequest("INVALID_CREDENTIALS", "Identifiants invalides");
+  if (complete.role.name === "ADMIN" || complete.role.name === "STAFF") {
+    throw badRequest("INVALID_CREDENTIALS", "Identifiants invalides");
+  }
+  const previousLoginAt = complete.lastLoginAt?.toISOString() ?? null;
+  await prisma.user.update({
+    where: { id: complete.id },
+    data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined },
+  });
 
   const sid = await createSession({
     userId: complete.id,
@@ -310,7 +319,13 @@ export async function loginWithGoogle(
     });
   }
 
-  return { user: toMeDto(complete), sid, phoneRequired: complete.phoneNumber === null };
+  return {
+    user: toMeDto(complete, false, complete.role.name),
+    sid,
+    phoneRequired: complete.phoneNumber === null,
+    created,
+    previousLoginAt,
+  };
 }
 
 // ---------------------------------------------------------------------------

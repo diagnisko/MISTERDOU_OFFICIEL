@@ -151,7 +151,7 @@ export function LuxHero() {
   // Mouvement réduit : pas d'épinglage, dernière frame fixe, tout visible.
   if (reduce) {
     return (
-      <section id="top" className="relative flex min-h-[100svh] flex-col overflow-hidden">
+      <section id="top" data-surface="dark" className="relative flex min-h-[100svh] flex-col overflow-hidden">
         <LuxHeroScrollFrames frame={frame} staticFrame={HERO_FRAME_COUNT - 1} className="absolute inset-0 opacity-50" />
         <div className="lux-hero-vignette pointer-events-none absolute inset-0" aria-hidden />
         <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-5 pb-10 pt-32 text-center md:px-8">
@@ -163,7 +163,7 @@ export function LuxHero() {
   }
 
   return (
-    <section id="top" ref={trackRef} className="relative h-[270vh] md:h-[340vh]">
+    <section id="top" data-surface="dark" ref={trackRef} className="relative h-[270vh] md:h-[340vh]">
       <div className="sticky top-0 h-[100svh] overflow-hidden">
         {/* Œuvre : séquence scrubée + recul de caméra */}
         <motion.div aria-hidden className="absolute inset-0 will-change-transform" style={{ scale: artScale, opacity: artOpacity }}>

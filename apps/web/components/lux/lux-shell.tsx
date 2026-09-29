@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { LuxProvider } from "./lux-data";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { AccountMenu } from "@/components/account/account-menu";
 
 // ---------------------------------------------------------------------------
 // Coquille des espaces applicatifs (admin, vendeur, KYC, checkout).
@@ -86,8 +87,9 @@ export function LuxTopBar({
               {l.label}
             </Link>
           ))}
-          <span className="ml-1 hidden rounded-full border border-[rgba(232,71,36,0.35)] bg-[rgba(232,71,36,0.12)] px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[var(--lux-gold-light)] sm:inline-block">
-            {label}
+          <span className="sr-only">{label}</span>
+          <span className="ml-1">
+            <AccountMenu compact />
           </span>
         </nav>
       </div>

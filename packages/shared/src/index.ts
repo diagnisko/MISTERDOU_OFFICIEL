@@ -176,6 +176,7 @@ export type SupportStatus = (typeof SUPPORT_STATUSES)[number];
 
 export const SUPPORT_CATEGORIES = [
   "VERIFICATION_CODE",
+  "SELLER_REPORT",
   "PAYMENT_ISSUE",
   "DELIVERY",
   "OTHER",
@@ -231,6 +232,7 @@ export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 // ---------------------------------------------------------------------------
 
 export const API_ERROR_CODES = [
+  "SERVICE_UNAVAILABLE",
   "VALIDATION_ERROR",
   "UNAUTHORIZED",
   "FORBIDDEN",
@@ -259,6 +261,7 @@ export const API_ERROR_CODES = [
   "FILE_TYPE_INVALID",
   "MEDIA_LIMIT",
   "MEDIA_EXISTS",
+  "PRODUCT_RESERVED",
   "FILE_ACCESS_DENIED",
   "LOCATION_CONSENT_REQUIRED",
   "SELF_ACTION",

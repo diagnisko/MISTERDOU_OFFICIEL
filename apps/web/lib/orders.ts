@@ -1,4 +1,5 @@
 import { request, formatXof } from "./api";
+import type { Schedule } from "./installments";
 
 export type OrderSummary = {
   id: string;
@@ -10,8 +11,20 @@ export type OrderSummary = {
   firstItem: { title: string; division: string; teamPower: number; coins: number } | null;
   createdAt: string;
   deliveredAt: string | null;
+  receivedAt: string | null;
   canReveal: boolean;
 };
+
+export type VerificationCode = {
+  id: string;
+  status: "PENDING" | "PROVIDED" | "EXPIRED";
+  code: string | null;
+  requestedAt: string;
+  providedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type OrderReport = { id: string; category: string; subject: string; status: string; createdAt: string };
 
 export type OrderDetail = {
   id: string;
@@ -23,7 +36,13 @@ export type OrderDetail = {
   paymentMode: string;
   createdAt: string;
   deliveredAt: string | null;
+  receivedAt: string | null;
+  autoConfirmAt: string | null;
   canReveal: boolean;
+  canConfirmReceipt: boolean;
+  verificationCode: VerificationCode | null;
+  schedule: Schedule | null;
+  reports: OrderReport[];
   items: Array<{
     id: string;
     title: string;
@@ -32,6 +51,8 @@ export type OrderDetail = {
     coins: number;
     unitPrice: number;
     quantity: number;
+    productSlug: string;
+    soldBy: string;
   }>;
   payments: Array<{
     id: string;
@@ -73,3 +94,35 @@ export async function revealOrderCredentials(id: string): Promise<RevealedCreden
 }
 
 export { formatXof };
+
+export async function requestVerificationCode(id: string): Promise<VerificationCode> {
+  return request<VerificationCode>(`/api/v1/orders/${id}/verification-code`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export async function confirmOrderReceipt(id: string): Promise<{ id: string; receivedAt: string }> {
+  return request(`/api/v1/orders/${id}/confirm-receipt`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export type ReportReason = "SELLER_REPORT" | "DELIVERY" | "VERIFICATION_CODE" | "OTHER";
+
+export async function reportOrderProblem(
+  orderId: string,
+  input: { category: ReportReason; subject: string; description: string },
+): Promise<{ id: string; code: string }> {
+  return request("/api/v1/support/tickets", { method: "POST", body: JSON.stringify({ ...input, orderId }) });
+}
+
+/** Libellé client d'un statut de commande. */
+export function orderStatusLabel(status: string): string {
+  return (
+    {
+      PENDING_PAYMENT: "Paiement en attente",
+      PARTIALLY_PAID: "Mensualités en cours",
+      PAID: "Payée",
+      DELIVERED: "Livrée",
+      COMPLETED: "Reçue",
+      CANCELLED: "Annulée",
+      REFUNDED: "Remboursée",
+    } as Record<string, string>
+  )[status] ?? status;
+}

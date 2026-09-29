@@ -10,6 +10,7 @@ export type SupportTicketStatus = "CREATED" | "PENDING" | "IN_PROGRESS" | "RESOL
 
 export const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
   VERIFICATION_CODE: "Aide au code de vérification",
+  SELLER_REPORT: "Signalement d’un vendeur",
   PAYMENT_ISSUE: "Problème de paiement",
   DELIVERY: "Livraison",
   OTHER: "Autre",
@@ -17,6 +18,7 @@ export const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
 
 export const SUPPORT_CATEGORY_OPTIONS = [
   { value: "VERIFICATION_CODE", label: "Aide au code de vérification" },
+  { value: "SELLER_REPORT", label: "Signalement d’un vendeur" },
   { value: "PAYMENT_ISSUE", label: "Problème de paiement" },
   { value: "DELIVERY", label: "Livraison" },
   { value: "OTHER", label: "Autre" },

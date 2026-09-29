@@ -20,6 +20,9 @@ import { registerSupportRoutes } from "./modules/support/routes.js";
 import { registerMessagingRoutes } from "./modules/messaging/routes.js";
 import { registerNotificationRoutes } from "./modules/notifications/routes.js";
 import { registerMediaRoutes } from "./modules/media/routes.js";
+import { registerAccountRoutes } from "./modules/account/routes.js";
+import { registerVerificationCodeRoutes } from "./modules/verification-codes/routes.js";
+import { registerProductChatRoutes } from "./modules/product-chat/routes.js";
 import { env } from "./env.js";
 import { isDev, REDACT_PATHS } from "./lib/logger.js";
 
@@ -146,6 +149,9 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       await registerMessagingRoutes(api);
       await registerNotificationRoutes(api);
       await registerMediaRoutes(api);
+      await registerAccountRoutes(api);
+      await registerVerificationCodeRoutes(api);
+      await registerProductChatRoutes(api);
     },
     { prefix: API_PREFIX },
   );

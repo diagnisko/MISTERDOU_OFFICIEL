@@ -253,9 +253,11 @@ describe("Jobs des mises en avant", () => {
     const seller = await createSeller(t, owner);
     const product = await createProduct(t, { sellerId: seller.id });
     const expired = await createProduct(t, { sellerId: seller.id });
+    // Échue une heure avant l'exécution simulée du job (JOB_NOW = 6 h) :
+    // indépendant de l'heure à laquelle la suite est lancée.
     await prisma.product.update({
       where: { id: expired.id },
-      data: { featuredUntil: new Date(Date.now() - 3_600_000) },
+      data: { featuredUntil: new Date(JOB_NOW.getTime() - 3_600_000) },
     });
     const purchase = await prisma.featuredProduct.create({
       data: {
@@ -265,8 +267,8 @@ describe("Jobs des mises en avant", () => {
         days: 1,
         dailyRate: 200,
         totalPaid: 200,
-        startedAt: new Date(Date.now() - 2 * DAY_MS),
-        expiresAt: new Date(Date.now() - DAY_MS),
+        startedAt: new Date(JOB_NOW.getTime() - 2 * DAY_MS),
+        expiresAt: new Date(JOB_NOW.getTime() - DAY_MS),
         status: "ACTIVE",
       },
     });
@@ -279,8 +281,8 @@ describe("Jobs des mises en avant", () => {
         productId: product.id,
         title: "P13 promo terminée",
         discountPercent: 10,
-        startsAt: new Date(Date.now() - 3 * DAY_MS),
-        endsAt: new Date(Date.now() - 3_600_000),
+        startsAt: new Date(JOB_NOW.getTime() - 3 * DAY_MS),
+        endsAt: new Date(JOB_NOW.getTime() - 3_600_000),
         status: "ACTIVE",
         createdById: admin.user.id,
       },
@@ -291,13 +293,26 @@ describe("Jobs des mises en avant", () => {
         productId: product.id,
         title: "P13 promo planifiée",
         promoPrice: 40_000,
-        startsAt: new Date(Date.now() - 3_600_000),
-        endsAt: new Date(Date.now() + 3 * DAY_MS),
+        startsAt: new Date(JOB_NOW.getTime() - 3_600_000),
+        endsAt: new Date(JOB_NOW.getTime() + 3 * DAY_MS),
         status: "SCHEDULED",
         createdById: admin.user.id,
       },
     });
     track(t, "promotionIds", scheduled.id);
+    // Témoin : promo en cours au-delà de l'exécution du job, qui doit rester intacte.
+    const running = await prisma.promotion.create({
+      data: {
+        productId: product.id,
+        title: "P13 promo en cours",
+        discountPercent: 5,
+        startsAt: new Date(JOB_NOW.getTime() - DAY_MS),
+        endsAt: new Date(JOB_NOW.getTime() + DAY_MS),
+        status: "ACTIVE",
+        createdById: admin.user.id,
+      },
+    });
+    track(t, "promotionIds", running.id);
 
     const result = await runPromotionJobs(JOB_NOW);
 
@@ -318,12 +333,9 @@ describe("Jobs des mises en avant", () => {
     const scheduledRow = await prisma.promotion.findUniqueOrThrow({ where: { id: scheduled.id } });
     expect(scheduledRow.status).toBe("ACTIVE");
 
-    // Le jeu de données dev n'est pas touché : promo ACTIVE encore dans sa
-    // fenêtre et mise en avant expirant ce soir.
-    const devPromo = await prisma.promotion.findFirst({
-      where: { createdById: { not: admin.user.id }, status: "ACTIVE", endsAt: { gt: JOB_NOW } },
-    });
-    expect(devPromo).not.toBeNull();
+    // Ce qui court encore n'est pas touché : promo témoin et mises en avant futures.
+    const runningRow = await prisma.promotion.findUniqueOrThrow({ where: { id: running.id } });
+    expect(runningRow.status).toBe("ACTIVE");
     const devFeatured = await prisma.product.findMany({
       where: { featuredUntil: { not: null }, slug: { not: { startsWith: "p13-" } } },
       select: { featuredUntil: true },

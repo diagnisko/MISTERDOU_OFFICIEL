@@ -9,6 +9,16 @@ import { notifyUser } from "../../lib/notify.js";
 import { logger } from "../../lib/logger.js";
 import { assertSplittable, createInstallmentPlan } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
+import { alertDoubleSale, markProductsSold, recordSellerSale, releaseOrderCredits } from "./fulfillment.js";
+import { latestCodeForOrder } from "../verification-codes/service.js";
+import { getSchedule } from "../installments/service.js";
+import { getIntSetting } from "../settings/service.js";
+
+/** Statuts où le compte est entre les mains du client (livré, puis réception confirmée). */
+const ACCESS_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
+
+// Durée pendant laquelle un compte en cours de paiement reste réservé.
+const RESERVATION_MINUTES = 20;
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -67,10 +77,26 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
       paymentMode: true,
       installmentDownPayment: true,
       installmentMonths: true,
+      sellerId: true,
       ...promoRelationSelect(now),
     },
   });
   if (!product) throw notFound("Produit indisponible");
+
+  // Réservation douce : un compte en cours de paiement par un autre client
+  // n'est pas revendu pendant RESERVATION_MINUTES.
+  const reservedBy = await prisma.order.findFirst({
+    where: {
+      status: "PENDING_PAYMENT",
+      buyerId: { not: ctx.actorId },
+      createdAt: { gte: new Date(now.getTime() - RESERVATION_MINUTES * 60_000) },
+      items: { some: { productId: product.id } },
+    },
+    select: { id: true },
+  });
+  if (reservedBy) {
+    throw conflict("PRODUCT_RESERVED", "Ce compte est en cours d’achat par un autre client. Réessayez dans quelques minutes.");
+  }
 
   // Prix DEBITÉ calculé serveur : promotion à fenêtre active prioritaire,
   // puis promo permanente, puis prix de base. Même code que le catalogue.
@@ -78,15 +104,10 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
   const totalAmount = unitPrice * input.quantity;
   const discountAmount = Math.max(0, product.basePrice - unitPrice) * input.quantity;
 
-  // Un produit à tranches refusera toujours l'achat comptant : les deux prix
-  // affichés sur le site seraient alors contradictoires.
-  if (product.paymentMode !== input.paymentMode) {
-    throw conflict(
-      product.paymentMode === "INSTALLMENTS" ? "INSTALLMENTS_REQUIRED" : "INSTALLMENTS_UNAVAILABLE",
-      product.paymentMode === "INSTALLMENTS"
-        ? "Cette offre se règle en plusieurs fois, pas en un seul paiement."
-        : "Cette offre doit être réglée en un seul paiement.",
-    );
+  // Tout compte s'achète comptant (page « Offres ») ; seuls les comptes ouverts
+  // aux tranches s'achètent en plusieurs fois (page « Mensualités »).
+  if (input.paymentMode === "INSTALLMENTS" && product.paymentMode !== "INSTALLMENTS") {
+    throw conflict("INSTALLMENTS_UNAVAILABLE", "Cette offre doit être réglée en un seul paiement.");
   }
   if (input.paymentMode === "INSTALLMENTS") {
     // L'apport est un montant absolu posé par l'admin : il s'applique tel quel,
@@ -126,6 +147,7 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
             coins: product.coins,
             unitPrice,
             quantity: input.quantity,
+            sellerId: product.sellerId,
           },
         },
         payments: {
@@ -235,6 +257,11 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
     return;
   }
 
+  // Le compte quitte la boutique ; la part du vendeur est enregistrée en attente.
+  const taken = await markProductsSold(tx, order.id);
+  if (taken.length > 0) await alertDoubleSale(order.orderNumber, taken);
+  const credited = await recordSellerSale(tx, order.id);
+
   const credential = order.items[0]?.product.credential ?? null;
   if (credential) {
     await tx.productCredential.update({
@@ -254,18 +281,17 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
   await notifyUser(order.buyerId, "ORDER_DELIVERED", {
     title: `Commande ${order.orderNumber} livrée`,
     message: credential
-      ? "Votre accès est disponible dans « Mes achats »."
+      ? "Votre accès est disponible dans « Mes commandes »."
       : "Votre commande est livrée — le vendeur doit encore saisir vos identifiants.",
-    actionUrl: "/account",
+    actionUrl: `/account/orders/${order.id}`,
     priority: "NORMAL",
   });
 
-  // §59 — le vendeur est prévenu dès la livraison (produit vendu).
-  const soldItem = order.items[0];
-  if (soldItem?.product.seller) {
-    await notifyUser(soldItem.product.seller.userId, "PRODUCT_SOLD", {
-      title: "Produit vendu",
-      message: `Votre offre « ${soldItem.title} » vient d'être vendue (commande ${order.orderNumber}).`,
+  // §59 — le vendeur est prévenu dès la livraison, avec sa part nette.
+  for (const sale of credited) {
+    await notifyUser(sale.sellerUserId, "PRODUCT_SOLD", {
+      title: "Compte vendu",
+      message: `« ${sale.title} » est vendu (commande ${order.orderNumber}). ${sale.net.toLocaleString("fr-FR")} FCFA vous reviennent : ils seront disponibles dès que le client confirme la réception.`,
       actionUrl: "/seller",
       priority: "NORMAL",
     });
@@ -286,6 +312,7 @@ export type OrderSummary = {
   firstItem: { title: string; division: string; teamPower: number; coins: number } | null;
   createdAt: string;
   deliveredAt: string | null;
+  receivedAt: string | null;
   canReveal: boolean;
 };
 
@@ -308,7 +335,8 @@ export async function listMyOrders(userId: string): Promise<OrderSummary[]> {
       : null,
     createdAt: o.createdAt.toISOString(),
     deliveredAt: o.deliveredAt ? o.deliveredAt.toISOString() : null,
-    canReveal: o.status === "DELIVERED",
+    receivedAt: o.receivedAt ? o.receivedAt.toISOString() : null,
+    canReveal: ACCESS_STATUSES.has(o.status),
   }));
 }
 
@@ -325,6 +353,7 @@ export async function getMyOrder(orderId: string, userId: string) {
       paymentMode: true,
       createdAt: true,
       deliveredAt: true,
+      receivedAt: true,
       items: {
         select: {
           id: true,
@@ -335,7 +364,13 @@ export async function getMyOrder(orderId: string, userId: string) {
           unitPrice: true,
           quantity: true,
           productId: true,
+          product: { select: { slug: true, ownerType: true, sellerId: true } },
         },
+      },
+      supportTicket: {
+        where: { category: { in: ["SELLER_REPORT", "DELIVERY", "VERIFICATION_CODE"] } },
+        select: { id: true, category: true, subject: true, status: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
       },
       payments: {
         select: { id: true, paymentNumber: true, type: true, amount: true, status: true, paidAt: true },
@@ -344,11 +379,32 @@ export async function getMyOrder(orderId: string, userId: string) {
     },
   });
   if (!order) throw notFound("Commande introuvable");
+  const hasAccess = ACCESS_STATUSES.has(order.status);
+  const [schedule, verificationCode, holdDays] = await Promise.all([
+    order.paymentMode === "INSTALLMENTS" ? getSchedule(order.id) : Promise.resolve(null),
+    hasAccess ? latestCodeForOrder(order.id) : Promise.resolve(null),
+    getIntSetting("payoutHoldDays", 3),
+  ]);
+  const { supportTicket, items, ...rest } = order;
   return {
-    ...order,
+    ...rest,
+    items: items.map(({ product, ...item }) => ({
+      ...item,
+      productSlug: product.slug,
+      // Le client voit la boutique, jamais l'identité interne de l'équipe.
+      soldBy: product.ownerType === "ADMIN" || !product.sellerId ? "MISTERDOU" : "Vendeur partenaire",
+    })),
     createdAt: order.createdAt.toISOString(),
     deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
-    canReveal: order.status === "DELIVERED",
+    receivedAt: order.receivedAt ? order.receivedAt.toISOString() : null,
+    // Sans « Reçu » ni signalement, la réception est considérée acquise à cette date.
+    autoConfirmAt:
+      order.deliveredAt && !order.receivedAt ? new Date(order.deliveredAt.getTime() + holdDays * 86_400_000).toISOString() : null,
+    canReveal: hasAccess,
+    canConfirmReceipt: order.status === "DELIVERED" && !order.receivedAt,
+    verificationCode,
+    schedule,
+    reports: supportTicket.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
   };
 }
 
@@ -376,7 +432,7 @@ export async function revealCredentials(orderId: string, ctx: OrderActor) {
   if (!order) throw notFound("Commande introuvable");
   if (order.buyerId !== ctx.actorId) throw notFound("Commande introuvable");
   if (order.status === "REFUNDED") throw conflict("ORDER_REFUNDED", "Accès révoqué : cette commande a été remboursée.");
-  if (order.status !== "DELIVERED") {
+  if (!ACCESS_STATUSES.has(order.status)) {
     throw badRequest("ORDER_NOT_DELIVERED", "La livraison n'est pas encore confirmée.");
   }
 
@@ -409,3 +465,37 @@ export async function revealCredentials(orderId: string, ctx: OrderActor) {
   return { title: item.title, orderNumber: order.orderNumber, email, password };
 }
 
+
+// ---------------------------------------------------------------------------
+// Réception confirmée par l'acheteur (« Reçu ») : clôt la commande et libère
+// immédiatement la part du vendeur. Idempotent.
+// ---------------------------------------------------------------------------
+
+export async function confirmReceipt(orderId: string, ctx: { actorId: string; actorRole?: RoleName; ip?: string }) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, buyerId: ctx.actorId },
+    select: { id: true, orderNumber: true, status: true, receivedAt: true },
+  });
+  if (!order) throw notFound("Commande introuvable.");
+  if (order.receivedAt) return { id: order.id, receivedAt: order.receivedAt.toISOString(), released: 0 };
+  if (order.status !== "DELIVERED") throw conflict("ORDER_NOT_DELIVERED", "La commande n’est pas encore livrée.");
+
+  const receivedAt = new Date();
+  const claim = await prisma.order.updateMany({
+    where: { id: order.id, receivedAt: null, status: "DELIVERED" },
+    data: { receivedAt, status: "COMPLETED" },
+  });
+  if (claim.count === 0) throw conflict("ORDER_NOT_DELIVERED", "La commande n’est pas encore livrée.");
+
+  const released = await releaseOrderCredits(order.id, "RECEIVED");
+  await logAudit({
+    actorId: ctx.actorId,
+    actorRole: ctx.actorRole,
+    ip: ctx.ip,
+    action: "ORDER_RECEIVED",
+    resourceType: "Order",
+    resourceId: order.id,
+    metadata: { orderNumber: order.orderNumber, releasedToSeller: released },
+  });
+  return { id: order.id, receivedAt: receivedAt.toISOString(), released };
+}

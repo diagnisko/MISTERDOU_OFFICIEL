@@ -182,7 +182,7 @@ export async function settlePayment(
     await notifyUser(payment.userId, "PAYMENT_CONFIRMED", {
       title: "Paiement confirmé",
       message: `Votre paiement de ${payment.amount.toLocaleString("fr-FR")} FCFA a été confirmé.`,
-      actionUrl: "/account",
+      actionUrl: "/account/orders",
       priority: "CRITICAL",
     });
   } else {
@@ -191,7 +191,7 @@ export async function settlePayment(
       message: `Votre paiement de ${payment.amount.toLocaleString("fr-FR")} FCFA a échoué${
         opts.failureReason ? ` : ${opts.failureReason}` : "."
       }`,
-      actionUrl: "/account",
+      actionUrl: "/account/orders",
     });
   }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { IconCheck } from "@/components/dash/dash-icons";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 // Pages d'authentification : l'illustration du hero (logo posé) d'un côté,
 // le formulaire de l'autre, dans le langage des tableaux de bord.
@@ -15,11 +16,7 @@ export const fieldLabelClass = "mb-1.5 block text-[13px] text-[#b8a6a1]";
 export const inputClass =
   "w-full min-h-[46px] rounded-xl border border-[rgba(255,236,229,0.1)] bg-white/[0.035] px-4 text-sm text-[var(--lux-text)] outline-none transition placeholder:text-[#8a7771] focus:border-[rgba(255,106,50,0.55)] focus:bg-white/[0.055] focus:ring-2 focus:ring-[rgba(232,71,36,0.18)]";
 
-const TRUST_LINES = [
-  "Vendeurs vérifiés, comptes certifiés",
-  "Paiement confirmé par le serveur — Wave et Orange Money",
-  "Identifiants chiffrés, remis après paiement",
-];
+const TRUST_LINES: MessageKey[] = ["auth.trust1", "auth.trust2", "auth.trust3"];
 
 // Frame sans lettrage : un logo recadré en portrait se lirait tronqué.
 const ART = "/hero-scroll/frame-01.jpg";
@@ -36,6 +33,7 @@ export function AuthShell({
   children: ReactNode;
 }) {
   const reduce = useReducedMotion();
+  const t = useT();
   const rise = (delay: number) =>
     reduce
       ? {}
@@ -48,7 +46,7 @@ export function AuthShell({
   return (
     <div data-lux className="dash-root">
       <div className="grid min-h-screen lg:grid-cols-[1.08fr_1fr]">
-        <aside className="relative hidden overflow-hidden lg:block" aria-hidden>
+        <aside data-surface="dark" className="relative hidden overflow-hidden lg:block" aria-hidden>
           <motion.div
             className="absolute inset-0"
             {...(reduce ? {} : { initial: { scale: 1.08, opacity: 0 }, animate: { scale: 1, opacity: 1 }, transition: { duration: 1.4, ease: [0.22, 1, 0.36, 1] } })}
@@ -58,10 +56,10 @@ export function AuthShell({
           <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_55%,#050303_100%),linear-gradient(180deg,rgba(5,3,3,0.2)_0%,transparent_35%,rgba(5,3,3,0.92)_100%)]" />
           <div className="absolute inset-x-0 bottom-0 p-12 xl:p-16">
             <motion.p {...rise(0.3)} className="text-[14px] text-white/70">
-              La place de marché eFootball
+              {t("auth.artKicker")}
             </motion.p>
             <motion.h2 {...rise(0.38)} className="lux-serif dash-brand mt-3 max-w-[16ch] text-[44px] font-semibold leading-[1.05] text-white">
-              Des comptes certifiés, des paiements maîtrisés.
+              {t("auth.artTitle")}
             </motion.h2>
             <motion.ul {...rise(0.48)} className="mt-8 space-y-3">
               {TRUST_LINES.map((line) => (
@@ -69,7 +67,7 @@ export function AuthShell({
                   <span className="grid h-6 w-6 place-items-center rounded-full border border-white/25 bg-black/30">
                     <IconCheck size={13} className="text-[#ff8a5c]" />
                   </span>
-                  {line}
+                  {t(line)}
                 </li>
               ))}
             </motion.ul>

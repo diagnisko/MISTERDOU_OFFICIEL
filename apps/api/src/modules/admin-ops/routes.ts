@@ -17,6 +17,8 @@ import {
   listWithdrawals,
   refundPayment,
   rejectWithdrawal,
+  startWithdrawalProcessing,
+  WITHDRAWAL_ETAS,
   settlePlan,
   updateManager,
   updateSetting,
@@ -57,6 +59,7 @@ const receivableQuery = pageQuery.extend({
 
 const settingsValueBody = z.object({ value: z.unknown() });
 const approveBody = z.object({ paymentReference: z.string().trim().min(3).max(120) });
+const processingBody = z.object({ etaMinutes: z.number().int().refine((v) => (WITHDRAWAL_ETAS as readonly number[]).includes(v), "Délai invalide") });
 const rejectBody = z.object({ reason: z.string().trim().min(5).max(300) });
 const refundBody = z.object({ reason: z.string().trim().min(5).max(500) });
 const planIdQuery = z.object({ planId: z.string().trim().min(1).optional() });
@@ -166,6 +169,17 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
       const args = withdrawalQuery.parse(request.query);
       const { items, total } = await listWithdrawals(args);
       return sendOk(reply, items, { page: args.page, perPage: args.perPage, total });
+    },
+  );
+
+  app.post(
+    "/admin/withdrawals/:id/processing",
+    { preHandler: permissionGuard("WITHDRAWALS"), schema: secured("Prendre en charge un retrait (délai annoncé au vendeur)") },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = processingBody.safeParse(request.body);
+      if (!input.success) throw badRequest("VALIDATION_ERROR", "Délai invalide : 30, 60 ou 720 minutes.");
+      return sendOk(reply, await startWithdrawalProcessing(id, input.data.etaMinutes, actor(request)));
     },
   );
 

@@ -40,3 +40,6 @@ if (!process.env.GOOGLE_OAUTH_CLIENT_ID) {
 }
 
 process.env.NODE_ENV = "test";
+
+// Aucun e-mail réel pendant les tests : l'envoi passe en mode journal seul.
+process.env.SMTP_URL = "";

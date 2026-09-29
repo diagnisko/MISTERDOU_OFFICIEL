@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CodeQueue } from "@/components/codes/code-queue";
+import { SELLER_NAV } from "@/components/seller/seller-nav";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiClientError, request, formatXof } from "@/lib/api";
@@ -79,14 +81,6 @@ type FeaturedResult = {
 
 const DAY_PRESETS = [1, 5, 10, 30];
 
-const SELLER_NAV: DashNavItem[] = [
-  { href: "/seller", label: "Vue d’ensemble", icon: IconHome },
-  { href: "/catalogue", label: "Catalogue public", icon: IconStore },
-  { href: "/account", label: "Mon compte", icon: IconUsers },
-  { href: "/messages", label: "Messages", icon: IconChat, group: "Relation" },
-  { href: "/notifications", label: "Notifications", icon: IconList, group: "Relation" },
-  { href: "/support", label: "Support", icon: IconLifebuoy, group: "Relation" },
-];
 
 export default function SellerPage() {
   const router = useRouter();
@@ -296,6 +290,14 @@ export default function SellerPage() {
             </ul>
           )}
         </Panel>
+      </section>
+
+      <section id="codes" className="dash-card mt-4 scroll-mt-24 p-5">
+        <h2 className="text-[15px] font-semibold text-stone-100">Codes de vérification</h2>
+        <p className="mb-4 mt-0.5 text-[12px] text-[#8f7d77]">
+          Vos acheteurs vous demandent le code reçu par le jeu. Envoyez-le ici : il leur reste 10 minutes pour l’utiliser.
+        </p>
+        <CodeQueue compact />
       </section>
 
       <section className="dash-card mt-4 p-5">

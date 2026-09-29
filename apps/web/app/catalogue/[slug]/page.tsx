@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { LuxProvider, LuxPerfLed } from "@/components/lux/lux-data";
 import { LuxNav } from "@/components/lux/lux-nav";
 import { LuxFooter } from "@/components/lux/lux-footer";
@@ -21,6 +21,7 @@ import {
 import { divisionTier, formatFcfa, formatInt, tierLabel, tierTileClass } from "@/lib/lux";
 import { ApiClientError } from "@/lib/api";
 import { createOrder } from "@/lib/orders";
+import { SellerChatBox } from "@/components/chat/seller-chat-box";
 
 function BuyButton({
   productId,
@@ -165,6 +166,7 @@ const TIER_GLOW: Record<string, string> = {
 function DetailHub() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug as string;
+  const installmentsMode = useSearchParams().get("mode") === "mensualites";
   const [item, setItem] = useState<CatalogueDetail | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -225,6 +227,10 @@ function DetailHub() {
 
   if (!item) return null;
 
+  // Règle : depuis « Offres », achat comptant ; les tranches ne se prennent
+  // que depuis la page des mensualités (?mode=mensualites).
+  const canSplit = item.paymentMode === "INSTALLMENTS";
+  const split = canSplit && installmentsMode;
   const tier = divisionTier(item.division);
   const glow = TIER_GLOW[tier] ?? TIER_GLOW.bronze;
   const isPromo = item.promoPrice !== null && item.promoPrice < item.price;
@@ -326,11 +332,9 @@ function DetailHub() {
 
             <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-stone-400">
               <IconDiamond className="h-3.5 w-3.5 text-[var(--lux-gold)]" aria-hidden />
-              {item.paymentMode === "INSTALLMENTS" && item.installmentMonths
-                ? `Comptant ou paiement en ${item.installmentMonths} parts`
-                : "Paiement comptant"}
+              {split && item.installmentMonths ? `Paiement en ${item.installmentMonths} mensualités` : "Paiement comptant"}
             </span>
-            {item.paymentMode === "INSTALLMENTS" && item.installmentDownPayment !== null && (
+            {split && item.installmentDownPayment !== null && (
               <p className="text-[13px] leading-relaxed text-stone-400">
                 Entrée <span className="text-stone-200 tabular-nums">{formatFcfa(item.installmentDownPayment)}</span>, puis{" "}
                 <span className="text-stone-200 tabular-nums">
@@ -342,11 +346,22 @@ function DetailHub() {
 
             <p className="text-[14px] leading-relaxed text-stone-400">{item.description || "Fiche détaillée disponible sur l'espace acheteur."}</p>
 
-            <BuyButton productId={item.id} paymentMode={item.paymentMode === "INSTALLMENTS" ? "INSTALLMENTS" : "ONE_TIME"} />
-            {item.paymentMode === "INSTALLMENTS" && (
+            <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />
+            {canSplit && !split && (
+              <Link href={`/catalogue/${item.slug}?mode=mensualites`} className="text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
+                Ce compte existe aussi en paiement par mensualités →
+              </Link>
+            )}
+            {split && (
+              <Link href={`/catalogue/${item.slug}`} className="text-[12.5px] text-stone-400 underline-offset-2 hover:underline">
+                Préférer le paiement comptant
+              </Link>
+            )}
+            <SellerChatBox productId={item.id} slug={item.slug} />
+            {split && (
               <p className="flex items-center gap-2 text-[11px] text-stone-400">
                 <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
-                L&apos;accès au compte est livré après solde complet de l&apos;échéancier — suivi depuis « Mon espace ».
+                L&apos;accès au compte est livré après solde complet de l&apos;échéancier — suivi depuis « Mes commandes ».
               </p>
             )}
             <p className="flex items-center gap-2 text-[11px] text-stone-400">
@@ -393,7 +408,9 @@ export default function CatalogueDetailPage() {
       <div data-lux className="relative min-h-screen overflow-x-clip text-stone-100">
         <div className="lux-bg" aria-hidden />
         <LuxNav root />
-        <DetailHub />
+        <Suspense>
+          <DetailHub />
+        </Suspense>
         <div className="mt-8">
           <LuxFooter />
         </div>
