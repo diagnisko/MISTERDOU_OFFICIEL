@@ -10,7 +10,6 @@ import {
   cleanup,
   createProduct,
   createUser,
-  expectApiError,
   tracker,
   track,
 } from "./helpers.js";

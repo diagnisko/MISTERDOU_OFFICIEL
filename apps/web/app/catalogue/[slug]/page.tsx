@@ -18,7 +18,7 @@ import {
   IconSparkle,
   IconStar,
 } from "@/components/lux/lux-icons";
-import { divisionTier, formatFcfa, formatInt, tierLabel, tierTileClass } from "@/lib/lux";
+import { divisionTier, formatFcfa, formatInt, tierTileClass } from "@/lib/lux";
 import { ApiClientError } from "@/lib/api";
 import { createOrder } from "@/lib/orders";
 import { SellerChatBox } from "@/components/chat/seller-chat-box";

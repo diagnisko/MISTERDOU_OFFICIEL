@@ -112,17 +112,3 @@ export async function reportOrderProblem(
   return request("/api/v1/support/tickets", { method: "POST", body: JSON.stringify({ ...input, orderId }) });
 }
 
-/** Libellé client d'un statut de commande. */
-export function orderStatusLabel(status: string): string {
-  return (
-    {
-      PENDING_PAYMENT: "Paiement en attente",
-      PARTIALLY_PAID: "Mensualités en cours",
-      PAID: "Payée",
-      DELIVERED: "Livrée",
-      COMPLETED: "Reçue",
-      CANCELLED: "Annulée",
-      REFUNDED: "Remboursée",
-    } as Record<string, string>
-  )[status] ?? status;
-}

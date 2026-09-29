@@ -10,7 +10,7 @@ import {
   type MotionValue,
   type Variants,
 } from "motion/react";
-import { useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useRef, type ReactNode, type RefObject } from "react";
 import { cx, SectionLabel } from "./lux-utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -199,21 +199,3 @@ function IgniteWord({
 // besoin que de `cx` / `SectionLabel` doivent importer `./lux-utils` afin de ne
 // pas dépendre de ce module (et donc de motion).
 export { cx, SectionLabel };
-
-export function useLuxStyle(props: CSSProperties): CSSProperties {
-  return props;
-}
-
-// Chevron qui glisse au hover (boutons CTA).
-export function SlidingArrow({ className }: { className?: string }) {
-  return <IconArrowInline className={cx("transition-transform duration-300 group-hover/btn:translate-x-1", className)} />;
-}
-
-function IconArrowInline({ className }: { className?: string }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M5 12h14" />
-      <path d="M13 6l6 6-6 6" />
-    </svg>
-  );
-}

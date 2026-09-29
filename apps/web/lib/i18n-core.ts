@@ -21,7 +21,7 @@ export function hasMessage(key: string): key is MessageKey {
 
 export function translate(locale: Locale, key: MessageKey, vars?: TranslateVars): string {
   const template = DICTIONARIES[locale][key] ?? DICTIONARIES.fr[key] ?? key;
-  return vars ? template.replace(/{(w+)}/g, (_, name: string) => String(vars[name] ?? "")) : template;
+  return vars ? template.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? "")) : template;
 }
 
 export type T = ((key: MessageKey, vars?: TranslateVars) => string) & { locale: Locale; intl: string };

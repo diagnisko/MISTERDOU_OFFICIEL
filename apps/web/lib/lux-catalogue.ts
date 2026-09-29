@@ -182,16 +182,3 @@ export async function fetchCatalogueDetail(slug: string, force = false): Promise
   return decodeDetail(res, "catalogue:detail", { slug });
 }
 
-/** Fiche produit — Server Component (SSR), URL absolue API interne. */
-export async function fetchCatalogueDetailServer(slug: string, force = false): Promise<CatalogueDetail> {
-  const hit = detailCache.get(`srv:${slug}`);
-  if (!force && hit && Date.now() - hit.at < TTL_MS) return hit.data;
-
-  const res = await fetch(`${API_INTERNAL_URL}/api/catalogue/${encodeURIComponent(slug)}`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-
-  return decodeDetail(res, "catalogue:detail:ssr", { slug: `srv:${slug}` });
-}

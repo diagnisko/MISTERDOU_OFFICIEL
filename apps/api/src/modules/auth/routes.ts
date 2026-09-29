@@ -2,14 +2,12 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import {
   registerSchema,
   loginSchema,
-  otpRequestSchema,
-  otpVerifySchema,
   googleOAuthSchema,
   SESSION_COOKIE_NAME,
 } from "@misterdou/shared";
 import { z } from "zod";
 import { prisma } from "@misterdou/db";
-import { register, login, requestOtp, verifyOtp, loginWithGoogle, setPhone, toMeDto } from "./service.js";
+import { register, login, loginWithGoogle, toMeDto } from "./service.js";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, requireAdminSetupSession, requireAdminSession, setSessionCookie, clearSessionCookie, setCsrfCookie } from "../../lib/auth-context.js";
 import { revokeSession } from "../../lib/sessions.js";
@@ -17,11 +15,6 @@ import { logAudit, randomCsrfToken } from "../../lib/audit.js";
 import { env } from "../../env.js";
 import { publicUrl } from "../../lib/media.js";
 import { confirmAdminTotp, loginAdmin, startAdminTotpSetup } from "../admin-console/auth.js";
-
-const setPhoneSchema = z.object({
-  countryCode: z.string().regex(/^\+[0-9]{1,4}$/),
-  phoneNumber: z.string().regex(/^[0-9]{6,15}$/),
-});
 
 function csrf(reply: FastifyReply) {
   setCsrfCookie(reply, randomCsrfToken());
@@ -45,8 +38,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     });
     return sendOk(reply, {
       user: result.user,
-      phoneVerified: result.phoneVerified,
-      requiresOtp: result.requiresOtp,
     });
   });
 
@@ -83,7 +74,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     });
     return sendOk(reply, {
       user: result.user,
-      phoneRequired: result.phoneRequired,
       created: result.created,
       previousLoginAt: result.previousLoginAt,
     });
@@ -119,30 +109,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return sendOk(reply, { user: { id: auth.user.id, firstName: auth.user.firstName, lastName: auth.user.lastName, email: auth.user.email, role: auth.user.role?.name } });
   });
 
-  app.post("/auth/otp/request", { schema: { tags: ["Auth"], summary: "Demander un code OTP (vérification téléphone)" }, config: rate(5) }, async (request, reply) => {
-    const auth = requireAuth(request);
-    const input = otpRequestSchema.parse(request.body);
-    const result = await requestOtp(input, { actorId: auth.user.id, ip: request.ip });
-    await logAudit({ action: "OTP_SENT", ip: request.ip, resourceType: "PhoneVerification" });
-    return sendOk(reply, result);
-  });
-
-  app.post("/auth/otp/verify", { schema: { tags: ["Auth"], summary: "Vérifier le code OTP" }, config: rate(5) }, async (request, reply) => {
-    const auth = requireAuth(request);
-    const input = otpVerifySchema.parse(request.body);
-    const result = await verifyOtp(input, { actorId: auth.user.id, ip: request.ip });
-    await logAudit({ action: "OTP_VERIFIED", ip: request.ip, resourceType: "PhoneVerification" });
-    return sendOk(reply, result);
-  });
-
   // --- routes authentifiées ---
 
   app.get("/auth/me", { schema: { tags: ["Auth"], summary: "Compte courant" } }, async (request, reply) => {
     const auth = requireAuth(request);
-    const pv = await prisma.phoneVerification.findFirst({
-      where: { userId: auth.user.id, status: "VERIFIED" },
-      select: { id: true },
-    });
     const [verification, seller] = await Promise.all([
       prisma.identityVerification.findFirst({
         where: { userId: auth.user.id },
@@ -152,7 +122,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       prisma.seller.findUnique({ where: { userId: auth.user.id }, select: { status: true } }),
     ]);
     return sendOk(reply, {
-      user: { ...toMeDto(auth.user, Boolean(pv), auth.user.role?.name ?? "CLIENT"), kycStatus: verification?.status ?? "NOT_SUBMITTED" },
+      user: { ...toMeDto(auth.user, auth.user.role?.name ?? "CLIENT"), kycStatus: verification?.status ?? "NOT_SUBMITTED" },
       // Profil affiché dans le menu et la page « Mon profil » (jamais le hash).
       profile: {
         avatarUrl: auth.user.avatarKey ? publicUrl(auth.user.avatarKey) : null,
@@ -164,20 +134,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         sellerStatus: seller?.status ?? null,
       },
     });
-  });
-
-  app.post("/auth/phone", { schema: { tags: ["Auth"], summary: "(Ré)attribuer un téléphone (première connexion Google)" }, config: rate(5) }, async (request, reply) => {
-    const auth = requireAuth(request);
-    const input = setPhoneSchema.parse(request.body);
-    await setPhone(auth.user.id, input);
-    await logAudit({
-      actorId: auth.user.id,
-      action: "PHONE_SET",
-      ip: request.ip,
-      resourceType: "User",
-      resourceId: auth.user.id,
-    });
-    return sendOk(reply, { ok: true });
   });
 
   app.post("/auth/logout", { schema: { tags: ["Auth"], summary: "Déconnexion (révoque la session)" } }, async (request, reply) => {

@@ -1,8 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@misterdou/db";
-import type { SessionKind, User } from "@misterdou/db";
-
-export type AuthenticatedUser = User;
+import type { SessionKind } from "@misterdou/db";
 
 // Hash du sid (jamais stocké en clair)
 export function hashSessionToken(sid: string): string {

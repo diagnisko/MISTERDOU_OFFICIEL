@@ -313,21 +313,6 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const otpRequestSchema = z.object({
-  countryCode,
-  phoneNumber,
-});
-
-export type OtpRequestInput = z.infer<typeof otpRequestSchema>;
-
-export const otpVerifySchema = z.object({
-  countryCode,
-  phoneNumber,
-  code: oneTimePassword,
-});
-
-export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
-
 export const googleOAuthSchema = z.object({
   idToken: z.string().min(10, "idToken invalide"),
 });
@@ -448,7 +433,6 @@ export const meDtoSchema = z.object({
   phoneNumber: z.string().nullable(),
   status: z.enum(USER_STATUSES),
   twoFactorEnabled: z.boolean(),
-  phoneVerified: z.boolean(),
   createdAt: z.string(),
 });
 

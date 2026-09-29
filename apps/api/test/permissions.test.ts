@@ -3,7 +3,7 @@
 // avec/sans permission, ADMIN avec/sans session renforcée, sur les garde-lib
 // et sur de vraies routes admin.
 import { afterAll, describe, expect, it } from "vitest";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
 import {
   authFor,

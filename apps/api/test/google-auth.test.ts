@@ -2,7 +2,7 @@
 // est MOCKÉ : seul le gate de configuration (GOOGLE_OAUTH_CLIENT_ID) et le
 // rattachement du compte Google (création, liaison e-mail existant, refus
 // hors CLIENT) sont vérifiés contre la base locale.
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
 import { SUITE_STARTED_AT, buildMiniApp, cleanup, createAdmin, createUser, tracker, track } from "./helpers.js";
@@ -52,7 +52,6 @@ describe("Connexion Google", () => {
 
     const first = await loginWithGoogle(token, { ip: "127.0.0.1" });
     track(t, "userIds", first.user.id);
-    expect(first.phoneRequired).toBe(true);
     expect(first.sid).toBeTruthy();
     expect(first.user.email).toBe(email);
     expect(first.user.role).toBe("CLIENT");
@@ -145,7 +144,6 @@ describe("Route /auth/google (inject)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.data.user.email).toBe(email);
-    expect(body.data.phoneRequired).toBe(true);
     track(t, "userIds", body.data.user.id as string);
 
     const setCookie = res.headers["set-cookie"];

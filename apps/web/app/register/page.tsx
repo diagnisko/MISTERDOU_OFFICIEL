@@ -8,7 +8,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { request, ApiClientError } from "@/lib/api";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 import { GoogleButton } from "@/components/auth/google-button";
-import { setGreeting } from "@/lib/greeting";
+import { homeForRole, setGreeting } from "@/lib/greeting";
 import { refreshAccount } from "@/lib/account";
 
 export default function RegisterPage() {
@@ -34,7 +34,7 @@ export default function RegisterPage() {
       });
       setGreeting({ kind: "welcome", firstName });
       await refreshAccount();
-      router.push("/");
+      router.push(homeForRole("CLIENT"));
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : t("auth.network"));
       setLoading(false);

@@ -4,7 +4,7 @@ import { motion, useReducedMotion, type Variants } from "motion/react";
 import Link from "next/link";
 import { cx, LUX_EASE } from "./lux-fx";
 import { IconArrowRight, IconCoins, IconDiamond, IconSparkle, IconStar } from "./lux-icons";
-import { divisionTier, formatFcfa, formatInt, tierLabel, tierTileClass, type LuxCardData } from "@/lib/lux";
+import { divisionTier, formatFcfa, formatInt, tierTileClass, type LuxCardData } from "@/lib/lux";
 import { useT, type MessageKey } from "@/lib/i18n";
 
 const CARD: Variants = {
@@ -36,7 +36,6 @@ export function ProductCard({
   const tier = divisionTier(product.division);
   const reduce = useReducedMotion(); // (réservé : pause anim, traité par animateIn)
   const tierClass = tierTileClass(tier);
-  const tierName = tierLabel(tier);
   const glow = TIER_GLOW[tier] ?? TIER_GLOW.bronze; // teinte du dégradé du visuel
   const distFromCenter = Math.min(Math.abs(index - 2), Math.abs(index - 3));
   const delay = animateIn ? 0.04 + distFromCenter * 0.07 : 0;

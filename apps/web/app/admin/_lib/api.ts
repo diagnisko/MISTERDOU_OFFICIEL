@@ -105,12 +105,6 @@ export function dateInputToIso(value: string): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
-/** "09:30" → 570 (minutes depuis minuit). */
-export function timeToMinutes(value: string): number {
-  const [h, m] = value.split(":");
-  return Number(h ?? "0") * 60 + Number(m ?? "0");
-}
-
 /** 570 → "09:30". */
 export function minutesToTime(minutes: number): string {
   const safe = Math.max(0, Math.min(1439, Math.round(minutes)));

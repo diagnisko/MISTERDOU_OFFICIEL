@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { prisma } from "@misterdou/db";
 import type { PaymentStatus, PaymentType, Prisma, RoleName } from "@misterdou/db";
 import { badRequest, notFound } from "../../lib/errors.js";
@@ -16,10 +15,6 @@ import {
   isProviderConfigured,
   type CheckoutMethod,
 } from "./paytech.js";
-
-export function randomTransactionToken(): string {
-  return "mdpay_" + randomBytes(18).toString("base64url");
-}
 
 export interface PaymentContext {
   actorId?: string;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
 import { sendError, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
-import { logger } from "../../lib/logger.js";
+
 import { buildSchedule } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { mediaKind, publicUrl } from "../../lib/media.js";

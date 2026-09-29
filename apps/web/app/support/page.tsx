@@ -16,7 +16,6 @@ import {
   fetchTicket,
   isTicketClosed,
   personLabel,
-  supportCategoryLabel,
   updateMyTicket,
   type SupportTicket,
 } from "@/lib/support";

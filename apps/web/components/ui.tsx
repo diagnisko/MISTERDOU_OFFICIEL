@@ -138,9 +138,6 @@ const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   VERIFIED: { label: "Vérifié", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
   REJECTED: { label: "Refusé", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
   RESUBMISSION_REQUIRED: { label: "Nouvelle pièce demandée", cls: "text-[#fbbf24] border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.1)]" },
-  // Téléphone
-  UNVERIFIED: { label: "Numéro non vérifié", cls: "text-stone-400 border-white/15 bg-white/5" },
-  VERIFIED_PHONE: { label: "Numéro vérifié", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
   // Vendeur
   APPLICATION_PENDING: { label: "Demande en attente", cls: "text-[#fbbf24] border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.1)]" },
   ACTIVE: { label: "Actif", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
@@ -235,36 +232,3 @@ export function ListPager({
   );
 }
 
-export function Steps({ current, steps }: { current: number; steps: string[] }) {
-  return (
-    <ol className="mb-8 flex items-center gap-2">
-      {steps.map((s, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <li key={s} className="flex items-center gap-2">
-            <span
-              className={`grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold transition-colors ${
-                done
-                  ? "bg-[#10b981] text-[#04140e]"
-                  : active
-                    ? "bg-[linear-gradient(120deg,#ffb08a,#ff6a32_45%,#e84724)] text-[#1a0503]"
-                    : "bg-white/5 text-stone-400 ring-1 ring-white/10"
-              }`}
-            >
-              {done ? "✓" : i + 1}
-            </span>
-            <span
-              className={`hidden text-[11px] font-semibold uppercase tracking-[0.14em] sm:inline ${
-                active ? "text-stone-100" : "text-stone-400"
-              }`}
-            >
-              {s}
-            </span>
-            {i < steps.length - 1 && <span className="h-px w-5 bg-white/10 sm:w-10" />}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}

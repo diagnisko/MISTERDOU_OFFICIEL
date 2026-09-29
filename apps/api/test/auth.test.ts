@@ -40,7 +40,6 @@ describe("Inscription (§39 — inscription)", () => {
 
     expect(result.user.role).toBe("CLIENT");
     expect(result.user.status).toBe("ACTIVE");
-    expect(result.user.phoneVerified).toBe(false);
     expect(result.sid).toBeTruthy();
 
     const user = await prisma.user.findUnique({ where: { id: result.user.id }, include: { role: true } });
@@ -172,7 +171,6 @@ describe("Connexion Google (§39 — connexion Google)", () => {
     const first = await loginWithGoogle("valid-google-token", { ip: "127.0.0.1" });
     t.userIds.push(first.user.id);
     expect(first.user.role).toBe("CLIENT");
-    expect(first.phoneRequired).toBe(true);
     expect(first.user.email).toBe("google-client@example.com");
 
     const again = await loginWithGoogle("valid-google-token", {});
@@ -199,7 +197,7 @@ describe("DTO public (jamais de champ sensible)", () => {
   it("toMeDto n'expose ni hash ni statut interne", async () => {
     const user = await createUser(t, {});
     const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-    const dto = toMeDto(row, false, "CLIENT");
+    const dto = toMeDto(row, "CLIENT");
     expect(Object.keys(dto)).not.toContain("passwordHash");
     expect(JSON.stringify(dto)).not.toContain("scrypt");
     expect(dto.id).toBe(user.id);

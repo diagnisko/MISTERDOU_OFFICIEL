@@ -1,4 +1,4 @@
-import type { ApiEnvelope, ApiErrorCode, PublicMeta } from "@misterdou/shared";
+import type { ApiEnvelope, ApiErrorCode } from "@misterdou/shared";
 import { documentLocale, hasMessage, translate } from "./i18n-core";
 
 /**
@@ -184,13 +184,6 @@ export function errorMessage(err: unknown, fallback?: string): string {
 
 export function isPermissionError(err: unknown): boolean {
   return err instanceof ApiClientError && err.code === "FORBIDDEN";
-}
-
-export async function getPublicMeta(base?: string): Promise<PublicMeta> {
-  const data = await request<unknown>("/api/v1/meta", undefined, base);
-  // Schéma zod chargé à la demande : zod reste hors du bundle initial (Phase 12).
-  const { publicMetaSchema } = await import("@misterdou/shared");
-  return publicMetaSchema.parse(data);
 }
 
 // Formatage monétaire D'AFFICHAGE uniquement (aucun calcul côté client ; les montants

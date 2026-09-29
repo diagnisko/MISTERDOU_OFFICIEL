@@ -7,7 +7,6 @@ import { Alert, Spinner } from "@/components/ui";
 import {
   confirmOrderReceipt,
   fetchMyOrder,
-  orderStatusLabel,
   reportOrderProblem,
   requestVerificationCode,
   revealOrderCredentials,

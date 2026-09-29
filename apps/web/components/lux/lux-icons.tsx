@@ -61,15 +61,6 @@ export function IconCoins({ className, size }: IconProps) {
   );
 }
 
-export function IconCrown({ className, size }: IconProps) {
-  return (
-    <svg {...base(size)} className={className}>
-      <path d="M4 18h16" />
-      <path d="M5 8l3.5 3L12 5l3.5 6L19 8l-1 10H6L5 8z" />
-    </svg>
-  );
-}
-
 export function IconArrowRight({ className, size }: IconProps) {
   return (
     <svg {...base(size)} className={className}>
@@ -170,11 +161,3 @@ export function IconStar({ className, size, filled }: IconProps & { filled?: boo
   );
 }
 
-export function IconQuote({ className, size }: IconProps) {
-  return (
-    <svg {...base(size)} className={className}>
-      <path d="M5 12c0-3 2-5.5 5-6v2.5c-1.4.4-2.4 1.5-2.5 3H10v5H5v-4.5z" />
-      <path d="M14 12c0-3 2-5.5 5-6v2.5c-1.4.4-2.4 1.5-2.5 3H19v5h-5v-4.5z" />
-    </svg>
-  );
-}

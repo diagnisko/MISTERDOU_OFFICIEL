@@ -2,32 +2,15 @@
 
 import { Reveal, SectionLabel, IgniteHeading } from "./lux-fx";
 import Link from "next/link";
-import { IconArrowRight, IconStar } from "./lux-icons";
+import { IconArrowRight } from "./lux-icons";
 import { formatFcfa } from "@/lib/lux";
 import { useLux } from "./lux-data";
-import { useT, type MessageKey } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 
 function SkeletonLine({ w }: { w: string }) {
   return <div className="lux-skeleton h-4 opacity-60" style={{ borderRadius: 6, width: w }} aria-hidden />;
 }
 
-const TESTIMONIALS = [
-  {
-    quote: "pricing.q1" as MessageKey,
-    name: "Moussa D.",
-    role: "pricing.r1" as MessageKey,
-  },
-  {
-    quote: "pricing.q2" as MessageKey,
-    name: "Awa B.",
-    role: "pricing.r2" as MessageKey,
-  },
-  {
-    quote: "pricing.q3" as MessageKey,
-    name: "Serigne K.",
-    role: "pricing.r3" as MessageKey,
-  },
-];
 
 export function LuxPricing() {
   const t = useT();
@@ -97,26 +80,6 @@ export function LuxPricing() {
               </div>
             </article>
           </Reveal>
-        </div>
-
-        {/* Témoignages */}
-        <div className="mt-5 grid gap-5 md:grid-cols-3">
-          {TESTIMONIALS.map((item, i) => (
-            <Reveal key={item.name} delay={0.08 + i * 0.08}>
-              <figure className="lux-glass flex h-full flex-col rounded-[24px] p-7">
-                <div className="flex gap-1 text-[var(--lux-gold)]" aria-label={t("pricing.rating")}>
-                  {Array.from({ length: 5 }).map((_, s) => (
-                    <IconStar key={s} filled className="h-3.5 w-3.5" aria-hidden />
-                  ))}
-                </div>
-                <blockquote className="mt-4 flex-1 text-[13.5px] leading-relaxed text-stone-300">« {t(item.quote)} »</blockquote>
-                <figcaption className="mt-5 border-t border-[rgba(255,255,255,0.07)] pt-4">
-                  <div className="text-[13px] font-semibold text-stone-100">{item.name}</div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-stone-400">{t(item.role)}</div>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
         </div>
       </div>
     </section>

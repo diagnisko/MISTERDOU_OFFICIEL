@@ -12,7 +12,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { prisma } from "@misterdou/db";
 import type { PaymentMode, ProductStatus, RoleName, SellerStatus, UserStatus } from "@misterdou/db";
 import { ApiError } from "../src/lib/errors.js";
-import { hashPassword, hashPasswordWith } from "../src/lib/password.js";
+import { hashPasswordWith } from "../src/lib/password.js";
 import { registerErrorHandler } from "../src/lib/error-handler.js";
 import { createSession, findActiveSession, type ActiveSession } from "../src/lib/sessions.js";
 import { deleteFile, encryptString, putFile } from "../src/lib/storage.js";

@@ -8,16 +8,13 @@ import { motion, useReducedMotion } from "motion/react";
 import { request, ApiClientError } from "@/lib/api";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 import { GoogleButton } from "@/components/auth/google-button";
-import { homeForRole, setGreeting } from "@/lib/greeting";
+import { landingAfterLogin, setGreeting } from "@/lib/greeting";
 import { refreshAccount } from "@/lib/account";
 
 type LoginUser = { role: string; firstName: string | null };
 
-// Retour vers la page demandée avant la connexion (chemin interne uniquement).
 function destination(role: string | undefined): string {
-  const next = new URLSearchParams(window.location.search).get("next");
-  if (next && next.startsWith("/") && !next.startsWith("//") && role !== "ADMIN" && role !== "STAFF") return next;
-  return homeForRole(role);
+  return landingAfterLogin(role, new URLSearchParams(window.location.search).get("next"));
 }
 
 export default function LoginPage() {
