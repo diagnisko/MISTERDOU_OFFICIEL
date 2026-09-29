@@ -150,7 +150,7 @@ async function CatalogueBody({
                 }
               >
                 {t("cat.all")}
-</Link>
+              </Link>
               {divisions.map((d) => (
                 <Link
                   key={d}
@@ -237,7 +237,7 @@ async function CatalogueBody({
               <p className="text-[14px] text-stone-400">{emptyText}</p>
               <Link href={basePath} className="lux-btn lux-btn-ghost mt-6">
                 {t("cat.showAll")}
-</Link>
+              </Link>
             </div>
           )}
         </div>

@@ -246,11 +246,11 @@ function DetailHub() {
         <nav aria-label={t("product.breadcrumb")} className="mb-8 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-400">
           <Link href="/" className="transition-colors hover:text-stone-200">
             {t("product.home")}
-</Link>
+          </Link>
           <span aria-hidden>/</span>
           <Link href="/catalogue" className="transition-colors hover:text-stone-200">
             {t("product.catalogue")}
-</Link>
+          </Link>
           <span aria-hidden>/</span>
           <span className="text-stone-300">{item.title}</span>
         </nav>
@@ -359,7 +359,7 @@ function DetailHub() {
             {split && (
               <Link href={`/catalogue/${item.slug}`} className="text-[12.5px] text-stone-400 underline-offset-2 hover:underline">
                 {t("product.preferCash")}
-</Link>
+              </Link>
             )}
             <SellerChatBox productId={item.id} slug={item.slug} />
             {split && (
@@ -398,7 +398,7 @@ function DetailHub() {
           <Link href="/catalogue" className="lux-btn lux-btn-ghost" style={{ borderRadius: 16 }}>
             <IconArrowLeft className="h-4 w-4" aria-hidden />
             {t("product.allCatalogue")}
-</Link>
+          </Link>
         </div>
       </div>
     </main>

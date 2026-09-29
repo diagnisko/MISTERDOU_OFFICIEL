@@ -5,28 +5,30 @@ import { formatXof } from "@/lib/api";
 import { Alert, Spinner } from "@/components/ui";
 import type { OrderSummary } from "@/lib/orders";
 import { OrderStatusPill } from "./order-detail";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 /** Ce que le client doit faire ensuite, en une ligne. */
-function nextStep(order: OrderSummary): { text: string; urgent: boolean } | null {
+function nextStep(order: OrderSummary): { text: MessageKey; urgent: boolean } | null {
   switch (order.status) {
     case "PENDING_PAYMENT":
-      return { text: "Paiement à finaliser", urgent: true };
+      return { text: "orders.stepPay", urgent: true };
     case "PARTIALLY_PAID":
-      return { text: "Mensualités en cours — voir l’échéancier", urgent: false };
+      return { text: "orders.stepMonthly", urgent: false };
     case "DELIVERED":
-      return { text: "Accès disponible — confirmez la réception", urgent: true };
+      return { text: "orders.stepConfirm", urgent: true };
     case "COMPLETED":
-      return { text: "Accès disponible", urgent: false };
+      return { text: "orders.stepAccess", urgent: false };
     default:
       return null;
   }
 }
 
 export function OrdersPanel({ orders, loading, loadError }: { orders: OrderSummary[]; loading: boolean; loadError: string | null }) {
+  const t = useT();
   if (loading) {
     return (
       <p className="flex items-center gap-2 text-[14px] text-stone-400">
-        <Spinner className="h-4 w-4 text-[var(--lux-gold)]" /> Chargement de vos commandes…
+        <Spinner className="h-4 w-4 text-[var(--lux-gold)]" /> {t("orders.loading")}
       </p>
     );
   }
@@ -34,9 +36,9 @@ export function OrdersPanel({ orders, loading, loadError }: { orders: OrderSumma
   if (orders.length === 0) {
     return (
       <div>
-        <p className="text-[14px] leading-relaxed text-stone-400">Aucune commande pour le moment — vos achats apparaîtront ici.</p>
+        <p className="text-[14px] leading-relaxed text-stone-400">{t("orders.empty")}</p>
         <Link href="/offres" className="lux-btn lux-btn-ghost mt-5 text-[12px] uppercase tracking-[0.14em]" style={{ borderRadius: 18 }}>
-          Découvrir les offres
+          {t("orders.discover")}
         </Link>
       </div>
     );
@@ -55,10 +57,10 @@ export function OrdersPanel({ orders, loading, loadError }: { orders: OrderSumma
             >
               <div className="min-w-0 flex-1">
                 <p className="text-[10.5px] uppercase tracking-[0.2em] text-stone-500">
-                  {order.orderNumber} · {new Date(order.createdAt).toLocaleDateString("fr-FR")}
+                  {order.orderNumber} · {new Date(order.createdAt).toLocaleDateString(t.intl)}
                 </p>
-                <p className="mt-1 truncate font-semibold text-stone-100">{order.firstItem?.title ?? "Commande"}</p>
-                {step && <p className={`mt-1 text-[12.5px] ${step.urgent ? "text-[#ff8a5c]" : "text-stone-400"}`}>{step.text}</p>}
+                <p className="mt-1 truncate font-semibold text-stone-100">{order.firstItem?.title ?? t("order.fallbackTitle")}</p>
+                {step && <p className={`mt-1 text-[12.5px] ${step.urgent ? "text-[#ff8a5c]" : "text-stone-400"}`}>{t(step.text)}</p>}
               </div>
               <div className="shrink-0 text-right">
                 <OrderStatusPill status={order.status} />

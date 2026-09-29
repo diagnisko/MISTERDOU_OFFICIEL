@@ -54,7 +54,7 @@ export function SellerChatBox({ productId, slug }: { productId: string; slug: st
         style={{ borderRadius: 18 }}
       >
         {t("chat.open")}
-</button>
+      </button>
     );
   }
 
@@ -66,11 +66,11 @@ export function SellerChatBox({ productId, slug }: { productId: string; slug: st
           {thread && (
             <Link href={`/account/messages?thread=${thread.id}`} className="text-[12px] text-[var(--lux-gold-light)] hover:underline">
               {t("chat.openFull")}
-</Link>
+            </Link>
           )}
           <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-stone-400 hover:text-white">
             {t("chat.close")}
-</button>
+          </button>
         </div>
       </div>
       {error && <Alert tone="danger">{error}</Alert>}
