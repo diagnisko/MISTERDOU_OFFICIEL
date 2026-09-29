@@ -25,6 +25,8 @@ import {
   unreadCount,
   type ConversationSummary,
 } from "@/components/messagerie/types";
+import { useT } from "@/lib/i18n";
+import { documentIntl } from "@/lib/i18n-core";
 
 // ---------------------------------------------------------------------------
 // Messagerie membre (§44) — liste des conversations à gauche, fil à droite.
@@ -38,13 +40,14 @@ const PER_PAGE = 20;
 const LIST_POLL_MS = 15000;
 
 export default function MessagesPage() {
+  const t = useT();
   return (
     <Suspense
       fallback={
         <LuxShell>
           <div className="relative z-10 grid min-h-[70vh] place-items-center text-sm text-stone-400">
             <span className="flex items-center gap-3">
-              <Spinner /> Ouverture de la messagerie…
+              <Spinner /> {t("msg.opening")}
             </span>
           </div>
         </LuxShell>
@@ -56,6 +59,7 @@ export default function MessagesPage() {
 }
 
 function MessagesInner() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeId = searchParams.get("c");
@@ -189,7 +193,7 @@ function MessagesInner() {
       <LuxShell>
         <div className="relative z-10 grid min-h-[70vh] place-items-center text-sm text-stone-400">
           <span className="flex items-center gap-3">
-            <Spinner /> Ouverture de la messagerie…
+            <Spinner /> {t("msg.opening")}
           </span>
         </div>
       </LuxShell>
@@ -198,28 +202,28 @@ function MessagesInner() {
 
   const conversation = activeRow ?? detail;
   const peer = conversation ? peerOf(conversation, session?.id) : null;
-  const peerName = personName(peer) || "Support MISTERDOU";
+  const peerName = personName(peer) || t("msg.support");
 
   return (
     <LuxShell>
       <div className="relative z-10">
         <LuxTopBar
-          label="Espace membre"
+          label={t("notif.memberArea")}
           links={[
-            { href: "/account", label: "Mon espace" },
-            { href: "/notifications", label: "Notifications" },
-            { href: "/catalogue", label: "Catalogue" },
+            { href: "/account", label: t("notif.myAccount") },
+            { href: "/notifications", label: t("notif.title") },
+            { href: "/offres", label: t("notif.catalogue") },
           ]}
         />
 
         <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
           <LuxPageHead
-            kicker="Espace membre"
-            title="Messagerie"
-            meta="Vos échanges avec l’administration — les clients ne contactent jamais directement les vendeurs."
+            kicker={t("notif.memberArea")}
+            title={t("msg.title")}
+            meta={t("msg.meta")}
             action={
               <Button loading={creating} onClick={() => void startConversation()}>
-                Contacter le support
+                {t("msg.contact")}
               </Button>
             }
           />
@@ -245,9 +249,9 @@ function MessagesInner() {
               }`}
             >
               <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
-                <p className="lux-kicker">Conversations</p>
+                <p className="lux-kicker">{t("msg.conversations")}</p>
                 <span className="text-[10px] uppercase tracking-[0.14em] tabular-nums text-stone-500">
-                  {meta.total.toLocaleString("fr-FR")}
+                  {meta.total.toLocaleString(t.intl)}
                 </span>
               </div>
 
@@ -257,21 +261,21 @@ function MessagesInner() {
                 </p>
               ) : rows.length === 0 ? (
                 <div className="p-5">
-                  <p className="text-sm text-stone-400">Aucune conversation pour le moment.</p>
+                  <p className="text-sm text-stone-400">{t("msg.none")}</p>
                   <Button
                     variant="outline"
                     className="mt-4 w-full"
                     loading={creating}
                     onClick={() => void startConversation()}
                   >
-                    Contacter le support
-                  </Button>
+                {t("msg.contact")}
+              </Button>
                 </div>
               ) : (
                 <ul className="max-h-[60vh] divide-y divide-white/[0.06] overflow-y-auto lg:max-h-[62vh]">
                   {rows.map((row) => {
                     const rowPeer = peerOf(row, session?.id);
-                    const name = personName(rowPeer) || "Support MISTERDOU";
+                    const name = personName(rowPeer) || t("msg.support");
                     const count = unreadCount(row.unread);
                     const active = row.id === activeId;
                     return (
@@ -327,7 +331,7 @@ function MessagesInner() {
                 <div className="grid min-h-[360px] place-items-center rounded-[20px] border border-dashed border-white/10 bg-[#101825]/60 p-6 text-center">
                   <div>
                     <p className="text-sm text-stone-400">
-                      Sélectionnez une conversation ou écrivez au support.
+                      {t("msg.pick")}
                     </p>
                     <Button
                       variant="outline"
@@ -335,12 +339,12 @@ function MessagesInner() {
                       loading={creating}
                       onClick={() => void startConversation()}
                     >
-                      Contacter le support
-                    </Button>
+                {t("msg.contact")}
+              </Button>
                     <p className="mt-4 text-xs text-stone-500">
-                      Une question sur une commande ?{" "}
+                      {t("msg.orderQuestion")}{" "}
                       <Link href="/support" className="text-[var(--lux-gold-light)] hover:underline">
-                        Ouvrez une demande d’aide
+                        {t("msg.openRequest")}
                       </Link>
                       .
                     </p>
@@ -349,14 +353,14 @@ function MessagesInner() {
               ) : loading && !conversation && !detailError ? (
                 <div className="grid min-h-[360px] place-items-center rounded-[20px] border border-white/[0.08] bg-[#101825]/80">
                   <span className="flex items-center gap-3 text-sm text-stone-400">
-                    <Spinner /> Chargement de la conversation…
+                    <Spinner /> {t("msg.loadingThread")}
                   </span>
                 </div>
               ) : !conversation && detailError ? (
                 <div className="rounded-[20px] border border-white/[0.08] bg-[#101825]/80 p-5">
                   <Alert tone="danger">{errorMessage(detailError)}</Alert>
                   <Button variant="outline" className="mt-4" onClick={() => select(null)}>
-                    Retour à la liste
+                    {t("msg.backToList")}
                   </Button>
                 </div>
               ) : conversation ? (
@@ -371,7 +375,7 @@ function MessagesInner() {
                         <button
                           type="button"
                           onClick={() => select(null)}
-                          aria-label="Retour à la liste des conversations"
+                          aria-label={t("msg.backToListLabel")}
                           className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 text-stone-300 transition hover:text-stone-100 lg:hidden"
                         >
                           ←
@@ -397,7 +401,7 @@ function MessagesInner() {
                         href="/support"
                         className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--lux-gold-light)] hover:underline"
                       >
-                        Aide &amp; support
+                        {t("msg.help")}
                       </Link>
                     </>
                   }
@@ -423,6 +427,6 @@ function shortDate(value: string): string {
     date.getDate() === today.getDate() &&
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear();
-  if (sameDay) return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  if (sameDay) return date.toLocaleTimeString(documentIntl(), { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleDateString(documentIntl(), { day: "2-digit", month: "2-digit" });
 }

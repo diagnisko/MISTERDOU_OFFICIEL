@@ -21,6 +21,7 @@ import {
   type SupportTicket,
 } from "@/lib/support";
 import { formatDateTime } from "@/lib/format";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Aide & support — GET /support/tickets/mine (liste), GET /support/tickets/:id
@@ -32,6 +33,7 @@ import { formatDateTime } from "@/lib/format";
 const PER_PAGE = 10;
 
 export default function SupportPage() {
+  const t = useT();
   const router = useRouter();
   const [session, setSession] = useState<SessionUser | null>(null);
   const [checking, setChecking] = useState(true);
@@ -147,8 +149,8 @@ export default function SupportPage() {
       await updateMyTicket(ticket.id, status);
       setNotice(
         status === "RESOLVED"
-          ? "Demande marquée comme résolue."
-          : "Demande fermée — vous pouvez en rouvrir une nouvelle à tout moment.",
+          ? t("sup.resolved")
+          : t("sup.closed"),
       );
       setDetail((prev) => (prev ? { ...prev, status } : prev));
       await loadList(page);
@@ -164,7 +166,7 @@ export default function SupportPage() {
       <LuxShell>
         <div className="relative z-10 grid min-h-[70vh] place-items-center text-sm text-stone-400">
           <span className="flex items-center gap-3">
-            <Spinner /> Ouverture de l’aide…
+            <Spinner /> {t("sup.opening")}
           </span>
         </div>
       </LuxShell>
@@ -175,25 +177,25 @@ export default function SupportPage() {
     <LuxShell>
       <div className="relative z-10">
         <LuxTopBar
-          label="Espace membre"
+          label={t("notif.memberArea")}
           links={[
-            { href: "/account", label: "Mon espace" },
-            { href: "/messages", label: "Messagerie" },
-            { href: "/catalogue", label: "Catalogue" },
+            { href: "/account", label: t("notif.myAccount") },
+            { href: "/messages", label: t("notif.messaging") },
+            { href: "/offres", label: t("notif.catalogue") },
           ]}
         />
 
         <main className="mx-auto max-w-5xl px-5 py-10 md:px-8">
           <LuxPageHead
-            kicker="Aide"
-            title="Aide & support"
-            meta="Une demande = un suivi identifié par un code. Conservez ce code."
+            kicker={t("sup.kicker")}
+            title={t("sup.title")}
+            meta={t("sup.meta")}
             action={
               <>
                 <Button variant="outline" onClick={() => router.push("/messages")}>
-                  Préférez le chat ?
+                  {t("sup.preferChat")}
                 </Button>
-                <Button onClick={() => setTab("new")}>Nouvelle demande</Button>
+                <Button onClick={() => setTab("new")}>{t("sup.newRequest")}</Button>
               </>
             }
           />
@@ -204,10 +206,10 @@ export default function SupportPage() {
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-1.5" role="tablist" aria-label="Espace support">
+          <div className="mt-6 flex flex-wrap gap-1.5" role="tablist" aria-label={t("sup.tabs")}>
             {([
-              { value: "mine", label: "Mes demandes" },
-              { value: "new", label: "Nouvelle demande" },
+              { value: "mine", label: t("sup.myRequests") },
+              { value: "new", label: t("sup.newRequest") },
             ] as const).map((option) => {
               const active = option.value === tab;
               return (
@@ -223,7 +225,7 @@ export default function SupportPage() {
                       : "border-white/10 text-stone-400 hover:bg-white/[0.06] hover:text-stone-100"
                   }`}
                 >
-                  {option.label}
+                  {t(`supcat.${option.value}` as MessageKey)}
                 </button>
               );
             })}
@@ -242,28 +244,28 @@ export default function SupportPage() {
               <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)]">
                 <section className="overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#101825]/80">
                   <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
-                    <p className="lux-kicker">Mes demandes</p>
+                    <p className="lux-kicker">{t("sup.myRequests")}</p>
                     <Button
                       variant="ghost"
                       loading={loading}
                       onClick={() => void loadList(page)}
                       className="!min-h-[32px] !px-3 !text-[10px]"
                     >
-                      Actualiser
+                      {t("sup.refresh")}
                     </Button>
                   </div>
 
                   {loading && items.length === 0 ? (
                     <p className="flex items-center gap-3 p-6 text-sm text-stone-400">
-                      <Spinner /> Chargement de vos demandes…
+                      <Spinner /> {t("sup.loading")}
                     </p>
                   ) : items.length === 0 ? (
                     <div className="p-6">
                       <p className="text-sm text-stone-400">
-                        Aucune demande pour le moment — nous sommes à votre écoute.
+                        {t("sup.empty")}
                       </p>
                       <Button className="mt-4" onClick={() => setTab("new")}>
-                        Créer une demande
+                        {t("sup.create")}
                       </Button>
                     </div>
                   ) : (
@@ -287,7 +289,7 @@ export default function SupportPage() {
                                 {ticket.subject}
                               </span>
                               <Badge cls="border-white/15 bg-white/5 text-stone-300">
-                                {supportCategoryLabel(ticket.category)}
+                                {t(`supcat.${ticket.category}` as MessageKey)}
                               </Badge>
                               <StatusBadge status={ticket.status} />
                               <span className="w-full text-[11px] tabular-nums text-stone-500 sm:w-auto">
@@ -313,17 +315,16 @@ export default function SupportPage() {
                 </section>
 
                 <section
-                  aria-label="Détail de la demande"
+                  aria-label={t("sup.detail")}
                   className="lux-glass h-fit rounded-[18px] p-5 lg:sticky lg:top-6"
                 >
                   {selectedId === null ? (
                     <p className="text-sm text-stone-400">
-                      Sélectionnez une demande pour voir son détail, sa commande liée et ses
-                      actions.
+                      {t("sup.pick")}
                     </p>
                   ) : detailLoading ? (
                     <p className="flex items-center gap-3 text-sm text-stone-400">
-                      <Spinner /> Chargement de la demande…
+                      <Spinner /> {t("sup.loadingOne")}
                     </p>
                   ) : detailError !== null ? (
                     <Alert tone="danger">{errorMessage(detailError)}</Alert>
@@ -371,11 +372,12 @@ function TicketDetail({
   busy: boolean;
   onStatusChange: (status: "RESOLVED" | "CLOSED") => void;
 }) {
+  const t = useT();
   const closable = !isTicketClosed(ticket.status);
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="lux-kicker">Demande</p>
+        <p className="lux-kicker">{t("sup.request")}</p>
         <StatusBadge status={ticket.status} />
       </div>
 
@@ -392,18 +394,18 @@ function TicketDetail({
 
       <dl className="mt-4 space-y-2 text-sm">
         <div className="flex items-start justify-between gap-3">
-          <dt className="text-stone-400">Catégorie</dt>
-          <dd className="text-right text-stone-200">{supportCategoryLabel(ticket.category)}</dd>
+          <dt className="text-stone-400">{t("sup.category")}</dt>
+          <dd className="text-right text-stone-200">{t(`supcat.${ticket.category}` as MessageKey)}</dd>
         </div>
         <div className="flex items-start justify-between gap-3">
-          <dt className="text-stone-400">Créée le</dt>
+          <dt className="text-stone-400">{t("sup.createdOn")}</dt>
           <dd className="text-right tabular-nums text-stone-200">
             {formatDateTime(ticket.createdAt)}
           </dd>
         </div>
         {ticket.updatedAt && (
           <div className="flex items-start justify-between gap-3">
-            <dt className="text-stone-400">Mise à jour</dt>
+            <dt className="text-stone-400">{t("sup.updated")}</dt>
             <dd className="text-right tabular-nums text-stone-200">
               {formatDateTime(ticket.updatedAt)}
             </dd>
@@ -411,10 +413,10 @@ function TicketDetail({
         )}
         {ticket.orderNumber && (
           <div className="flex items-start justify-between gap-3">
-            <dt className="shrink-0 text-stone-400">Commande liée</dt>
+            <dt className="shrink-0 text-stone-400">{t("sup.linkedOrder")}</dt>
             <dd className="text-right">
               <Link
-                href="/account"
+                href={ticket.orderId ? `/account/orders/${ticket.orderId}` : "/account/orders"}
                 className="font-mono text-[var(--lux-gold-light)] hover:underline"
               >
                 {ticket.orderNumber}
@@ -424,14 +426,14 @@ function TicketDetail({
         )}
         {ticket.assignedTo && (
           <div className="flex items-start justify-between gap-3">
-            <dt className="text-stone-400">Prise en charge</dt>
+            <dt className="text-stone-400">{t("sup.assigned")}</dt>
             <dd className="text-right text-stone-200">{personLabel(ticket.assignedTo)}</dd>
           </div>
         )}
       </dl>
 
       <div className="mt-4 rounded-[14px] border border-white/10 bg-black/15 p-4">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Description</p>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">{t("sup.description")}</p>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">
           {ticket.description}
         </p>
@@ -444,16 +446,15 @@ function TicketDetail({
             loading={busy}
             onClick={() => onStatusChange("RESOLVED")}
           >
-            Marquer comme résolue
+            {t("sup.markResolved")}
           </Button>
           <Button variant="ghost" loading={busy} onClick={() => onStatusChange("CLOSED")}>
-            Fermer
+            {t("sup.close")}
           </Button>
         </div>
       ) : (
         <p className="mt-5 text-xs text-stone-500">
-          Cette demande est {ticket.status === "CLOSED" ? "fermée" : "résolue"} — plus aucune action
-          possible.
+          {ticket.status === "CLOSED" ? t("sup.isClosed") : t("sup.isResolved")}
         </p>
       )}
     </div>
@@ -473,6 +474,7 @@ function NewTicketPanel({
   onReset: () => void;
   onShowList: () => void;
 }) {
+  const t = useT();
   const [category, setCategory] = useState("OTHER");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
@@ -485,11 +487,11 @@ function NewTicketPanel({
     const trimmedSubject = subject.trim();
     const trimmedDescription = description.trim();
     if (trimmedSubject.length < 3) {
-      setFormError("Le sujet doit contenir au moins 3 caractères.");
+      setFormError(t("sup.subjectShort"));
       return;
     }
     if (trimmedDescription.length < 10) {
-      setFormError("La description doit contenir au moins 10 caractères.");
+      setFormError(t("sup.descShort"));
       return;
     }
     setFormError(null);
@@ -515,13 +517,12 @@ function NewTicketPanel({
   if (created) {
     return (
       <section aria-live="polite" className="lux-glass mt-4 rounded-[24px] p-7">
-        <p className="lux-kicker">Demande enregistrée</p>
+        <p className="lux-kicker">{t("sup.savedKicker")}</p>
         <h2 className="lux-serif mt-2 text-[24px] font-semibold text-stone-50">
-          Votre demande a été créée
+          {t("sup.savedTitle")}
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-stone-300">
-          Conservez ce code pour suivre votre demande — il est demandé à chaque échange avec le
-          support.
+          {t("sup.keepCode")}
         </p>
         <p className="mt-4 flex flex-wrap items-center gap-3 rounded-[14px] border border-[rgba(255,106,50,0.3)] bg-[rgba(232,71,36,0.08)] px-4 py-3">
           <span className="font-mono text-lg font-bold tracking-[0.12em] text-[var(--lux-gold-light)]">
@@ -530,22 +531,21 @@ function NewTicketPanel({
           <CopyButton value={created.code} />
         </p>
         <p className="mt-4 text-xs text-stone-400">
-          {supportCategoryLabel(created.category)} · créée le {formatDateTime(created.createdAt)} ·
-          statut ouvert
+          {t("sup.createdLine", { category: t(`supcat.${created.category}` as MessageKey), date: formatDateTime(created.createdAt) })}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button variant="outline" onClick={onShowList}>
-            Voir mes demandes
+            {t("sup.seeMine")}
           </Button>
           <Button variant="ghost" onClick={onReset}>
-            Nouvelle demande
+            {t("sup.newRequest")}
           </Button>
           <Link
             href="/messages"
             className="lux-btn lux-btn-ghost text-[11.5px] uppercase tracking-[0.14em]"
             style={{ borderRadius: 16 }}
           >
-            Préférez le chat ?
+            {t("sup.preferChat")}
           </Link>
         </div>
       </section>
@@ -554,48 +554,48 @@ function NewTicketPanel({
 
   return (
     <section className="lux-glass mt-4 rounded-[24px] p-7">
-      <p className="lux-kicker">Nouvelle demande</p>
-      <h2 className="lux-serif mt-2 text-[24px] font-semibold text-stone-50">Décrivez votre besoin</h2>
+      <p className="lux-kicker">{t("sup.newRequest")}</p>
+      <h2 className="lux-serif mt-2 text-[24px] font-semibold text-stone-50">{t("sup.describeNeed")}</h2>
 
       <form onSubmit={(event) => void submit(event)} className="mt-5 space-y-5">
-        <Field label="Catégorie" required>
+        <Field label={t("sup.category")} required>
           <SelectInput value={category} onChange={(event) => setCategory(event.target.value)}>
             {SUPPORT_CATEGORY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(`supcat.${option.value}` as MessageKey)}
               </option>
             ))}
           </SelectInput>
         </Field>
 
-        <Field label="Sujet" required hint="Ex. : J’ai besoin du code de vérification.">
+        <Field label={t("sup.subject")} required hint={t("sup.subjectHint")}>
           <TextInput
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
             maxLength={160}
-            placeholder="Objet de votre demande"
+            placeholder={t("sup.subjectPlaceholder")}
           />
         </Field>
 
         <Field
-          label="Description"
+          label={t("sup.description")}
           required
-          hint="Expliquez la situation : commande concernée, date, message reçu…"
+          hint={t("sup.descHint")}
         >
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={6}
             maxLength={4000}
-            placeholder="Décrivez votre problème en détail"
+            placeholder={t("sup.descPlaceholder")}
             className="glass w-full rounded-[14px] border-[rgba(255,255,255,0.12)] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400"
           />
         </Field>
 
         {orders && orders.length > 0 && (
-          <Field label="Commande concernée (facultatif)">
+          <Field label={t("sup.orderField")}>
             <SelectInput value={orderId} onChange={(event) => setOrderId(event.target.value)}>
-              <option value="">Aucune commande liée</option>
+              <option value="">{t("sup.noOrder")}</option>
               {orders.map((order) => (
                 <option key={order.id} value={order.id}>
                   {order.orderNumber}
@@ -610,10 +610,10 @@ function NewTicketPanel({
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/messages" className="text-xs text-stone-400 hover:text-stone-200">
-            Préférez le chat ? Ouvrez une conversation avec le support.
+            {t("sup.chatLink")}
           </Link>
           <Button type="submit" loading={submitting}>
-            Envoyer la demande
+            {t("sup.send")}
           </Button>
         </div>
       </form>
@@ -621,7 +621,8 @@ function NewTicketPanel({
   );
 }
 
-function CopyButton({ value, label = "Copier" }: { value: string; label?: string }) {
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -637,7 +638,7 @@ function CopyButton({ value, label = "Copier" }: { value: string; label?: string
       }}
       className="rounded-lg border border-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300 transition hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold-light)]"
     >
-      {copied ? "Copié" : label}
+      {copied ? t("sup.copied") : (label ?? t("sup.copy"))}
     </button>
   );
 }

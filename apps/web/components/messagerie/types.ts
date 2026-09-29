@@ -1,3 +1,4 @@
+import { documentLocale, translate, type MessageKey } from "@/lib/i18n-core";
 // ---------------------------------------------------------------------------
 // Messagerie — types partagés par l'espace membre (/messages) et l'espace
 // administration (/admin/messages). Une seule implémentation d'affichage.
@@ -56,11 +57,11 @@ export const CONVERSATION_KIND_LABELS: Record<string, string> = {
 
 export function roleLabel(role: string | null | undefined): string {
   if (!role) return "";
-  return ROLE_LABELS[role] ?? role;
+  return ROLE_LABELS[role] ? translate(documentLocale(), `role.${role}` as MessageKey) : role;
 }
 
 export function kindLabel(kind: string): string {
-  return CONVERSATION_KIND_LABELS[kind] ?? kind;
+  return CONVERSATION_KIND_LABELS[kind] ? translate(documentLocale(), `kind.${kind}` as MessageKey) : kind;
 }
 
 export function personName(person: Pick<Participant, "firstName" | "lastName"> | null | undefined): string {

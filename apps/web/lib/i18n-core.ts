@@ -31,3 +31,10 @@ export function documentIntl(): string {
   const lang = document.documentElement.lang;
   return INTL_LOCALE[isLocale(lang) ? lang : DEFAULT_LOCALE];
 }
+
+/** Langue d'affichage lue sur <html lang> ; français par défaut. */
+export function documentLocale(): Locale {
+  if (typeof document === "undefined") return DEFAULT_LOCALE;
+  const lang = document.documentElement.lang;
+  return isLocale(lang) ? lang : DEFAULT_LOCALE;
+}
