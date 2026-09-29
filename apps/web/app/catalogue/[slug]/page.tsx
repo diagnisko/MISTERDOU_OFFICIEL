@@ -19,10 +19,42 @@ import {
   IconStar,
 } from "@/components/lux/lux-icons";
 import { divisionTier, formatFcfa, formatInt, tierTileClass } from "@/lib/lux";
-import { ApiClientError } from "@/lib/api";
+import { ApiClientError, request } from "@/lib/api";
+import { useAccount } from "@/lib/account";
 import { createOrder } from "@/lib/orders";
 import { SellerChatBox } from "@/components/chat/seller-chat-box";
 import { useT, type MessageKey } from "@/lib/i18n";
+
+// Un vendeur qui ouvre sa propre offre : pas d'achat ni de discussion avec lui-même.
+function useOwnOffer(productId: string | undefined): boolean {
+  const account = useAccount();
+  const seller = account.status === "member" && account.profile.isSeller;
+  const [own, setOwn] = useState(false);
+  useEffect(() => {
+    if (!seller || !productId) return setOwn(false);
+    let alive = true;
+    request<{ own: boolean }>(`/api/v1/seller/owns/${productId}`)
+      .then((res) => alive && setOwn(res.own))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [seller, productId]);
+  return own;
+}
+
+function OwnOfferNotice() {
+  const t = useT();
+  return (
+    <div className="mt-2 rounded-[18px] border border-[rgba(255,106,50,0.3)] bg-[rgba(255,106,50,0.06)] p-4">
+      <p className="text-[13.5px] font-semibold text-stone-100">{t("product.ownTitle")}</p>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-stone-400">{t("product.ownBody")}</p>
+      <Link href="/seller" className="mt-3 inline-block text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
+        {t("menu.seller")}
+      </Link>
+    </div>
+  );
+}
 
 function BuyButton({
   productId,
@@ -175,6 +207,7 @@ function DetailHub() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
   const requestId = useRef(0);
+  const own = useOwnOffer(item?.id);
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -350,8 +383,8 @@ function DetailHub() {
 
             <p className="text-[14px] leading-relaxed text-stone-400">{item.description || t("product.noDescription")}</p>
 
-            <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />
-            {canSplit && !split && (
+            {own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
+            {!own && canSplit && !split && (
               <Link href={`/catalogue/${item.slug}?mode=mensualites`} className="text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
                 {t("product.alsoMonthly")}
               </Link>
@@ -361,7 +394,7 @@ function DetailHub() {
                 {t("product.preferCash")}
               </Link>
             )}
-            <SellerChatBox productId={item.id} slug={item.slug} />
+            {!own && <SellerChatBox productId={item.id} slug={item.slug} />}
             {split && (
               <p className="flex items-center gap-2 text-[11px] text-stone-400">
                 <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />

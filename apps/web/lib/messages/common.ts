@@ -136,6 +136,7 @@ export const fr = {
   "countdown.days": "{days} j",
   "marquee.elite": "Élite",
   "marquee.certified": "Certifié",
+  "menu.becomeSeller": "Devenir vendeur",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -258,6 +259,7 @@ export const en: Translations<typeof fr> = {
   "countdown.days": "{days} d",
   "marquee.elite": "Elite",
   "marquee.certified": "Certified",
+  "menu.becomeSeller": "Become a seller",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -380,4 +382,5 @@ export const ar: Translations<typeof fr> = {
   "countdown.days": "{days} ي",
   "marquee.elite": "النخبة",
   "marquee.certified": "معتمد",
+  "menu.becomeSeller": "كن بائعًا",
 };

@@ -4,6 +4,7 @@ import { badRequest, notFound } from "../../lib/errors.js";
 import { deliverOrderAfterSuccess } from "../../modules/orders/service.js";
 import { applyDownPayment, applyInstallmentPayment } from "../../modules/installments/service.js";
 import { activateFeatured } from "../../modules/promotions/service.js";
+import { activateSeller } from "../../modules/seller/join.js";
 import { notifyUser } from "../../lib/notify.js";
 import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
@@ -137,6 +138,10 @@ export async function settlePayment(
           // Mise en avant : prolonge Product.featuredUntil à partir de la
           // fin en cours (jamais de perte de jours déjà payés).
           await activateFeatured(tx, payment);
+          break;
+        case "SELLER_REGISTRATION_FEE":
+          // Frais d'adhésion : le compte passe vendeur aussitôt.
+          await activateSeller(tx, payment);
           break;
       }
     }

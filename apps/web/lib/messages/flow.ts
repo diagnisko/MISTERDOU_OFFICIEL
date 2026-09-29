@@ -75,6 +75,7 @@ export const fr = {
   "kycp.requestOf": "Demande du {date}",
   "kycp.storage": "Les documents sont conservés dans un stockage chiffré et ne sont jamais accessibles par une URL publique.",
   "kycp.backToAccount": "Retour à mon compte",
+  "pay.typeSELLER_REGISTRATION_FEE": "Adhésion vendeur",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -151,6 +152,7 @@ export const en: Translations<typeof fr> = {
   "kycp.requestOf": "Request of {date}",
   "kycp.storage": "Documents are kept in encrypted storage and are never reachable through a public URL.",
   "kycp.backToAccount": "Back to my account",
+  "pay.typeSELLER_REGISTRATION_FEE": "Seller membership",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -227,4 +229,5 @@ export const ar: Translations<typeof fr> = {
   "kycp.requestOf": "طلب بتاريخ {date}",
   "kycp.storage": "تُحفظ الوثائق في تخزين مشفر ولا يمكن الوصول إليها أبدًا عبر رابط عام.",
   "kycp.backToAccount": "العودة إلى حسابي",
+  "pay.typeSELLER_REGISTRATION_FEE": "اشتراك البائع",
 };

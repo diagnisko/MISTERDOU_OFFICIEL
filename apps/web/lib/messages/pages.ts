@@ -80,6 +80,7 @@ export const fr = {
   "about.freeTitle": "Un compte acheteur, c'est gratuit",
   "about.freeBody": "Créez votre compte pour suivre vos commandes, discuter avec les vendeurs et retrouver vos achats.",
   "about.cta": "Créer mon compte",
+  "howp.ctaMember": "Voir les offres",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -155,6 +156,7 @@ export const en: Translations<typeof fr> = {
   "about.freeTitle": "A buyer account is free",
   "about.freeBody": "Create your account to track your orders, chat with sellers and find your purchases.",
   "about.cta": "Create my account",
+  "howp.ctaMember": "See the offers",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -230,4 +232,5 @@ export const ar: Translations<typeof fr> = {
   "about.freeTitle": "حساب المشتري مجاني",
   "about.freeBody": "أنشئ حسابك لمتابعة طلباتك والتحدث مع البائعين والعثور على مشترياتك.",
   "about.cta": "إنشاء حسابي",
+  "howp.ctaMember": "عرض العروض",
 };

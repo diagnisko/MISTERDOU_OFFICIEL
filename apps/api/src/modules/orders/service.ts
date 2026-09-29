@@ -78,10 +78,15 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
       installmentDownPayment: true,
       installmentMonths: true,
       sellerId: true,
+      seller: { select: { userId: true } },
       ...promoRelationSelect(now),
     },
   });
   if (!product) throw notFound("Produit indisponible");
+  // Un vendeur achète les offres des autres comme un client, jamais la sienne.
+  if (product.seller?.userId === ctx.actorId) {
+    throw new ApiError("OWN_OFFER", 403, "C’est votre offre : vous ne pouvez pas l’acheter.");
+  }
 
   // Réservation douce : un compte en cours de paiement par un autre client
   // n'est pas revendu pendant RESERVATION_MINUTES.

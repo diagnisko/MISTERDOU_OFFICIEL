@@ -13,11 +13,12 @@ import { useT, type MessageKey } from "@/lib/i18n";
 // La navigation pointe vers les VRAIES pages. Elle mélangeait auparavant des
 // ancres de la landing (« Catalogue » → /#comptes), qui ne menaient nulle part
 // depuis une page secondaire et cassaient le retour arrière.
-const NAV_LINKS: Array<{ href: string; label: MessageKey }> = [
+// « À propos » est pour les visiteurs : un membre le retrouve dans le menu du profil.
+const NAV_LINKS: Array<{ href: string; label: MessageKey; guestOnly?: boolean }> = [
   { href: "/offres", label: "nav.offers" },
   { href: "/pret-ou-prestation", label: "nav.installments" },
   { href: "/comment-ca-marche", label: "nav.how" },
-  { href: "/a-propos", label: "nav.about" },
+  { href: "/a-propos", label: "nav.about", guestOnly: true },
 ];
 
 export function LuxNav({ root = false }: { root?: boolean }) {
@@ -29,6 +30,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
 
   useMotionValueEvent(scrollY, "change", (v) => setScrolled(v > 12));
 
+  const links = NAV_LINKS.filter((l) => !l.guestOnly || account.status !== "member");
   const linkHref = (href: string) => (root && href.startsWith("#") ? `/${href}` : href);
 
   return (
@@ -44,7 +46,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
         </a>
 
         <ul className="hidden items-center gap-8 lg:flex">
-          {NAV_LINKS.map((l) => (
+          {links.map((l) => (
             <li key={l.href}>
               <Link
                 href={linkHref(l.href)}
@@ -85,7 +87,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
         )}
       >
         <ul className="flex flex-col gap-1 px-6 py-6">
-          {NAV_LINKS.map((l) => (
+          {links.map((l) => (
             <li key={l.href}>
               <Link
                 href={linkHref(l.href)}

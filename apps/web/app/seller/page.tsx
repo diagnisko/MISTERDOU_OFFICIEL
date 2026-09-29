@@ -93,6 +93,11 @@ export default function SellerPage() {
   const load = useCallback(async () => {
     try {
       const data = await request<Dashboard>("/api/v1/seller/dashboard");
+      // Pas encore vendeur : page d'adhésion.
+      if (!data.seller) {
+        router.replace("/account/devenir-vendeur");
+        return;
+      }
       setDash(data);
       setError(null);
     } catch (err) {

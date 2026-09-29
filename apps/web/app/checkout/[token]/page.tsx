@@ -7,6 +7,7 @@ import { ApiClientError, formatXof, request } from "@/lib/api";
 import { Alert, Button, Spinner, StatusBadge } from "@/components/ui";
 import { LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
 import { useT, type MessageKey } from "@/lib/i18n";
+import { refreshAccount } from "@/lib/account";
 
 type CheckoutState = {
   status: string;
@@ -27,6 +28,13 @@ type CheckoutInit =
 type Method = "wave" | "orange_money";
 
 const POLL_MS = 2500;
+
+// Page de retour selon le motif du paiement.
+function backHref(state: { type: string; orderId: string | null }) {
+  if (state.type === "SELLER_REGISTRATION_FEE") return "/account/devenir-vendeur";
+  if (state.type === "FEATURED") return "/seller";
+  return state.orderId ? `/account/orders/${state.orderId}` : "/account/orders";
+}
 
 
 export default function CheckoutPage() {
@@ -83,7 +91,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     // Retour sur la commande payée (identifiants, mensualités), sinon la liste.
     if (state?.status === "SUCCESS") {
-      router.replace(state.orderId ? `/account/orders/${state.orderId}` : "/account/orders");
+      if (state.type === "SELLER_REGISTRATION_FEE") {
+        // Le compte vient de passer vendeur : le menu du profil doit le savoir.
+        void refreshAccount().then(() => router.replace("/seller"));
+        return;
+      }
+      router.replace(state.type === "FEATURED" ? "/seller" : backHref(state));
     }
   }, [state, router]);
 
@@ -175,13 +188,13 @@ export default function CheckoutPage() {
 
   if (!state) return null;
 
-  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND"].includes(state.type)
+  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND", "SELLER_REGISTRATION_FEE"].includes(state.type)
     ? t(`pay.type${state.type}` as MessageKey)
     : t("pay.kicker");
 
   return (
     <Main>
-      <Link href={state.orderId ? `/account/orders/${state.orderId}` : "/account/orders"} className="mb-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400 transition-colors hover:text-[var(--lux-gold-light)]">
+      <Link href={backHref(state)} className="mb-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400 transition-colors hover:text-[var(--lux-gold-light)]">
         {t("pay.back")}
       </Link>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3">

@@ -10,6 +10,7 @@ import { logAudit } from "../../lib/audit.js";
 import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
 import { featuredDailyRate } from "../promotions/service.js";
 import { getIntSetting } from "../settings/service.js";
+import { requestSellerJoin, sellerJoinState } from "./join.js";
 
 const withdrawalBody = z.object({
   amount: z.number().int().positive(),
@@ -25,6 +26,25 @@ const METHOD_LABEL = { WAVE: "Wave", ORANGE_MONEY: "Orange Money" } as const;
 // ---------------------------------------------------------------------------
 
 export async function registerSellerRoutes(app: FastifyInstance) {
+  // --- Devenir vendeur : conditions, puis paiement des frais d'adhésion ---
+  app.get("/seller/join", async (request, reply) => {
+    const auth = requireAuth(request);
+    return sendOk(reply, await sellerJoinState(auth.user.id));
+  });
+
+  app.post("/seller/join", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const auth = requireAuth(request);
+    return sendOk(reply, await requestSellerJoin({ actorId: auth.user.id, ip: request.ip }));
+  });
+
+  // --- Cette offre est-elle la mienne ? (fiche produit : pas de bouton d'achat) ---
+  app.get("/seller/owns/:productId", async (request, reply) => {
+    const auth = requireAuth(request);
+    const { productId } = request.params as { productId: string };
+    const own = await prisma.product.count({ where: { id: productId, seller: { userId: auth.user.id } } });
+    return sendOk(reply, { own: own > 0 });
+  });
+
   app.get(
     "/seller/dashboard",
     {

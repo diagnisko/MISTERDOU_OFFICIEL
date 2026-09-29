@@ -119,6 +119,8 @@ export const fr = {
   "chat.seller": "Vendeur",
   "chat.you": "Vous",
   "chat.team": "Équipe MISTERDOU",
+  "product.ownTitle": "C’est votre offre",
+  "product.ownBody": "Les clients la voient et peuvent l’acheter ; vous ne pouvez pas l’acheter vous-même. Gérez-la depuis l’espace vendeur.",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -231,6 +233,8 @@ export const en: Translations<typeof fr> = {
   "chat.seller": "Seller",
   "chat.you": "You",
   "chat.team": "MISTERDOU team",
+  "product.ownTitle": "This is your offer",
+  "product.ownBody": "Customers see it and can buy it; you can’t buy it yourself. Manage it from the seller area.",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -343,4 +347,6 @@ export const ar: Translations<typeof fr> = {
   "chat.seller": "البائع",
   "chat.you": "أنت",
   "chat.team": "فريق MISTERDOU",
+  "product.ownTitle": "هذا عرضك",
+  "product.ownBody": "يراه العملاء ويمكنهم شراؤه؛ لا يمكنك شراؤه بنفسك. أدِره من مساحة البائع.",
 };

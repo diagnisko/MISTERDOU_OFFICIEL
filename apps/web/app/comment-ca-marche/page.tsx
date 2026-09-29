@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LuxProvider, LuxPerfLed } from "@/components/lux/lux-data";
 import { LuxNav } from "@/components/lux/lux-nav";
 import { LuxFooter } from "@/components/lux/lux-footer";
+import { MemberSwitch } from "@/components/lux/lux-member-switch";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { IconArrowRight, IconShield } from "@/components/lux/lux-icons";
 import { formatInt, fetchLuxSeed } from "@/lib/lux";
@@ -120,10 +121,20 @@ export default async function CommentCaMarchePage() {
                 <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
                 {t("howp.shield")}
               </p>
-              <Link href="/register" className="lux-btn lux-btn-gold mt-6" style={{ borderRadius: 16 }}>
-                {t("howp.cta")}
-                <IconArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
-              </Link>
+              <MemberSwitch
+                guest={
+                  <Link href="/register" className="lux-btn lux-btn-gold mt-6" style={{ borderRadius: 16 }}>
+                    {t("howp.cta")}
+                    <IconArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
+                  </Link>
+                }
+                member={
+                  <Link href="/offres" className="lux-btn lux-btn-gold mt-6" style={{ borderRadius: 16 }}>
+                    {t("howp.ctaMember")}
+                    <IconArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
+                  </Link>
+                }
+              />
             </div>
           </div>
         </main>

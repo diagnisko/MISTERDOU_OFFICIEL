@@ -284,6 +284,9 @@ export const API_ERROR_CODES = [
   "FEATURED_UNAVAILABLE",
   "PROMO_OVERLAP",
   "ALREADY_CANCELLED",
+  // Vendeur : sa propre offre, adhésion
+  "OWN_OFFER",
+  "SELLER_ALREADY_ACTIVE",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 

@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: SeedSetting[] = [
   { key: "platformName", value: "MISTERDOU", valueType: "string", group: "platform", description: "Nom public de la plateforme" },
   { key: "sellerCommissionPercent", value: 15, valueType: "int", group: "sellers", description: "Commission de la plateforme sur chaque vente vendeur (%)" },
   { key: "payoutHoldDays", value: 3, valueType: "int", group: "sellers", description: "Jours avant libération automatique des fonds si le client n'a pas confirmé la réception" },
+  { key: "sellerRegistrationFee", value: 1000, valueType: "int", group: "sellers", description: "Frais d'adhésion pour devenir vendeur (FCFA)" },
   { key: "minWithdrawalAmount", value: 1000, valueType: "int", group: "sellers", description: "Montant minimum d'un retrait vendeur (FCFA)" },
   { key: "verificationCodeTtlMinutes", value: 10, valueType: "int", group: "orders", description: "Durée de validité d'un code de vérification fourni au client (minutes)" },
 ];

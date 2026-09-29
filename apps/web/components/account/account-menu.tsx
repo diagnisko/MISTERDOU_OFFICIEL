@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { displayName, initials, logoutAccount, useAccount, type AccountUser } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
-import { IconBadgeCheck, IconCart, IconChat, IconGear, IconLifebuoy, IconLogout, IconSpark, IconUsers } from "@/components/dash/dash-icons";
+import { IconBadgeCheck, IconCart, IconChat, IconGear, IconLifebuoy, IconList, IconLogout, IconSpark, IconStore, IconUsers } from "@/components/dash/dash-icons";
 
 export function Avatar({ user, url, size = 40 }: { user: AccountUser; url: string | null; size?: number }) {
   return url ? (
@@ -22,13 +22,16 @@ export function Avatar({ user, url, size = 40 }: { user: AccountUser; url: strin
   );
 }
 
-const ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUsers; sellerOnly?: boolean }> = [
+// « seller » : true = vendeurs seulement, false = clients seulement.
+const ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUsers; seller?: boolean }> = [
   { href: "/account", label: "menu.profile", icon: IconUsers },
   { href: "/account/orders", label: "menu.orders", icon: IconCart },
   { href: "/account/messages", label: "menu.messages", icon: IconChat },
-  { href: "/seller", label: "menu.seller", icon: IconSpark, sellerOnly: true },
+  { href: "/seller", label: "menu.seller", icon: IconSpark, seller: true },
+  { href: "/account/devenir-vendeur", label: "menu.becomeSeller", icon: IconStore, seller: false },
   { href: "/account/settings", label: "menu.settings", icon: IconGear },
   { href: "/support", label: "menu.support", icon: IconLifebuoy },
+  { href: "/a-propos", label: "nav.about", icon: IconList },
 ];
 
 // Menu du compte : rond de profil dans l'en-tête ; boutons d'accès pour un visiteur.
@@ -79,6 +82,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
 
   const { user, profile } = account;
   const verified = user.kycStatus === "VERIFIED";
+  const isActiveSeller = profile.isSeller && profile.sellerStatus === "ACTIVE";
 
   async function logout() {
     setLeaving(true);
@@ -124,7 +128,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
               </div>
             </div>
             <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />
-            {ITEMS.filter((i) => !i.sellerOnly || profile.isSeller).map((item) => (
+            {ITEMS.filter((i) => i.seller === undefined || i.seller === isActiveSeller).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

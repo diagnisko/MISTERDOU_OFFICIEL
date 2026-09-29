@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { IconLock, IconShield } from "./lux-icons";
+import { useAccount } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
 
-const COLUMNS: { title: MessageKey; links: { label: MessageKey; href: string }[] }[] = [
+// Liens « guestOnly » (accueil, connexion, inscription) masqués pour un membre connecté.
+const COLUMNS: { title: MessageKey; links: { label: MessageKey; href: string; guestOnly?: boolean }[] }[] = [
   {
     title: "footer.pages",
     links: [
-      { label: "footer.home", href: "/" },
+      { label: "footer.home", href: "/", guestOnly: true },
       { label: "nav.offers", href: "/offres" },
       { label: "footer.installments", href: "/pret-ou-prestation" },
       { label: "nav.how", href: "/comment-ca-marche" },
@@ -19,8 +21,8 @@ const COLUMNS: { title: MessageKey; links: { label: MessageKey; href: string }[]
     title: "footer.account",
     links: [
       { label: "footer.member", href: "/account" },
-      { label: "nav.register", href: "/register" },
-      { label: "nav.login", href: "/login" },
+      { label: "nav.register", href: "/register", guestOnly: true },
+      { label: "nav.login", href: "/login", guestOnly: true },
       { label: "footer.verification", href: "/identity-verification" },
     ],
   },
@@ -36,6 +38,7 @@ const COLUMNS: { title: MessageKey; links: { label: MessageKey; href: string }[]
 
 export function LuxFooter() {
   const t = useT();
+  const member = useAccount().status === "member";
   return (
     <footer className="relative border-t border-[rgba(255,255,255,0.08)] bg-[#050303] px-5 pb-10 pt-16 md:px-8">
       <div className="mx-auto max-w-6xl">
@@ -63,7 +66,7 @@ export function LuxFooter() {
             <nav key={col.title} aria-label={t(col.title)}>
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.3em] text-stone-400">{t(col.title)}</h3>
               <ul className="mt-5 flex flex-col gap-3">
-                {col.links.map((l) => (
+                {col.links.filter((l) => !(member && l.guestOnly)).map((l) => (
                   <li key={l.href}>
                     <Link href={l.href} className="text-[13px] text-stone-400 transition-colors hover:text-[var(--lux-gold-light)]">
                       {t(l.label)}

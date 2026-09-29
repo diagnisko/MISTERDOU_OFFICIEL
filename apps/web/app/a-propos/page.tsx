@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LuxProvider, LuxPerfLed } from "@/components/lux/lux-data";
 import { LuxNav } from "@/components/lux/lux-nav";
 import { LuxFooter } from "@/components/lux/lux-footer";
+import { MemberSwitch } from "@/components/lux/lux-member-switch";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { IconArrowRight, IconLock } from "@/components/lux/lux-icons";
 import { formatInt, fetchLuxSeed } from "@/lib/lux";
@@ -81,19 +82,25 @@ export default async function AProposPage() {
               </div>
             </div>
 
-            <div className="mt-16 max-w-xl">
-              <div className="lux-glass rounded-[24px] p-7">
-                <p className="flex items-center gap-2 text-[13px] text-stone-300">
-                  <IconLock className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
-                  {t("about.freeTitle")}
-                </p>
-                <p className="mt-3 text-[13px] leading-relaxed text-stone-400">{t("about.freeBody")}</p>
-                <Link href="/register" className="lux-btn lux-btn-ghost lux-btn-sm mt-6 !min-h-[42px]" style={{ borderRadius: 14 }}>
-                  {t("about.cta")}
-                  <IconArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
-                </Link>
-              </div>
-            </div>
+            {/* Invitation à créer un compte : visiteurs seulement. */}
+            <MemberSwitch
+              member={null}
+              guest={
+                <div className="mt-16 max-w-xl">
+                  <div className="lux-glass rounded-[24px] p-7">
+                    <p className="flex items-center gap-2 text-[13px] text-stone-300">
+                      <IconLock className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
+                      {t("about.freeTitle")}
+                    </p>
+                    <p className="mt-3 text-[13px] leading-relaxed text-stone-400">{t("about.freeBody")}</p>
+                    <Link href="/register" className="lux-btn lux-btn-ghost lux-btn-sm mt-6 !min-h-[42px]" style={{ borderRadius: 14 }}>
+                      {t("about.cta")}
+                      <IconArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
+                    </Link>
+                  </div>
+                </div>
+              }
+            />
           </div>
         </main>
         <div className="mt-8">
