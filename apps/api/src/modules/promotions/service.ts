@@ -45,9 +45,12 @@ export interface CreatePromotionInput {
 export async function createPromotion(input: CreatePromotionInput, actor: PromotionActor) {
   const product = await prisma.product.findFirst({
     where: { id: input.productId, deletedAt: null },
-    select: { id: true, title: true, basePrice: true },
+    select: { id: true, title: true, basePrice: true, sellerId: true },
   });
   if (!product) throw notFound("Offre introuvable.");
+  // Les offres des vendeurs se mettent en avant par leurs forfaits : l'équipe
+  // ne gère les promotions que des offres MISTERDOU.
+  if (product.sellerId !== null) throw forbidden("Les promotions de l’équipe portent uniquement sur les offres MISTERDOU.");
 
   const hasPrice = input.promoPrice != null;
   const hasPercent = input.discountPercent != null;
@@ -411,6 +414,7 @@ export async function adminFeature(
     select: { id: true, title: true, slug: true, featuredUntil: true, sellerId: true },
   });
   if (!product) throw notFound("Offre introuvable.");
+  if (product.sellerId !== null) throw forbidden("La mise en avant d’une offre de vendeur passe par ses forfaits.");
 
   const now = new Date();
   const base = product.featuredUntil && product.featuredUntil > now ? product.featuredUntil : now;

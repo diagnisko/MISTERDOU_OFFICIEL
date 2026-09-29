@@ -72,7 +72,8 @@ type FeaturedResult = {
   checkoutUrl: string | null;
 };
 
-const DAY_PRESETS = [1, 5, 10, 30];
+// Forfaits de mise en avant (jours) ; activés dès le paiement, retirés à échéance.
+const DAY_PRESETS = [3, 7, 15, 30];
 
 
 export default function SellerPage() {
@@ -86,7 +87,7 @@ export default function SellerPage() {
   const [loggingOut, setLoggingOut] = useState(false);
 
   const [modalProduct, setModalProduct] = useState<Dashboard["products"][number] | null>(null);
-  const [days, setDays] = useState(1);
+  const [days, setDays] = useState(DAY_PRESETS[0]!);
   const [paying, setPaying] = useState<"BALANCE" | "PAYTECH" | null>(null);
   const [mediaProduct, setMediaProduct] = useState<Dashboard["products"][number] | null>(null);
 
@@ -119,7 +120,7 @@ export default function SellerPage() {
   }, [load]);
 
   function openFeatured(product: Dashboard["products"][number]) {
-    setDays(1);
+    setDays(DAY_PRESETS[0]!);
     setModalProduct(product);
     setNotice(null);
     setError(null);
@@ -319,9 +320,14 @@ export default function SellerPage() {
               {t("seller.offersLead", { rate: formatXof(rate) })}
             </p>
           </div>
-          <span className="text-[12px] text-[#8f7d77]">
-            {t((dash?.products.length ?? 0) > 1 ? "seller.offersCountMany" : "seller.offersCountOne", { n: dash?.products.length ?? 0 })}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[12px] text-[#8f7d77]">
+              {t((dash?.products.length ?? 0) > 1 ? "seller.offersCountMany" : "seller.offersCountOne", { n: dash?.products.length ?? 0 })}
+            </span>
+            <Link href="/seller/offres/nouvelle" className="dash-btn dash-btn-primary !min-h-[36px] !text-[12px]">
+              {t("offer.newTitle")}
+            </Link>
+          </div>
         </div>
         <div className="-mx-5 mt-3 overflow-x-auto">
           <table className="dash-table w-full min-w-[680px] border-collapse">
@@ -368,6 +374,11 @@ export default function SellerPage() {
                     )}
                   </td>
                   <td className="whitespace-nowrap pr-5 text-right">
+                    {product.status !== "SOLD" && (
+                      <Link href={`/seller/offres/${product.id}`} className="dash-btn dash-btn-ghost mr-2 !min-h-[34px] !text-[12px]">
+                        {t("offer.edit")}
+                      </Link>
+                    )}
                     <button
                       type="button"
                       onClick={() => setMediaProduct(product)}
@@ -430,6 +441,7 @@ export default function SellerPage() {
             <p className="text-[13px] text-[#b8a6a1]">{t("seller.featureKicker")}</p>
             <h3 className="mt-1 text-[18px] font-semibold text-white">{modalProduct.title}</h3>
             <p className="mt-1 text-[12px] text-[#8f7d77]">{t("seller.perDay", { rate: formatXof(rate) })}</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-[#8f7d77]">{t("seller.autoNote")}</p>
 
             <div className="mt-5 flex flex-wrap gap-2">
               {DAY_PRESETS.map((preset) => (
@@ -443,7 +455,7 @@ export default function SellerPage() {
                       : "border-[rgba(255,236,229,0.1)] text-[#b8a6a1] hover:text-white"
                   }`}
                 >
-                  {t(preset > 1 ? "seller.dayMany" : "seller.dayOne", { n: preset })}
+                  {t(preset > 1 ? "seller.dayMany" : "seller.dayOne", { n: preset })} · {formatXof(rate * preset)}
                 </button>
               ))}
             </div>

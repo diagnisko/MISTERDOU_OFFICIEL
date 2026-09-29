@@ -107,7 +107,13 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
   app.get("/admin/offerings", async (request, reply) => {
     await requirePermission(request, "PRODUCTS");
     const { page, perPage, q } = pageArgs(request.query);
-    const where = { deletedAt: null, ...(q ? { OR: [{ title: { contains: q, mode: "insensitive" as const } }, { slug: { contains: q, mode: "insensitive" as const } }] } : {}) };
+    // owner=platform : offres MISTERDOU seulement (promotions de l'équipe).
+    const platformOnly = (request.query as { owner?: string }).owner === "platform";
+    const where = {
+      deletedAt: null,
+      ...(platformOnly ? { sellerId: null } : {}),
+      ...(q ? { OR: [{ title: { contains: q, mode: "insensitive" as const } }, { slug: { contains: q, mode: "insensitive" as const } }] } : {}),
+    };
     const [items, total] = await Promise.all([
       prisma.product.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, slug: true, title: true, status: true, ownerType: true, sellerId: true, basePrice: true, paymentMode: true, featuredPriceOverride: true, createdAt: true } }),
       prisma.product.count({ where }),

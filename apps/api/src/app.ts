@@ -16,6 +16,7 @@ import { registerAdminConsoleRoutes } from "./modules/admin-console/routes.js";
 import { registerAdminOpsRoutes } from "./modules/admin-ops/routes.js";
 import { registerPromotionRoutes } from "./modules/promotions/routes.js";
 import { registerSellerRoutes } from "./modules/seller/routes.js";
+import { registerOfferRoutes } from "./modules/offers/routes.js";
 import { registerSupportRoutes } from "./modules/support/routes.js";
 import { registerMessagingRoutes } from "./modules/messaging/routes.js";
 import { registerNotificationRoutes } from "./modules/notifications/routes.js";
@@ -145,6 +146,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       await registerAdminOpsRoutes(api);
       await registerPromotionRoutes(api);
       await registerSellerRoutes(api);
+      await registerOfferRoutes(api);
       await registerSupportRoutes(api);
       await registerMessagingRoutes(api);
       await registerNotificationRoutes(api);

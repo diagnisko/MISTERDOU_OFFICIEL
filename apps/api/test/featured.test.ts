@@ -241,7 +241,10 @@ describe("Mise en avant offerte (admin) et historique", () => {
     expect(list.items[0]).toHaveProperty("product");
     expect(list.items.some((row) => row.purchasedBy?.id === owner.id)).toBe(true);
 
-    await adminFeature(product.id, 1, { actorId: admin.user.id, actorRole: "ADMIN" });
+    // L'offre d'un vendeur se met en avant par ses forfaits, pas par l'équipe.
+    await expect(adminFeature(product.id, 1, { actorId: admin.user.id, actorRole: "ADMIN" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
     const mine = list.items.filter((row) => row.product.slug === product.slug);
     expect(mine.length).toBeGreaterThanOrEqual(1);
   });
@@ -399,9 +402,18 @@ describe("Routes mise en avant (inject)", () => {
     const deniedForClient = await adminApp.inject({ method: "GET", url: "/api/v1/admin/featured" });
     expect(deniedForClient.statusCode).toBe(200);
 
-    const featured = await adminApp.inject({
+    // L'équipe ne met en avant que les offres MISTERDOU.
+    const sellerOffer = await adminApp.inject({
       method: "POST",
       url: `/api/v1/admin/products/${product.id}/featured`,
+      payload: { days: 4 },
+    });
+    expect(sellerOffer.statusCode).toBe(403);
+
+    const house = await createProduct(t);
+    const featured = await adminApp.inject({
+      method: "POST",
+      url: `/api/v1/admin/products/${house.id}/featured`,
       payload: { days: 4 },
     });
     expect(featured.statusCode).toBe(200);
@@ -409,7 +421,7 @@ describe("Routes mise en avant (inject)", () => {
 
     const badDays = await adminApp.inject({
       method: "POST",
-      url: `/api/v1/admin/products/${product.id}/featured`,
+      url: `/api/v1/admin/products/${house.id}/featured`,
       payload: { days: 999 },
     });
     expect(badDays.statusCode).toBe(400);
