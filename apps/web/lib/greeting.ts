@@ -7,9 +7,13 @@ export type Greeting =
 
 const KEY = "md_greeting";
 
+/** Événement émis quand un message est déposé (le modal l’écoute). */
+export const GREETING_EVENT = "md-greeting";
+
 export function setGreeting(greeting: Greeting) {
   try {
     sessionStorage.setItem(KEY, JSON.stringify(greeting));
+    window.dispatchEvent(new Event(GREETING_EVENT));
   } catch {
     /* stockage indisponible : pas de message, rien de bloquant */
   }

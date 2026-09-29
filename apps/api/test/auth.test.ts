@@ -137,14 +137,17 @@ describe("Comptes administrateurs (§39 — permissions / accès non autorisé)"
     expect(session?.isAdminSession).toBe(false);
   });
 
-  it("ADMIN avec 2FA mais sans code TOTP → refusé", async () => {
+  it("ADMIN avec 2FA : code demandé, code faux refusé, mauvais mot de passe distinct", async () => {
     const admin = await createUser(t, { role: "ADMIN", password: "MotDePasse123!", twoFactorEnabled: true });
-    const err = await expectApiError(() => loginAdmin({ email: admin.email, password: "MotDePasse123!" }, {}));
-    expect(err.code).toBe("INVALID_CREDENTIALS");
-    const err2 = await expectApiError(() =>
+    const missing = await expectApiError(() => loginAdmin({ email: admin.email, password: "MotDePasse123!" }, {}));
+    expect(missing.code).toBe("ACTION_REQUIRES_2FA");
+    const wrongCode = await expectApiError(() =>
       loginAdmin({ email: admin.email, password: "MotDePasse123!", totpCode: "000000" }, {}),
     );
-    expect(err2.code).toBe("INVALID_CREDENTIALS");
+    expect(wrongCode.code).toBe("OTP_INVALID");
+    // Mauvais mot de passe : on ne révèle pas qu'un code serait demandé.
+    const wrongPassword = await expectApiError(() => loginAdmin({ email: admin.email, password: "Faux-mot-de-passe1" }, {}));
+    expect(wrongPassword.code).toBe("INVALID_CREDENTIALS");
   });
 
   it("ADMIN refusé sur la route de connexion standard (§39 — accès non autorisé)", async () => {

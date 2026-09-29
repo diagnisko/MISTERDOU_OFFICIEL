@@ -11,6 +11,7 @@ packages/db/generated/
 dist/
 .next/
 **/.next-console/
+**/.next-local/
 out/
 build/
 .turbo/

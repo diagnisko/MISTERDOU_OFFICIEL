@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { takeGreeting, type Greeting } from "@/lib/greeting";
+import { GREETING_EVENT, takeGreeting, type Greeting } from "@/lib/greeting";
 import { useT } from "@/lib/i18n";
 import { IconBadgeCheck, IconChat, IconClock, IconClose, IconSpark } from "./dash-icons";
 
@@ -24,8 +24,16 @@ export function GreetingModal({ fallbackName }: { fallbackName?: string | null }
   const [greeting, setGreeting] = useState<Greeting | null>(null);
   const primaryRef = useRef<HTMLAnchorElement | HTMLButtonElement | null>(null);
 
+  // Au chargement, puis à chaque message déposé : après une connexion, la page
+  // change sans recharger le site, ce composant reste monté.
   useEffect(() => {
-    setGreeting(takeGreeting());
+    const check = () => {
+      const next = takeGreeting();
+      if (next) setGreeting(next);
+    };
+    check();
+    window.addEventListener(GREETING_EVENT, check);
+    return () => window.removeEventListener(GREETING_EVENT, check);
   }, []);
 
   useEffect(() => {

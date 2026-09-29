@@ -13,7 +13,7 @@ const envSchema = z.object({
     .transform((v) => v.split(",").map((o) => o.trim())),
   COOKIE_SECRET: z.string().min(32, "COOKIE_SECRET doit faire au moins 32 caractères"),
   SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
-  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().max(60 * 60 * 4).default(60 * 60 * 2),
+  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().max(60 * 60 * 12).default(60 * 60 * 8),
   ADMIN_SETUP_SESSION_TTL_SECONDS: z.coerce.number().int().positive().max(15 * 60).default(10 * 60),
   STORAGE_MASTER_KEY: z.string().min(32, "STORAGE_MASTER_KEY doit faire au moins 32 caractères"),
   // Repli local (développement uniquement) quand R2 n'est pas configuré.
