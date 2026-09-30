@@ -1,5 +1,6 @@
 "use client";
 
+import { WhatsappUrgentLine } from "@/components/support/support-contacts";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { errorMessage, formatXof } from "@/lib/api";
@@ -635,6 +636,7 @@ function ReportCard({ order, onDone }: { order: OrderDetail; onDone: () => Promi
               {t("report.cancel")}
             </button>
           </div>
+          <WhatsappUrgentLine orderNumber={order.orderNumber} />
         </form>
       )}
 

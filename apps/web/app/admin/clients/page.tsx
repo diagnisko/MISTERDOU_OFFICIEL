@@ -4,6 +4,7 @@ import { useState } from "react";
 import { request } from "@/lib/api";
 import { Button } from "@/components/ui";
 import { buildQuery } from "../_lib/api";
+import { MemberDossierModal } from "../_lib/member-dossier";
 import { useAdminList } from "../_lib/hooks";
 import {
   AdminPageHead,
@@ -53,6 +54,7 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [busy, setBusy] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: ClientRow; next: string } | null>(null);
 
   const list = useAdminList<ClientRow>(
@@ -121,7 +123,8 @@ export default function ClientsPage() {
                       {formatCell(data[column.key], column.key)}
                     </td>
                   ))}
-                  <td className="px-4 py-3.5">
+                  <td className="flex gap-2 px-4 py-3.5">
+                    <RowAction label="Voir la fiche" tone="muted" onClick={() => setViewing(row.id)} />
                     <RowAction
                       label={status === "ACTIVE" ? "Suspendre" : "Réactiver"}
                       busy={busy === row.id}
@@ -160,6 +163,7 @@ export default function ClientsPage() {
           onSubmit={(value) => changeStatus(target.row.id, target.next, value)}
         />
       )}
+      {viewing && <MemberDossierModal url={`/api/v1/admin/clients/${viewing}`} onClose={() => setViewing(null)} />}
     </>
   );
 }

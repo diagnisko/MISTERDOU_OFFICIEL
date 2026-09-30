@@ -35,3 +35,25 @@ export async function getPublicMeta() {
     maxInstallments: typeof maxInstallments === "number" ? maxInstallments : 8,
   };
 }
+
+// Paramètres ajoutés après la mise en service : créés au démarrage s'ils
+// manquent (jamais écrasés), pour apparaître dans Console > Paramètres.
+const DEFAULT_SETTINGS = [
+  { key: "supportWhatsapp", value: "+12272254876", valueType: "string", group: "support", description: "Numéro WhatsApp du support (vide = bouton masqué)" },
+  { key: "supportEmail", value: "", valueType: "string", group: "support", description: "E-mail du support (vide = bouton masqué)" },
+  { key: "sellerRegistrationFee", value: 1000, valueType: "int", group: "sellers", description: "Frais d'adhésion pour devenir vendeur (FCFA)" },
+];
+
+export async function ensureDefaultSettings(): Promise<void> {
+  await prisma.settings.createMany({ data: DEFAULT_SETTINGS, skipDuplicates: true });
+}
+
+/** Moyens de contact du support affichés sur la page « Aide et support ». */
+export async function getSupportContacts(): Promise<{ whatsapp: string | null; email: string | null }> {
+  const rows = await prisma.settings.findMany({ where: { key: { in: ["supportWhatsapp", "supportEmail"] } }, select: { key: true, value: true } });
+  const read = (key: string) => {
+    const v = rows.find((r) => r.key === key)?.value;
+    return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+  };
+  return { whatsapp: read("supportWhatsapp"), email: read("supportEmail") };
+}

@@ -11,6 +11,14 @@ export type SettingLabel = {
 };
 
 export const SETTING_LABELS: Record<string, SettingLabel> = {
+  supportWhatsapp: {
+    label: "Numéro WhatsApp du support",
+    help: "Affiché sur la page « Aide et support » et sous les signalements. Laissez vide pour masquer le bouton WhatsApp.",
+  },
+  supportEmail: {
+    label: "E-mail du support",
+    help: "Affiché sur la page « Aide et support ». Laissez vide pour masquer le bouton e-mail.",
+  },
   platformName: {
     label: "Nom du site",
     help: "Le nom affiché aux clients dans les e-mails et les pages.",
@@ -67,6 +75,7 @@ export const SETTING_LABELS: Record<string, SettingLabel> = {
 
 export const GROUP_LABELS: Record<string, string> = {
   platform: "Le site",
+  support: "Contacter le support",
   sellers: "Vendeurs",
   payments: "Paiements et mensualités",
   orders: "Commandes",

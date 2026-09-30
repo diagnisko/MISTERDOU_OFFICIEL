@@ -20,6 +20,41 @@ async function audit(request: FastifyRequest, action: string, resourceType: stri
   await logAudit({ actorId: auth.user.id, actorRole: auth.user.role?.name, sessionId: auth.id, ip: request.ip, userAgent: request.headers["user-agent"], action, resourceType, resourceId, metadata, severity: "WARNING" });
 }
 
+// Fiche complète d'un membre pour l'équipe : identité, coordonnées, dossiers
+// d'identité (les pièces s'ouvrent par /admin/kyc/:id/files/:kind, permission
+// KYC et journal d'audit), commandes et compte vendeur. Consultation journalisée.
+async function memberDossier(userId: string) {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    select: {
+      id: true, email: true, googleEmail: true, countryCode: true, phoneNumber: true, firstName: true, lastName: true,
+      birthDate: true, country: true, city: true, address: true, status: true, kycStatus: true, verifiedAt: true,
+      lastLoginAt: true, createdAt: true, role: { select: { name: true } },
+      _count: { select: { orders: true } },
+      seller: { select: { id: true, status: true, sellerSince: true, registrationFee: true, registrationPaidAt: true, sellerBalance: { select: { balanceAvailable: true, balancePending: true, totalEarnings: true } }, _count: { select: { product: true } } } },
+    },
+  });
+  if (!user) throw notFound("Membre introuvable.");
+  const verifications = await prisma.identityVerification.findMany({
+    where: { userId },
+    orderBy: { submittedAt: "desc" },
+    take: 5,
+    select: {
+      id: true, status: true, documentType: true, firstName: true, lastName: true, birthDate: true, country: true, city: true,
+      address: true, submittedAt: true, reviewedAt: true, rejectionReason: true, documentBackKey: true, passportKey: true,
+    },
+  });
+  return {
+    ...user,
+    role: user.role.name,
+    verifications: verifications.map(({ documentBackKey, passportKey, ...v }) => ({
+      ...v,
+      // Pièces disponibles (sans exposer les clés de stockage).
+      files: v.documentType === "PASSPORT" ? ["passport", "selfie"] : ["front", ...(documentBackKey ? ["back"] : []), "selfie"],
+    })),
+  };
+}
+
 export async function registerAdminConsoleRoutes(app: FastifyInstance) {
   app.get("/admin/overview", async (request, reply) => {
     await requirePermission(request, "STATS");
@@ -53,6 +88,24 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     ]);
     await audit(request, "ADMIN_CLIENTS_LISTED", "User", undefined, { total, page });
     return sendOk(reply, items, { page, perPage, total });
+  });
+
+  app.get("/admin/clients/:id", async (request, reply) => {
+    await requirePermission(request, "SUPPORT");
+    const { id } = request.params as { id: string };
+    const dossier = await memberDossier(id);
+    await audit(request, "ADMIN_MEMBER_VIEWED", "User", id);
+    return sendOk(reply, dossier);
+  });
+
+  app.get("/admin/sellers/:id", async (request, reply) => {
+    await requirePermission(request, "SELLERS");
+    const { id } = request.params as { id: string };
+    const seller = await prisma.seller.findUnique({ where: { id }, select: { userId: true } });
+    if (!seller) throw notFound("Vendeur introuvable.");
+    const dossier = await memberDossier(seller.userId);
+    await audit(request, "ADMIN_MEMBER_VIEWED", "User", seller.userId, { sellerId: id });
+    return sendOk(reply, dossier);
   });
 
   app.patch("/admin/clients/:id/status", async (request, reply) => {

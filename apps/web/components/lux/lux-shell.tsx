@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { LuxProvider } from "./lux-data";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { MessagesButton } from "@/components/chat/messages-button";
 import { AccountMenu } from "@/components/account/account-menu";
 import { useAccount } from "@/lib/account";
 import { useT } from "@/lib/i18n";
@@ -81,6 +82,7 @@ export function LuxTopBar({
           MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
         </Link>
         <nav aria-label={t("shell.nav")} className="flex items-center gap-1 sm:gap-2">
+          <MessagesButton />
           <NotificationBell />
           {links.map((l) => (
             <Link

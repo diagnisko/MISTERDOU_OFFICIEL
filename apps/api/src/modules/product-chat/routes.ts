@@ -28,6 +28,25 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
     return sendOk(reply, await listMyThreads(requireAuth(request)));
   });
 
+  // --- En-tête du site : messages non lus (achats + ventes) et page à ouvrir ---
+  app.get("/threads/unread", { schema: secured("Nombre de messages non lus") }, async (request, reply) => {
+    const viewer = requireAuth(request);
+    const mine = await listMyThreads(viewer);
+    const buying = mine.reduce((n, t) => n + t.unread, 0);
+    let selling = 0;
+    let side: "seller" | "team" | null = null;
+    const isMember = viewer.user.role?.name !== "ADMIN" && viewer.user.role?.name !== "STAFF";
+    if (isMember) {
+      const inbox = await listInbox(viewer).catch(() => null);
+      if (inbox) {
+        side = inbox.side;
+        selling = inbox.items.reduce((n, t) => n + t.unread, 0);
+      }
+    }
+    const href = selling > 0 && buying === 0 ? "/seller/messages" : "/account/messages";
+    return sendOk(reply, { total: buying + selling, href, seller: side === "seller" });
+  });
+
   // --- Vendeur (ses comptes) ou équipe (tout) : boîte de réception ---
   app.get("/threads/inbox", { schema: secured("Discussions à traiter côté vente") }, async (request, reply) => {
     return sendOk(reply, await listInbox(requireAuth(request)));

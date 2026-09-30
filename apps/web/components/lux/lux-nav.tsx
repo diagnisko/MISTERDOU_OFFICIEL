@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { cx } from "./lux-fx";
 import { IconMenu, IconX } from "./lux-icons";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { MessagesButton } from "@/components/chat/messages-button";
 import { AccountMenu } from "@/components/account/account-menu";
 import { useAccount } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
@@ -89,6 +90,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
         </ul>
 
         <div className="flex items-center gap-2 lg:gap-3">
+          <MessagesButton />
           <NotificationBell />
           <div className="hidden lg:block">
             <AccountMenu />

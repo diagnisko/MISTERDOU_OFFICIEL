@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Field, ListPager, SelectInput, Spinner, StatusBadge, TextInput } from "@/components/ui";
 import { LuxPageHead, LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
+import { SupportContactChoices } from "@/components/support/support-contacts";
 import { LuxFooter } from "@/components/lux/lux-footer";
 import { errorMessage, isPermissionError, type PageMeta } from "@/lib/api";
 import { resolveSession, isAuthError, type SessionUser } from "@/lib/session";
@@ -198,6 +199,8 @@ export default function SupportPage() {
               </>
             }
           />
+
+          <SupportContactChoices onMessage={() => setTab("new")} />
 
           {notice && (
             <div className="mt-5">

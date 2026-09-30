@@ -7,8 +7,10 @@ import { startPaymentReconciliation } from "./modules/payments/service.js";
 import { startInstallmentJobs } from "./modules/installments/service.js";
 import { startPromotionJobs } from "./modules/promotions/service.js";
 import { startSellerPayoutJobs } from "./modules/orders/fulfillment.js";
+import { ensureDefaultSettings } from "./modules/settings/service.js";
 
 async function main() {
+  await ensureDefaultSettings();
   const app = await buildApp();
 
   await app.listen({ host: env.API_HOST, port: env.API_PORT });

@@ -188,6 +188,17 @@ export const fr = {
   "apiError.PLAN_ALREADY_PAID": "Toutes vos mensualités sont réglées.",
   "apiError.ORDER_NOT_PAYABLE": "Cette commande n’est plus payable.",
   "apiError.FEATURED_UNAVAILABLE": "La mise en avant n’est pas disponible pour cette offre.",
+  "contact.title": "Comment voulez-vous nous contacter ?",
+  "contact.message": "Message",
+  "contact.messageHint": "Écrivez-nous ici : votre demande est suivie et gardée dans votre historique.",
+  "contact.whatsappHint": "Pour une réponse rapide sur votre téléphone.",
+  "contact.email": "E-mail",
+  "contact.whatsappText": "Bonjour MISTERDOU, j'ai besoin d'aide concernant : ",
+  "contact.whatsappOrderText": "Bonjour MISTERDOU, je signale un problème sur ma commande {order} : ",
+  "contact.urgent": "Urgent ?",
+  "contact.urgentLink": "Écrivez-nous aussi sur WhatsApp",
+  "msgIcon.label": "Messages",
+  "msgIcon.unread": "Messages — {count} non lus",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -377,6 +388,17 @@ export const en: Translations<typeof fr> = {
   "apiError.PLAN_ALREADY_PAID": "All your instalments are paid.",
   "apiError.ORDER_NOT_PAYABLE": "This order can no longer be paid.",
   "apiError.FEATURED_UNAVAILABLE": "Featuring isn’t available for this offer.",
+  "contact.title": "How would you like to contact us?",
+  "contact.message": "Message",
+  "contact.messageHint": "Write to us here: your request is tracked and kept in your history.",
+  "contact.whatsappHint": "For a quick answer on your phone.",
+  "contact.email": "Email",
+  "contact.whatsappText": "Hello MISTERDOU, I need help with: ",
+  "contact.whatsappOrderText": "Hello MISTERDOU, I am reporting a problem with my order {order}: ",
+  "contact.urgent": "Urgent?",
+  "contact.urgentLink": "Also write to us on WhatsApp",
+  "msgIcon.label": "Messages",
+  "msgIcon.unread": "Messages — {count} unread",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -566,4 +588,15 @@ export const ar: Translations<typeof fr> = {
   "apiError.PLAN_ALREADY_PAID": "تم سداد جميع أقساطك.",
   "apiError.ORDER_NOT_PAYABLE": "لم يعد بالإمكان دفع هذا الطلب.",
   "apiError.FEATURED_UNAVAILABLE": "التمييز غير متاح لهذا العرض.",
+  "contact.title": "كيف تفضّل التواصل معنا؟",
+  "contact.message": "رسالة",
+  "contact.messageHint": "اكتب لنا هنا: يُتابَع طلبك ويُحفظ في سجلك.",
+  "contact.whatsappHint": "لردّ سريع على هاتفك.",
+  "contact.email": "البريد الإلكتروني",
+  "contact.whatsappText": "مرحبًا MISTERDOU، أحتاج مساعدة بخصوص: ",
+  "contact.whatsappOrderText": "مرحبًا MISTERDOU، أبلغ عن مشكلة في طلبي {order}: ",
+  "contact.urgent": "عاجل؟",
+  "contact.urgentLink": "راسلنا أيضًا على واتساب",
+  "msgIcon.label": "الرسائل",
+  "msgIcon.unread": "الرسائل — {count} غير مقروءة",
 };
