@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { request } from "@/lib/api";
-import { Alert, Button, TextInput } from "@/components/ui";
+import { Alert, Button, SelectInput, TextInput } from "@/components/ui";
 import { errorMessage } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import { AdminPageHead, ErrorAlert, NoticeAlert, TableCard, TableEmpty, TableLoading } from "../_lib/ui";
+import { GROUP_LABELS, SETTING_LABELS } from "./labels";
 
 // ---------------------------------------------------------------------------
 // Paramètres — GET /admin/settings → [{ key, value, valueType, group,
@@ -64,7 +65,7 @@ export default function SettingsPage() {
   const groups = useMemo(() => {
     const map = new Map<string, SettingRow[]>();
     for (const row of list.items) {
-      const group = row.group || "Général";
+      const group = (row.group && GROUP_LABELS[row.group]) || row.group || "Général";
       const bucket = map.get(group);
       if (bucket) bucket.push(row);
       else map.set(group, [row]);
@@ -84,7 +85,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ value }),
       });
       const reloaded = await list.refresh();
-      if (reloaded) list.setNotice(`Paramètre « ${row.key} » enregistré.`);
+      if (reloaded) list.setNotice(`« ${SETTING_LABELS[row.key]?.label ?? row.key} » enregistré.`);
     } catch (err) {
       setRowError({ key: row.key, message: errorMessage(err) });
     } finally {
@@ -128,17 +129,19 @@ export default function SettingsPage() {
                   const draft = drafts[row.key] ?? "";
                   const saving = savingKey === row.key;
                   const error = rowError?.key === row.key ? rowError.message : null;
+                  const info = SETTING_LABELS[row.key];
                   return (
                     <div key={row.key} className="grid gap-4 py-4 first:pt-0 lg:grid-cols-[1fr_minmax(0,340px)]">
                       <div>
-                        <p className="font-mono text-[12px] text-stone-200">{row.key}</p>
-                        {row.description && (
-                          <p className="mt-1 text-xs leading-relaxed text-stone-500">{row.description}</p>
+                        <p className="text-[14px] font-medium text-stone-100">{info?.label ?? row.key}</p>
+                        {(info?.help ?? row.description) && (
+                          <p className="mt-1 text-xs leading-relaxed text-stone-400">{info?.help ?? row.description}</p>
                         )}
-                        <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-stone-600">
-                          type {row.valueType}
-                          {row.updatedAt ? ` · modifié le ${new Date(row.updatedAt).toLocaleDateString("fr-FR")}` : ""}
-                        </p>
+                        {row.updatedAt && (
+                          <p className="mt-2 text-[11px] text-stone-500">
+                            Modifié le {new Date(row.updatedAt).toLocaleDateString("fr-FR")}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-3">
@@ -154,12 +157,23 @@ export default function SettingsPage() {
                             />
                             Activé
                           </label>
+                        ) : info?.options ? (
+                          <SelectInput value={draft} onChange={(event) => setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }))}>
+                            {info.options.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </SelectInput>
                         ) : row.valueType === "string" || row.valueType === "int" ? (
-                          <TextInput
-                            type={row.valueType === "int" ? "number" : "text"}
-                            value={draft}
-                            onChange={(event) => setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }))}
-                          />
+                          <div className="flex items-center gap-3">
+                            <TextInput
+                              type={row.valueType === "int" ? "number" : "text"}
+                              value={draft}
+                              onChange={(event) => setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }))}
+                            />
+                            {info?.unit && <span className="shrink-0 text-xs text-stone-400">{info.unit}</span>}
+                          </div>
                         ) : (
                           <textarea
                             rows={4}

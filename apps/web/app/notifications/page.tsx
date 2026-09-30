@@ -455,25 +455,11 @@ function PreferencesPanel({
               onChange={(checked) => setDraft({ ...value, inApp: checked })}
             />
             <Toggle
-              label={t("notif.push")}
-              hint={t("notif.pushHint")}
-              checked={Boolean(value.push)}
-              disabled={saving}
-              onChange={(checked) => setDraft({ ...value, push: checked })}
-            />
-            <Toggle
               label={t("notif.email")}
               hint={t("notif.emailHint")}
               checked={Boolean(value.email)}
               disabled={saving}
               onChange={(checked) => setDraft({ ...value, email: checked })}
-            />
-            <Toggle
-              label={t("notif.sms")}
-              hint={t("notif.smsHint")}
-              checked={Boolean(value.sms)}
-              disabled={saving}
-              onChange={(checked) => setDraft({ ...value, sms: checked })}
             />
           </div>
 

@@ -51,8 +51,8 @@ export const ROLE_LABELS: Record<string, string> = {
 };
 
 export const CONVERSATION_KIND_LABELS: Record<string, string> = {
-  CLIENT_TO_ADMIN: "Client ↔ Admin",
-  VENDOR_TO_ADMIN: "Vendeur ↔ Admin",
+  CLIENT_TO_ADMIN: "Support MISTERDOU",
+  VENDOR_TO_ADMIN: "Échange vendeur – équipe MISTERDOU",
 };
 
 export function roleLabel(role: string | null | undefined): string {
