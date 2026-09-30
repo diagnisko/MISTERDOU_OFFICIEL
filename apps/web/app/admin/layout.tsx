@@ -40,6 +40,7 @@ type SessionUser = {
 
 const NAV: DashNavItem[] = [
   { href: "/admin", label: "Vue d’ensemble", icon: IconHome },
+  { href: "/offres", label: "Voir la boutique", icon: IconStore },
   { href: "/admin/plans", label: "Paiements échelonnés", icon: IconCalendar, group: "Argent" },
   { href: "/admin/payments", label: "Paiements", icon: IconCard, group: "Argent" },
   { href: "/admin/orders", label: "Commandes", icon: IconCart, group: "Argent" },

@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE_NAME } from "@misterdou/shared";
 import { LuxHome } from "@/components/lux/lux-home";
-import { homeForRole } from "@/lib/greeting";
 import { serverApiFetch } from "@/lib/server-api";
 
 // Rôle du membre connecté, ou null. Seule une session confirmée par l'API
@@ -24,9 +23,9 @@ async function memberRole(): Promise<string | null> {
 }
 
 // La page d'accueil (présentation, « Créer mon compte ») est pour les visiteurs :
-// un membre connecté arrive directement sur les offres.
+// un membre connecté (client, vendeur ou équipe) arrive directement sur les offres.
 export default async function Home() {
   const role = await memberRole();
-  if (role) redirect(homeForRole(role));
+  if (role) redirect("/offres");
   return <LuxHome />;
 }

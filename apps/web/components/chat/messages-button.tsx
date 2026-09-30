@@ -16,7 +16,7 @@ export function MessagesButton() {
   const account = useAccount();
   const t = useT();
   const [unread, setUnread] = useState<Unread>({ total: 0, href: "/account/messages" });
-  const member = account.status === "member";
+  const member = account.status === "member" && account.user.role !== "ADMIN" && account.user.role !== "STAFF";
 
   const load = useCallback(async () => {
     try {

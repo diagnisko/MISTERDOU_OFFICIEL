@@ -43,6 +43,19 @@ function useOwnOffer(productId: string | undefined): boolean {
   return own;
 }
 
+// L'équipe consulte la boutique sans acheter.
+function useIsTeam(): boolean {
+  const account = useAccount();
+  return account.status === "member" && (account.user.role === "ADMIN" || account.user.role === "STAFF");
+}
+
+function TeamNotice() {
+  const t = useT();
+  return (
+    <p className="mt-2 rounded-[18px] border border-white/10 bg-white/[0.03] p-4 text-[13px] text-stone-400">{t("product.teamNoBuy")}</p>
+  );
+}
+
 function OwnOfferNotice() {
   const t = useT();
   return (
@@ -208,6 +221,7 @@ function DetailHub() {
   const [attempt, setAttempt] = useState(0);
   const requestId = useRef(0);
   const own = useOwnOffer(item?.id);
+  const team = useIsTeam();
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -383,7 +397,7 @@ function DetailHub() {
 
             <p className="text-[14px] leading-relaxed text-stone-400">{item.description || t("product.noDescription")}</p>
 
-            {own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
+            {team ? <TeamNotice /> : own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
             {!own && canSplit && !split && (
               <Link href={`/catalogue/${item.slug}?mode=mensualites`} className="text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
                 {t("product.alsoMonthly")}
@@ -394,7 +408,7 @@ function DetailHub() {
                 {t("product.preferCash")}
               </Link>
             )}
-            {!own && <SellerChatBox productId={item.id} slug={item.slug} />}
+            {!own && !team && <SellerChatBox productId={item.id} slug={item.slug} />}
             {split && (
               <p className="flex items-center gap-2 text-[11px] text-stone-400">
                 <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />

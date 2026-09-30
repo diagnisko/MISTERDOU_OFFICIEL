@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { displayName, initials, logoutAccount, useAccount, type AccountUser } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
-import { IconBadgeCheck, IconCart, IconChat, IconGear, IconLifebuoy, IconList, IconLogout, IconSpark, IconStore, IconUsers } from "@/components/dash/dash-icons";
+import { IconBadgeCheck, IconCart, IconChat, IconGear, IconHome, IconLifebuoy, IconList, IconLogout, IconSpark, IconStore, IconUsers } from "@/components/dash/dash-icons";
 
 export function Avatar({ user, url, size = 40 }: { user: AccountUser; url: string | null; size?: number }) {
   return url ? (
@@ -32,6 +32,13 @@ const ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUsers; se
   { href: "/account/settings", label: "menu.settings", icon: IconGear },
   { href: "/support", label: "menu.support", icon: IconLifebuoy },
   { href: "/a-propos", label: "nav.about", icon: IconList },
+];
+
+// Équipe (admin, manager) : la boutique en consultation, retour à la console par le menu.
+const TEAM_ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUsers }> = [
+  { href: "/account", label: "menu.profile", icon: IconUsers },
+  { href: "/admin", label: "menu.dashboard", icon: IconHome },
+  { href: "/account/settings", label: "menu.settings", icon: IconGear },
 ];
 
 // Menu du compte : rond de profil dans l'en-tête ; boutons d'accès pour un visiteur.
@@ -84,6 +91,8 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   const { user, profile } = account;
   const verified = user.kycStatus === "VERIFIED";
   const isActiveSeller = profile.isSeller && profile.sellerStatus === "ACTIVE";
+  const team = user.role === "ADMIN" || user.role === "STAFF";
+  const items = team ? TEAM_ITEMS : ITEMS.filter((i) => i.seller === undefined || i.seller === isActiveSeller);
 
   async function logout() {
     setLeaving(true);
@@ -129,7 +138,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
               </div>
             </div>
             <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />
-            {ITEMS.filter((i) => i.seller === undefined || i.seller === isActiveSeller).map((item) => (
+            {items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -142,7 +151,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
                 {t(item.label)}
               </Link>
             ))}
-            {!verified && (
+            {!verified && !team && (
               <Link
                 href="/identity-verification"
                 role="menuitem"

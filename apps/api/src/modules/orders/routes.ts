@@ -41,6 +41,11 @@ export async function registerOrderRoutes(app: FastifyInstance) {
           error: { code: "VALIDATION_ERROR", message: "Paramètres de commande invalides" },
         });
       }
+      // L'équipe consulte la boutique mais n'achète pas : les achats sont réservés aux clients.
+      const role = auth.user.role?.name;
+      if (role === "ADMIN" || role === "STAFF") {
+        return reply.status(403).send({ ok: false, error: { code: "FORBIDDEN", message: "Les achats sont réservés aux clients." } });
+      }
       const result = await createOrder(parsed.data, { actorId: auth.user.id });
       return sendOk(reply, result);
     },

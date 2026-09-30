@@ -136,6 +136,7 @@ export const fr = {
   "marquee.elite": "Élite",
   "marquee.certified": "Certifié",
   "menu.becomeSeller": "Devenir vendeur",
+  "menu.dashboard": "Tableau de bord",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -258,6 +259,7 @@ export const en: Translations<typeof fr> = {
   "marquee.elite": "Elite",
   "marquee.certified": "Certified",
   "menu.becomeSeller": "Become a seller",
+  "menu.dashboard": "Dashboard",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -380,4 +382,5 @@ export const ar: Translations<typeof fr> = {
   "marquee.elite": "النخبة",
   "marquee.certified": "معتمد",
   "menu.becomeSeller": "كن بائعًا",
+  "menu.dashboard": "لوحة التحكم",
 };
