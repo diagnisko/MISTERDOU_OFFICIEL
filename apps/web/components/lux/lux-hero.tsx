@@ -73,13 +73,14 @@ export function LuxHero() {
     return [
       { key: "stock", label: t("home.stock"), value: s ? formatInt(s.productsInStock) : null },
       { key: "sold", label: t("home.sold"), value: s ? formatInt(s.productsSold) : null },
-      { key: "rating", label: t("home.rating"), value: s ? formatRating(s.avgRating) : null },
+      // Note : affichée seulement quand de vrais avis existent.
+      ...(s && s.avgRating > 0 ? [{ key: "rating", label: t("home.rating"), value: formatRating(s.avgRating) }] : []),
     ];
   }, [seed, t]);
 
   const statsBand = (
     <div className="lux-glass w-full rounded-[26px] px-3">
-      <div className="grid grid-cols-3 py-6 md:py-8">
+      <div className={cx("grid py-6 md:py-8", stats.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
         {stats.map((s, i) => {
           const loading = status === "loading" && s.value === null;
           const failed = status === "error" && s.value === null;
@@ -215,7 +216,7 @@ export function LuxHero() {
 
         <motion.div
           style={{ opacity: cueOpacity }}
-          className={cx("pointer-events-none absolute bottom-8 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2 text-[11px] text-stone-400")}
+          className={cx("pointer-events-none absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2 text-[11px] text-stone-400 [@media(max-height:900px)]:hidden")}
           aria-hidden
         >
           <span>{t("home.scroll")}</span>

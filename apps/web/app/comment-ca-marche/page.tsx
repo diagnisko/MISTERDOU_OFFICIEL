@@ -6,7 +6,8 @@ import { LuxFooter } from "@/components/lux/lux-footer";
 import { MemberSwitch } from "@/components/lux/lux-member-switch";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { IconArrowRight, IconShield } from "@/components/lux/lux-icons";
-import { formatInt, fetchLuxSeed } from "@/lib/lux";
+import { formatInt } from "@/lib/lux";
+import { fetchSeedServer } from "@/lib/server-api";
 import { getServerT } from "@/lib/i18n-server";
 import type { MessageKey } from "@/lib/i18n-core";
 
@@ -25,7 +26,7 @@ export default async function CommentCaMarchePage() {
   // masque la ligne plutôt que d'afficher un « 0 ».
   let chiffres: { inStock: number; rating: number } | null = null;
   try {
-    const seed = await fetchLuxSeed();
+    const seed = await fetchSeedServer();
     chiffres = { inStock: seed.stats.productsInStock, rating: seed.stats.avgRating };
   } catch {
     chiffres = null;
@@ -51,7 +52,8 @@ export default async function CommentCaMarchePage() {
               <div className="mt-10 grid gap-4 sm:grid-cols-3">
                 {[
                   { label: t("howp.statOnline"), value: formatInt(chiffres.inStock) },
-                  { label: t("howp.statRating"), value: `${chiffres.rating.toFixed(1).replace(".", ",")}/5` },
+                  // Note : affichée seulement quand de vrais avis existent.
+                  ...(chiffres.rating > 0 ? [{ label: t("howp.statRating"), value: `${chiffres.rating.toFixed(1).replace(".", ",")}/5` }] : []),
                 ].map((s) => (
                   <div key={s.label} className="lux-glass rounded-[20px] px-5 py-5">
                     <span className="text-[9px] uppercase tracking-[0.26em] text-stone-400">{s.label}</span>

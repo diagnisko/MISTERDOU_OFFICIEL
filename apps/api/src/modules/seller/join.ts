@@ -33,7 +33,7 @@ async function isKycVerified(userId: string): Promise<boolean> {
 }
 
 export async function sellerJoinState(userId: string) {
-  const [seller, kycVerified, fee, pending] = await Promise.all([
+  const [seller, kycVerified, fee, pending, commissionPercent] = await Promise.all([
     prisma.seller.findUnique({ where: { userId }, select: { status: true } }),
     isKycVerified(userId),
     sellerRegistrationFee(),
@@ -42,9 +42,11 @@ export async function sellerJoinState(userId: string) {
       orderBy: { createdAt: "desc" },
       select: { transactionToken: true },
     }),
+    getIntSetting("sellerCommissionPercent", 15),
   ]);
   return {
     fee,
+    commissionPercent,
     kycVerified,
     sellerStatus: seller?.status ?? null,
     checkoutUrl: pending?.transactionToken ? `/checkout/${pending.transactionToken}` : null,

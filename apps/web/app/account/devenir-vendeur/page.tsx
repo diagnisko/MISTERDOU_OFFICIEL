@@ -10,6 +10,7 @@ import { useT } from "@/lib/i18n";
 
 type JoinState = {
   fee: number;
+  commissionPercent: number;
   kycVerified: boolean;
   sellerStatus: string | null;
   checkoutUrl: string | null;
@@ -67,7 +68,7 @@ export default function BecomeSellerPage() {
             <span className="dash-icon !h-7 !w-7 shrink-0">
               <IconCheck size={14} />
             </span>
-            {t(key)}
+            {t(key, { rate: state.commissionPercent })}
           </li>
         ))}
       </ul>
