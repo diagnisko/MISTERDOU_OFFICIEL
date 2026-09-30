@@ -379,28 +379,6 @@ export function startPaymentReconciliation(): NodeJS.Timeout {
 }
 
 // ---------------------------------------------------------------------------
-// Confirmation DEV (stub) — route dev uniquement, MÊME moteur settlePayment.
-// ---------------------------------------------------------------------------
-
-export async function confirmTransaction(
-  token: string,
-  ctx?: PaymentContext,
-  expectedUserId?: string,
-): Promise<{ status: PaymentStatus; already: boolean }> {
-  const payment = await prisma.payment.findUnique({ where: { transactionToken: token } });
-  if (!payment) throw badRequest("PAYMENT_NOT_VERIFIED", "Transaction inconnue");
-  if (expectedUserId && payment.userId !== expectedUserId) {
-    throw badRequest("PAYMENT_NOT_VERIFIED", "Transaction inconnue");
-  }
-  const result = await settlePayment(
-    { id: payment.id },
-    "SUCCESS",
-    { source: "DEV", providerReference: payment.providerReference ?? `dev-stub-${token}`, ctx },
-  );
-  return { status: result.status, already: result.already };
-}
-
-// ---------------------------------------------------------------------------
 // Historiques
 // ---------------------------------------------------------------------------
 

@@ -14,7 +14,7 @@ import {
 import { useT } from "@/lib/i18n";
 import { IconStar } from "./lux-icons";
 
-const WORDS = ["Division 1", "Legend", "Ikon", "Epic", "Division 2", "Élite", "Rare", "Certifié"];
+const WORDS = ["Division 1", "Legend", "Ikon", "Epic", "Division 2", "Élite", "Identité vérifiée", "Livraison sécurisée"];
 const BASE_SPEED = 2.2; // % de la piste par seconde
 
 function wrap(min: number, max: number, v: number) {

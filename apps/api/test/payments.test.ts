@@ -16,7 +16,6 @@ import {
 } from "./helpers.js";
 import { createOrder, createOrderSchema } from "../src/modules/orders/service.js";
 import {
-  confirmTransaction,
   getCheckoutState,
   initiateCheckout,
   listMyPayments,
@@ -211,23 +210,6 @@ describe("settlePayment — porte unique de règlement", () => {
     expect(err.code).toBe("PLAN_ALREADY_PAID");
   });
 
-  it("confirmTransaction (stub dev) borne l'accès au propriétaire du token", async () => {
-    const user = await buyer();
-    const stranger = await buyer();
-    const order = await orderPayment(user.id);
-
-    await expect(confirmTransaction("mdpay_inconnu", undefined, user.id)).rejects.toMatchObject({
-      code: "PAYMENT_NOT_VERIFIED",
-    });
-    await expect(confirmTransaction(order.token, undefined, stranger.id)).rejects.toMatchObject({
-      code: "PAYMENT_NOT_VERIFIED",
-    });
-
-    const result = await confirmTransaction(order.token, { actorId: user.id }, user.id);
-    expect(result).toMatchObject({ status: "SUCCESS", already: false });
-    const again = await confirmTransaction(order.token, { actorId: user.id }, user.id);
-    expect(again.already).toBe(true);
-  });
 });
 
 describe("Checkout local Wave / Orange Money", () => {

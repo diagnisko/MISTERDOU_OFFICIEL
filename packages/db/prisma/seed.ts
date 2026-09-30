@@ -63,79 +63,9 @@ async function seedSettings() {
   console.log(`[seed] settings prêts : ${DEFAULT_SETTINGS.length} paramètres`);
 }
 
-// ---------------------------------------------------------------------------
-// Démo landing — données réelles consommées par GET /api/seed.
-// Réinsérable (idempotent) : ne touche que les lignes portant un slug démo.
-// ---------------------------------------------------------------------------
-
-interface DemoProduct {
-  slug: string;
-  title: string;
-  division: string;
-  teamPower: number;
-  coins: number;
-  basePrice: number;
-  promoPrice: number | null;
-  paymentMode: PaymentMode;
-  months: number | null;
-}
-
-const DEMO_PRODUCTS: DemoProduct[] = [
-  { slug: "demo-powerhouse", title: "Compte Élite Or — 3 212 OVR", division: "Division 1", teamPower: 3212, coins: 1850, basePrice: 85000, promoPrice: 69000, paymentMode: "INSTALLMENTS", months: 6 },
-  { slug: "demo-legend", title: "Compte Légende — 3 180 OVR", division: "Legend", teamPower: 3180, coins: 1240, basePrice: 64000, promoPrice: null, paymentMode: "ONE_TIME", months: null },
-  { slug: "demo-ikon", title: "Compte Ikon — 3 145 OVR", division: "Ikon", teamPower: 3145, coins: 980, basePrice: 52000, promoPrice: 44900, paymentMode: "INSTALLMENTS", months: 4 },
-  { slug: "demo-epic", title: "Compte Épic — 3 090 OVR", division: "Epic", teamPower: 3090, coins: 760, basePrice: 41000, promoPrice: null, paymentMode: "ONE_TIME", months: null },
-  { slug: "demo-div2-1", title: "Compte Division 2 — 2 880 OVR", division: "Division 2", teamPower: 2880, coins: 350, basePrice: 28000, promoPrice: null, paymentMode: "ONE_TIME", months: null },
-  { slug: "demo-div2-2", title: "Compte Division 2 — 2 740 OVR", division: "Division 2", teamPower: 2740, coins: 210, basePrice: 21500, promoPrice: 17800, paymentMode: "INSTALLMENTS", months: 3 },
-];
-
-async function seedDemo() {
-  const now = new Date();
-  for (const [i, p] of DEMO_PRODUCTS.entries()) {
-    await prisma.product.upsert({
-      where: { slug: p.slug },
-      update: {
-        slug: p.slug,
-        title: p.title,
-        description:
-          "Compte eFootball vérifié par l'équipe : historique propre, e-mail de récupération sécurisé, livraison après paiement confirmé serveur.",
-        division: p.division,
-        teamPower: p.teamPower,
-        coins: p.coins,
-        basePrice: p.basePrice,
-        paymentMode: p.paymentMode,
-        installmentMonths: p.months,
-        featuredPriceOverride: p.promoPrice,
-        status: "ACTIVE",
-        publishedAt: new Date(now.getTime() - (i + 1) * 3600_000),
-        createdAt: new Date(now.getTime() - (i + 1) * 3600_000),
-      },
-      create: {
-        slug: p.slug,
-        title: p.title,
-        description: "Compte eFootball de démonstration, paiement confirmé côté serveur.",
-        division: p.division,
-        teamPower: p.teamPower,
-        coins: p.coins,
-        basePrice: p.basePrice,
-        paymentMode: p.paymentMode,
-        installmentMonths: p.months,
-        featuredPriceOverride: p.promoPrice,
-        status: "ACTIVE",
-        publishedAt: new Date(now.getTime() - (i + 1) * 3600_000),
-        createdAt: new Date(now.getTime() - (i + 1) * 3600_000),
-      },
-    });
-  }
-  console.log(`[seed] catalogue de démonstration : ${DEMO_PRODUCTS.length} produits; aucun compte ni commande créé.`);
-}
-
 async function main() {
   await seedRoles();
   await seedSettings();
-  // SEED_DEMO=false : base de production, pas de faux comptes au catalogue public.
-  if (process.env.SEED_DEMO !== "false") await seedDemo();
-  else console.log("[seed] catalogue de démonstration ignoré (SEED_DEMO=false).");
 }
 
 main()

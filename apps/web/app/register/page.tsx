@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { request, ApiClientError } from "@/lib/api";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
-import { GoogleButton } from "@/components/auth/google-button";
+import { GoogleButton, googleEnabled } from "@/components/auth/google-button";
 import { homeForRole, setGreeting } from "@/lib/greeting";
 import { refreshAccount } from "@/lib/account";
 
@@ -50,20 +50,24 @@ export default function RegisterPage() {
       lead={t("auth.registerLead")}
     >
       <div className="space-y-4">
-        <GoogleButton
-          onNotice={(msg) => {
-            setNotice(msg);
-            setError(null);
-          }}
-        />
+        {googleEnabled && (
+          <>
+            <GoogleButton
+              onNotice={(msg) => {
+                setNotice(msg);
+                setError(null);
+              }}
+            />
 
-        <div className="flex items-center gap-4 py-1">
-          <span className="h-px flex-1 bg-[var(--lux-line)]" aria-hidden />
-          <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--lux-muted)]">
-            ou par e-mail
-          </span>
-          <span className="h-px flex-1 bg-[var(--lux-line)]" aria-hidden />
-        </div>
+            <div className="flex items-center gap-4 py-1">
+              <span className="h-px flex-1 bg-[var(--lux-line)]" aria-hidden />
+              <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--lux-muted)]">
+                ou par e-mail
+              </span>
+              <span className="h-px flex-1 bg-[var(--lux-line)]" aria-hidden />
+            </div>
+          </>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">

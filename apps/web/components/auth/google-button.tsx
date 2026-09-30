@@ -8,6 +8,9 @@ import { useT } from "@/lib/i18n";
 
 const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
+/** Faux tant qu'un vrai identifiant Google (…apps.googleusercontent.com) n'est pas réglé : le bouton n'est pas proposé. */
+export const googleEnabled = Boolean(clientId?.endsWith(".apps.googleusercontent.com"));
+
 function GoogleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden focusable="false">
