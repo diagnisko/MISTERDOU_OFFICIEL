@@ -132,9 +132,13 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-white">{displayName(user)}</p>
                 <p className="truncate text-[12px] text-[#8f7d77]">{user.email}</p>
-                <span className={`dash-pill mt-1.5 ${verified ? "dash-pill-paid" : "dash-pill-due"}`}>
-                  {verified ? t("menu.verified") : t("menu.unverified")}
-                </span>
+                {team ? (
+                  <span className="dash-pill dash-pill-paid mt-1.5">{user.role === "ADMIN" ? t("menu.roleAdmin") : t("menu.roleStaff")}</span>
+                ) : (
+                  <span className={`dash-pill mt-1.5 ${verified ? "dash-pill-paid" : "dash-pill-due"}`}>
+                    {verified ? t("menu.verified") : t("menu.unverified")}
+                  </span>
+                )}
               </div>
             </div>
             <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />

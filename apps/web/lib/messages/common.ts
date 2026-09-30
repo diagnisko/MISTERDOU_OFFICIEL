@@ -137,6 +137,8 @@ export const fr = {
   "marquee.certified": "Certifié",
   "menu.becomeSeller": "Devenir vendeur",
   "menu.dashboard": "Tableau de bord",
+  "menu.roleAdmin": "Administrateur",
+  "menu.roleStaff": "Équipe MISTERDOU",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -260,6 +262,8 @@ export const en: Translations<typeof fr> = {
   "marquee.certified": "Certified",
   "menu.becomeSeller": "Become a seller",
   "menu.dashboard": "Dashboard",
+  "menu.roleAdmin": "Administrator",
+  "menu.roleStaff": "MISTERDOU team",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -383,4 +387,6 @@ export const ar: Translations<typeof fr> = {
   "marquee.certified": "معتمد",
   "menu.becomeSeller": "كن بائعًا",
   "menu.dashboard": "لوحة التحكم",
+  "menu.roleAdmin": "المسؤول",
+  "menu.roleStaff": "فريق MISTERDOU",
 };
