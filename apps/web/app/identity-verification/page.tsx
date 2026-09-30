@@ -1,8 +1,8 @@
-import { useT, type MessageKey } from "@/lib/i18n";
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { ApiClientError, request, uploadFile } from "@/lib/api";
 import { Alert, Button, Field, SelectInput, Spinner, StatusBadge, TextInput } from "@/components/ui";
 import { LuxBack, LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
