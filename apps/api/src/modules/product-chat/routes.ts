@@ -36,7 +36,13 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
     let selling = 0;
     let side: "seller" | "team" | null = null;
     const isMember = viewer.user.role?.name !== "ADMIN" && viewer.user.role?.name !== "STAFF";
-    if (isMember) {
+    if (!isMember) {
+      // Équipe : discussions des comptes à traiter dans la console.
+      const inbox = await listInbox(viewer).catch(() => null);
+      const total = inbox ? inbox.items.reduce((n, t) => n + t.unread, 0) : 0;
+      return sendOk(reply, { total, href: "/admin/discussions", seller: false });
+    }
+    {
       const inbox = await listInbox(viewer).catch(() => null);
       if (inbox) {
         side = inbox.side;

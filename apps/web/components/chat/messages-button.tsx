@@ -12,11 +12,13 @@ import { useT } from "@/lib/i18n";
 
 type Unread = { total: number; href: string };
 
-export function MessagesButton() {
+export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
   const account = useAccount();
   const t = useT();
   const [unread, setUnread] = useState<Unread>({ total: 0, href: "/account/messages" });
-  const member = account.status === "member" && account.user.role !== "ADMIN" && account.user.role !== "STAFF";
+  const team = account.status === "member" && (account.user.role === "ADMIN" || account.user.role === "STAFF");
+  // Boutique : clients et vendeurs. Console : l'équipe (discussions à traiter).
+  const member = account.status === "member" && (inConsole || !team);
 
   const load = useCallback(async () => {
     try {

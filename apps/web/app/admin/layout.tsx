@@ -137,11 +137,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       user={{ name, email: user.email }}
       onLogout={() => void logout()}
       loggingOut={loggingOut}
-      badge={
-        <span className="hidden rounded-full border border-[rgba(134,239,172,0.3)] bg-[rgba(34,197,94,0.08)] px-3 py-1.5 text-[11px] font-medium text-[#86efac] md:inline-block">
-          {sessionKind === "admin" ? "Session MFA active" : "Session équipe"}
-        </span>
-      }
     >
       {children}
     </DashShell>

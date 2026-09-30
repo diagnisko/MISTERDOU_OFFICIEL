@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNod
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { IconClose, IconLogout, IconMenu, IconSearch } from "./dash-icons";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { MessagesButton } from "@/components/chat/messages-button";
+import { AccountMenu } from "@/components/account/account-menu";
 import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
@@ -16,17 +19,6 @@ export type DashNavItem = {
   icon: ComponentType<{ className?: string; size?: number }>;
   group?: string;
 };
-
-function initials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "?"
-  );
-}
 
 /** Recherche rapide : filtre la navigation, Entrée ouvre le premier résultat. */
 function QuickJump({ items }: { items: DashNavItem[] }) {
@@ -181,15 +173,9 @@ export function DashShell({
             <QuickJump items={nav} />
             <div className="ml-auto flex items-center gap-3">
               {badge}
-              <div className="flex items-center gap-2.5">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#ff8a5c,#7a1712)] text-[13px] font-semibold text-white">
-                  {initials(user.name)}
-                </span>
-                <span className="hidden min-w-0 sm:block">
-                  <span className="block truncate text-[13px] font-semibold text-stone-100">{user.name}</span>
-                  {user.email && <span className="block max-w-[180px] truncate text-[11px] text-[#8f7d77]">{user.email}</span>}
-                </span>
-              </div>
+              <MessagesButton inConsole />
+              <NotificationBell />
+              <AccountMenu />
             </div>
           </header>
 
