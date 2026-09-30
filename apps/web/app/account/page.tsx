@@ -42,6 +42,8 @@ export default function ProfilePage() {
   if (account.status !== "member") return null;
   const { user, profile } = account;
   const verified = user.kycStatus === "VERIFIED";
+  // L'équipe ne passe pas de vérification d'identité (réservée aux acheteurs et vendeurs).
+  const team = user.role === "ADMIN" || user.role === "STAFF";
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -98,9 +100,13 @@ export default function ProfilePage() {
         </div>
         <h1 className="mt-4 text-[22px] font-semibold text-white">{displayName(user)}</h1>
         <p className="mt-1 truncate text-[13px] text-[#8f7d77]">{user.email}</p>
-        <span className={`dash-pill mt-3 ${verified ? "dash-pill-paid" : "dash-pill-due"}`}>
-          {verified ? t("menu.verified") : t("menu.unverified")}
-        </span>
+        {team ? (
+          <span className="dash-pill dash-pill-paid mt-3">{user.role === "ADMIN" ? t("menu.roleAdmin") : t("menu.roleStaff")}</span>
+        ) : (
+          <span className={`dash-pill mt-3 ${verified ? "dash-pill-paid" : "dash-pill-due"}`}>
+            {verified ? t("menu.verified") : t("menu.unverified")}
+          </span>
+        )}
 
         <div className="mt-6 flex flex-col gap-2">
           <label className={`dash-btn dash-btn-ghost cursor-pointer ${photoBusy ? "pointer-events-none opacity-60" : ""}`}>
@@ -126,6 +132,7 @@ export default function ProfilePage() {
       </section>
 
       <div className="space-y-5">
+        {!team && (
         <section className={`dash-card p-5 ${verified ? "" : "border-[rgba(255,106,50,0.35)]"}`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-start gap-3">
@@ -144,6 +151,7 @@ export default function ProfilePage() {
             )}
           </div>
         </section>
+        )}
 
         <form onSubmit={(e) => void save(e)} className="dash-card p-5">
           <h2 className="text-[15px] font-semibold text-white">{t("profile.personal")}</h2>
