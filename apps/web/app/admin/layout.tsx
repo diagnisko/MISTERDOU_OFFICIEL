@@ -99,7 +99,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         setUser(session);
         setSessionKind(kind);
       } else {
-        router.replace("/console/sign-in");
+        router.replace("/login");
       }
     }
 
@@ -114,7 +114,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     try {
       await request("/api/v1/auth/logout", { method: "POST", body: JSON.stringify({}) });
     } finally {
-      router.replace("/console/sign-in");
+      router.replace("/login");
     }
   }
 

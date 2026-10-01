@@ -106,8 +106,9 @@ export async function login(
 
   const ok = await verifyPassword(input.password, user.passwordHash);
   if (!ok) throw badRequest("INVALID_CREDENTIALS", INVALID);
-  // Les administrateurs passent par /auth/admin/login (2FA).
-  if (user.role.name === "ADMIN") throw badRequest("INVALID_CREDENTIALS", INVALID);
+  // Administrateur : la session s'ouvre par /auth/admin/login (double authentification).
+  // La page de connexion enchaîne seule sur le code à 6 chiffres.
+  if (user.role.name === "ADMIN") throw badRequest("ACTION_REQUIRES_2FA", "Compte d’administration : entrez le code à 6 chiffres de votre application d’authentification.");
   if (user.status !== "ACTIVE") throw badRequest("ACCOUNT_SUSPENDED", "Compte suspendu. Contactez l'administration.");
 
   const previousLoginAt = user.lastLoginAt?.toISOString() ?? null;

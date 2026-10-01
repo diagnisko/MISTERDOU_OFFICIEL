@@ -14,6 +14,13 @@ const apiDir = path.resolve(here, "..");
 
 loadDotenv({ path: path.join(apiDir, ".env"), override: false, quiet: true });
 
+// 3. jamais de stockage distant : les tests écrivent sur le disque local, même
+//    quand apps/api/.env contient les accès Cloudflare R2 du vrai site.
+for (const key of Object.keys(process.env)) if (key.startsWith("R2_")) delete process.env[key];
+// src/env.ts relit .env (« dotenv/config ») : on le pointe vers un fichier absent
+// pour que les accès R2 retirés ci-dessus ne reviennent pas.
+process.env.DOTENV_CONFIG_PATH = path.join(apiDir, ".env.tests-sans-fichier");
+
 const databaseUrl = process.env.DATABASE_URL ?? "";
 
 if (databaseUrl.length === 0) {

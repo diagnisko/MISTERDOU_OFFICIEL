@@ -150,10 +150,13 @@ describe("Comptes administrateurs (§39 — permissions / accès non autorisé)"
     expect(wrongPassword.code).toBe("INVALID_CREDENTIALS");
   });
 
-  it("ADMIN refusé sur la route de connexion standard (§39 — accès non autorisé)", async () => {
+  it("ADMIN sur la connexion standard : pas de session, double authentification demandée", async () => {
     const admin = await createUser(t, { role: "ADMIN", password: "MotDePasse123!" });
     const err = await expectApiError(() => login({ email: admin.email, password: "MotDePasse123!" }, {}));
-    expect(err.code).toBe("INVALID_CREDENTIALS");
+    expect(err.code).toBe("ACTION_REQUIRES_2FA");
+    // Mauvais mot de passe : même réponse que pour n'importe quel compte.
+    const wrong = await expectApiError(() => login({ email: admin.email, password: "Mauvais123!" }, {}));
+    expect(wrong.code).toBe("INVALID_CREDENTIALS");
   });
 });
 

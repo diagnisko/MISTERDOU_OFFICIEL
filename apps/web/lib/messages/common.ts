@@ -139,6 +139,8 @@ export const fr = {
   "menu.dashboard": "Tableau de bord",
   "menu.roleAdmin": "Administrateur",
   "menu.roleStaff": "Équipe MISTERDOU",
+  "auth.adminCode": "Compte d’administration : entrez le code à 6 chiffres de votre application d’authentification.",
+  "auth.adminCodeLabel": "Code d’authentification",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -264,6 +266,8 @@ export const en: Translations<typeof fr> = {
   "menu.dashboard": "Dashboard",
   "menu.roleAdmin": "Administrator",
   "menu.roleStaff": "MISTERDOU team",
+  "auth.adminCode": "Administration account: enter the 6-digit code from your authenticator app.",
+  "auth.adminCodeLabel": "Authentication code",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -389,4 +393,6 @@ export const ar: Translations<typeof fr> = {
   "menu.dashboard": "لوحة التحكم",
   "menu.roleAdmin": "المسؤول",
   "menu.roleStaff": "فريق MISTERDOU",
+  "auth.adminCode": "حساب إدارة: أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.",
+  "auth.adminCodeLabel": "رمز المصادقة",
 };

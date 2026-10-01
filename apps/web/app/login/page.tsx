@@ -27,6 +27,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Compte d'administration : code à 6 chiffres demandé sur la même page.
+  const [adminCode, setAdminCode] = useState<string | null>(null);
 
   // Retour OAuth Google : échange de l'id_token (fragment #) contre la session.
   useEffect(() => {
@@ -76,10 +78,27 @@ export default function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function adminLogin(code?: string) {
+    const res = await request<{ setupRequired: boolean; role?: "ADMIN" | "STAFF" }>("/api/v1/auth/admin/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password, ...(code ? { totpCode: code } : {}) }),
+    });
+    router.replace(res.role !== "STAFF" && res.setupRequired ? "/console/sign-in/setup" : "/admin");
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    if (adminCode !== null) {
+      try {
+        await adminLogin(adminCode);
+      } catch (err) {
+        setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+        setLoading(false);
+      }
+      return;
+    }
     try {
       const res = await request<{ user: LoginUser; previousLoginAt: string | null }>("/api/v1/auth/login", {
         method: "POST",
@@ -90,6 +109,22 @@ export default function LoginPage() {
       router.push(destination(res.user?.role));
       router.refresh();
     } catch (err) {
+      if (err instanceof ApiClientError && err.code === "ACTION_REQUIRES_2FA") {
+        // Compte admin, mot de passe juste : première connexion (QR code) ou code demandé.
+        try {
+          await adminLogin();
+        } catch (adminErr) {
+          if (adminErr instanceof ApiClientError && adminErr.code === "ACTION_REQUIRES_2FA") {
+            setAdminCode("");
+            setNotice(t("auth.adminCode"));
+            setTimeout(() => document.getElementById("admin-code")?.focus(), 0);
+          } else {
+            setError(adminErr instanceof ApiClientError ? adminErr.message : t("auth.network"));
+          }
+          setLoading(false);
+        }
+        return;
+      }
       setError(err instanceof ApiClientError ? err.message : t("auth.network"));
       setLoading(false);
     }
@@ -167,6 +202,23 @@ export default function LoginPage() {
               </button>
             </span>
           </label>
+
+          {adminCode !== null && (
+            <label className="block">
+              <span className={fieldLabelClass}>{t("auth.adminCodeLabel")}</span>
+              <input
+                id="admin-code"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={adminCode}
+                onChange={(e) => setAdminCode(e.target.value.replace(/\D/g, ""))}
+                className={inputClass}
+                placeholder="123456"
+              />
+            </label>
+          )}
 
           {notice && (
             <p

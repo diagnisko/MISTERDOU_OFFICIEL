@@ -35,7 +35,7 @@ export default function AdminTotpSetupPage() {
   return <LuxShell>
     <LuxTopBar label="Sécurité administrateur" />
     <main className="relative z-10 mx-auto max-w-3xl px-5 pb-20 pt-10 md:px-8">
-      <LuxBack href="/console/sign-in" label="Connexion console" />
+      <LuxBack href="/login" label="Connexion" />
       <div className="lux-glass rounded-[24px] p-6 sm:p-9">
         <p className="lux-kicker">Première connexion</p>
         <h1 className="mt-2">Activer la double authentification</h1>
