@@ -10,7 +10,7 @@ import {
   type MotionValue,
   type Variants,
 } from "motion/react";
-import { useRef, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { cx, SectionLabel } from "./lux-utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -48,6 +48,19 @@ interface RevealProps {
 
 // Scroll-reveal : seuil 15 %, rootMargin -12 %, 700 ms, easing luxe.
 // prefers-reduced-motion → rendu direct à l'état final (visible).
+/** Vrai quand la requête média correspond (faux au rendu serveur). */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setMatches(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
 export function Reveal({ children, from = "up", delay = 0, duration = 0.7, className }: RevealProps) {
   const reduce = useReducedMotion();
   if (reduce) return <div className={className}>{children}</div>;

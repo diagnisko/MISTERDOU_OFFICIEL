@@ -6,6 +6,7 @@ import { useMotionValueEvent, type MotionValue } from "motion/react";
 export const HERO_FRAME_COUNT = 20;
 const SRC_W = 1920;
 const SRC_H = 1080;
+const PAGE_BG = "#050303";
 
 function frameSrc(i: number) {
   return `/hero-scroll/frame-${String(i + 1).padStart(2, "0")}.jpg`;
@@ -31,6 +32,13 @@ export function LuxHeroScrollFrames({ frame, staticFrame, className }: LuxHeroSc
   const rafRef = useRef(0);
 
   function blit(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, h: number) {
+    // Écran en hauteur (téléphone) : l'image entière sur toute la largeur, le
+    // fond noir des sources se fond dans la page. Sinon : plein cadre.
+    if (w < h) {
+      const dh = (w / SRC_W) * SRC_H;
+      ctx.drawImage(img, 0, (h - dh) / 2, w, dh);
+      return;
+    }
     const scale = Math.max(w / SRC_W, h / SRC_H);
     const sw = w / scale;
     const sh = h / scale;
@@ -58,13 +66,28 @@ export function LuxHeroScrollFrames({ frame, staticFrame, className }: LuxHeroSc
     const t = pos - Math.floor(pos);
 
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = w < h ? PAGE_BG : "#000";
     ctx.fillRect(0, 0, w, h);
     blit(ctx, imagesRef.current[a]!, w, h);
     if (t > 0.01 && b !== a && readyRef.current[b]) {
       ctx.globalAlpha = t;
       blit(ctx, imagesRef.current[b]!, w, h);
       ctx.globalAlpha = 1;
+    }
+    if (w < h) fadeEdges(ctx, w, h);
+  }
+
+  // Téléphone : bords haut et bas de l'image fondus dans la page (pas de cadre visible).
+  function fadeEdges(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const dh = (w / SRC_W) * SRC_H;
+    const top = (h - dh) / 2;
+    const band = dh * 0.22;
+    for (const [from, to] of [[top, top + band], [top + dh, top + dh - band]] as const) {
+      const g = ctx.createLinearGradient(0, from, 0, to);
+      g.addColorStop(0, PAGE_BG);
+      g.addColorStop(1, "rgba(5, 3, 3, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, Math.min(from, to) - 1, w, band + 2);
     }
   }
 

@@ -396,6 +396,15 @@ body {
     radial-gradient(120% 90% at 50% 40%, transparent 45%, rgba(5, 3, 3, 0.75) 100%),
     linear-gradient(180deg, rgba(5, 3, 3, 0.35) 0%, transparent 22%, transparent 70%, var(--lux-bg) 100%);
 }
+/* Téléphone : l'image entière occupe la largeur, on ne noircit plus les côtés (bras). */
+@media (max-width: 767px) and (orientation: portrait) {
+  .lux-hero-vignette {
+    background: linear-gradient(180deg, rgba(5, 3, 3, 0.35) 0%, transparent 22%, transparent 70%, var(--lux-bg) 100%);
+  }
+  .lux-hero-halo {
+    background: radial-gradient(70% 26% at 50% 42%, rgba(255, 106, 50, 0.3), rgba(232, 71, 36, 0.1) 45%, transparent 72%);
+  }
+}
 .lux-hero-title {
   text-shadow: 0 2px 30px rgba(5, 3, 3, 0.85), 0 0 60px rgba(5, 3, 3, 0.6);
 }

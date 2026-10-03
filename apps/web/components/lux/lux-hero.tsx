@@ -9,7 +9,7 @@ import {
 } from "motion/react";
 import { useMemo, useRef } from "react";
 import Link from "next/link";
-import { Magnetic, Reveal, cx } from "./lux-fx";
+import { Magnetic, Reveal, cx, useMediaQuery } from "./lux-fx";
 import { IconShield } from "./lux-icons";
 import { formatInt, formatRating } from "@/lib/lux";
 import { useLux } from "./lux-data";
@@ -52,8 +52,11 @@ export function LuxHero() {
   // Lissage : la molette arrive par à-coups, la séquence ne doit pas.
   const p = useSpring(scrollYProgress, { stiffness: 150, damping: 30, mass: 0.3, restDelta: 0.0005 });
 
+  // Téléphone : l'image est montrée entière, le recul de caméra reste léger
+  // pour ne pas couper les bras au départ.
+  const phone = useMediaQuery("(max-width: 767px) and (orientation: portrait)");
   const frame = useTransform(p, [0.12, 0.8], [0, HERO_FRAME_COUNT - 1]);
-  const artScale = useTransform(p, [0, 0.8], [1.14, 1]);
+  const artScale = useTransform(p, [0, 0.8], [phone ? 1.04 : 1.14, 1]);
   const artOpacity = useTransform(p, [0, 0.16, 0.9, 1], [0.62, 1, 1, 0.45]);
   const haloOpacity = useTransform(p, [0.1, 0.55, 0.9], [0.15, 0.7, 0.35]);
   const flash = useTransform(p, [0.74, 0.8, 0.9], [0, 0.55, 0]);
