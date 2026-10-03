@@ -40,6 +40,10 @@ export type OrderDetail = {
   autoConfirmAt: string | null;
   canReveal: boolean;
   canConfirmReceipt: boolean;
+  /** Règlement ouvert à reprendre (page de paiement). */
+  checkoutUrl: string | null;
+  /** Preuve de paiement Wave en cours de vérification par l'équipe. */
+  paymentUnderReview: boolean;
   verificationCode: VerificationCode | null;
   schedule: Schedule | null;
   reports: OrderReport[];

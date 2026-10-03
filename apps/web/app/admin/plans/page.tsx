@@ -58,12 +58,8 @@ type PlanRow = {
   installments: Installment[];
 };
 
-const METHODS = [
-  { value: "CASH", label: "Espèces" },
-  { value: "TRANSFER", label: "Virement" },
-  { value: "MOBILE_MONEY", label: "Mobile Money" },
-  { value: "OTHER", label: "Autre" },
-];
+// Paiements reçus uniquement par Wave.
+const METHODS = [{ value: "MOBILE_MONEY", label: "Wave" }];
 
 const STATUS_TABS = [
   { value: "", label: "Tous" },
@@ -326,7 +322,7 @@ function CollectModal({
   onClose: () => void;
   onSubmit: (payload: { installmentId: string; method: string; reference?: string }) => Promise<void>;
 }) {
-  const [method, setMethod] = useState("CASH");
+  const [method, setMethod] = useState("MOBILE_MONEY");
   const [reference, setReference] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);

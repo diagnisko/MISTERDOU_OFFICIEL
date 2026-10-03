@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { request } from "@/lib/api";
-import { Button } from "@/components/ui";
+import { errorMessage, request } from "@/lib/api";
+import { Alert, Button } from "@/components/ui";
 import { buildQuery } from "../_lib/api";
 import { MemberDossierModal } from "../_lib/member-dossier";
 import { useAdminList } from "../_lib/hooks";
 import {
+  AdminModal,
   AdminPageHead,
   DataTable,
   ErrorAlert,
@@ -26,6 +27,7 @@ import {
 // suspendre/réactiver) avec pagination et recherche pilotées par l'API.
 // GET  /admin/clients            { page, perPage, q }
 // PATCH /admin/clients/:id/status { status, reason }
+// POST  /admin/clients/:id/password-reset-link  (ADMIN : lien à transmettre au client)
 // ---------------------------------------------------------------------------
 
 type ClientRow = {
@@ -56,6 +58,24 @@ export default function ClientsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: ClientRow; next: string } | null>(null);
+  const [resetLink, setResetLink] = useState<{ email: string; link: string } | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Mot de passe oublié sans e-mail : lien (30 min) à envoyer au client (WhatsApp…).
+  async function createResetLink(row: ClientRow) {
+    setBusy(row.id);
+    setResetError(null);
+    setCopied(false);
+    try {
+      const res = await request<{ link: string }>(`/api/v1/admin/clients/${row.id}/password-reset-link`, { method: "POST", body: "{}" });
+      setResetLink({ email: String((row as unknown as Record<string, unknown>).email ?? ""), link: res.link });
+    } catch (err) {
+      setResetError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const list = useAdminList<ClientRow>(
     `/api/v1/admin/clients${buildQuery({ page, perPage, q: search || undefined })}`,
@@ -105,6 +125,11 @@ export default function ClientsPage() {
 
       <ErrorAlert error={list.error} />
       <NoticeAlert notice={list.notice} />
+      {resetError && (
+        <div className="mt-4">
+          <Alert tone="danger">{resetError}</Alert>
+        </div>
+      )}
 
       <TableCard>
         {list.loading ? (
@@ -125,6 +150,7 @@ export default function ClientsPage() {
                   ))}
                   <td className="flex gap-2 px-4 py-3.5">
                     <RowAction label="Voir la fiche" tone="muted" onClick={() => setViewing(row.id)} />
+                    <RowAction label="Lien mot de passe" tone="muted" busy={busy === row.id} onClick={() => void createResetLink(row)} />
                     <RowAction
                       label={status === "ACTIVE" ? "Suspendre" : "Réactiver"}
                       busy={busy === row.id}
@@ -162,6 +188,26 @@ export default function ClientsPage() {
           onClose={() => setTarget(null)}
           onSubmit={(value) => changeStatus(target.row.id, target.next, value)}
         />
+      )}
+      {resetLink && (
+        <AdminModal title="Lien de réinitialisation" onClose={() => setResetLink(null)}>
+          <p className="text-sm text-stone-300">
+            Envoyez ce lien à {resetLink.email || "ce client"} (WhatsApp, e-mail). Il est valable 30 minutes et ne sert qu’une fois.
+          </p>
+          <p className="mt-3 break-all rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 font-mono text-[12.5px] text-stone-200">{resetLink.link}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setResetLink(null)}>
+              Fermer
+            </Button>
+            <Button
+              onClick={() =>
+                void navigator.clipboard?.writeText(resetLink.link).then(() => setCopied(true))
+              }
+            >
+              {copied ? "Copié" : "Copier le lien"}
+            </Button>
+          </div>
+        </AdminModal>
       )}
       {viewing && <MemberDossierModal url={`/api/v1/admin/clients/${viewing}`} onClose={() => setViewing(null)} />}
     </>

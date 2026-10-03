@@ -52,8 +52,8 @@ Légende : ✅ autorisé · — interdit · A (condition, cf. notes)
 | Passer commande (si KYC ✅) | ✅ | ✅ | ✅ | ✅ |
 | Voir SES commandes / paiements | ✅ | ✅ | ✅ | ✅ |
 | Voir TOUTES les commandes / paiements | — | — | ✅ | ✅ |
-| Payer via PayTech (webhook serveur) | ✅ | ✅ | ✅ | ✅ |
-| Voir toutes les transactions PayTech | — | — | A¹ | ✅ |
+| Payer par Wave (lien + preuve) | ✅ | ✅ | ✅ | ✅ |
+| Voir et valider les paiements Wave | — | — | A¹ | ✅ |
 | Faire un remboursement | — | — | — | ✅ |
 | **Échéances** | | | | |
 | Voir son échéancier | ✅ | ✅ | ✅ | ✅ |
@@ -92,7 +92,7 @@ Légende : ✅ autorisé · — interdit · A (condition, cf. notes)
   → `ACTIVE`) relève de STAFF/ADMIN. Un produit passe systématiquement par une revue avant
   publication (anti-fraude).
 - **³ Livraison des credentials** : le client (ou un vendeur-acheteur) reçoit les accès eFootball
-  **après** confirmation serveur du paiement (webhook PayTech vérifié). Attribution par ordre
+  **après** validation du paiement Wave par l'équipe (preuve vérifiée). Attribution par ordre
   sur la commande. Un admin peut consulter les credentials de tout produit.
 
 ## 4. Implémentation serveur

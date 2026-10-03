@@ -1,5 +1,7 @@
 # 11 — Audit de sécurité (Phase 11 — pentest)
 
+> **Mise à jour du 2026-10-02** : PayTech et Orange Money ont été retirés. Les paiements se font uniquement par lien Wave Business, vérifiés par l'équipe (voir docs/06). Les passages ci-dessous qui citent l'ancien prestataire décrivent l'historique du projet.
+
 > Phase de référence : **P11 — Sécurité avancée** (`docs/08`, §22–§25, §64) ;
 > périmètre : SQLi, XSS, CSRF, brute force, SSRF, élévation de privilèges, vol de session,
 > rate-limit, OWASP, verrous sur les écritures monétaires.

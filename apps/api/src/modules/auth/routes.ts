@@ -15,6 +15,8 @@ import { logAudit, randomCsrfToken } from "../../lib/audit.js";
 import { env } from "../../env.js";
 import { publicUrl } from "../../lib/media.js";
 import { confirmAdminTotp, loginAdmin, startAdminTotpSetup } from "../admin-console/auth.js";
+import { forgotPasswordSchema, requestPasswordReset, resetPassword, resetPasswordSchema } from "./password-reset.js";
+import { badRequest } from "../../lib/errors.js";
 
 function csrf(reply: FastifyReply) {
   setCsrfCookie(reply, randomCsrfToken());
@@ -39,6 +41,19 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return sendOk(reply, {
       user: result.user,
     });
+  });
+
+  // --- Mot de passe oublié : lien par e-mail, puis nouveau mot de passe ---
+  app.post("/auth/password/forgot", { schema: { tags: ["Auth"], summary: "Recevoir un lien de réinitialisation du mot de passe" }, config: rate(3) }, async (request, reply) => {
+    const input = forgotPasswordSchema.safeParse(request.body);
+    if (!input.success) throw badRequest("VALIDATION_ERROR", "E-mail invalide.");
+    return sendOk(reply, await requestPasswordReset(input.data.email, { ip: request.ip }));
+  });
+
+  app.post("/auth/password/reset", { schema: { tags: ["Auth"], summary: "Choisir un nouveau mot de passe avec le lien reçu" }, config: rate(5) }, async (request, reply) => {
+    const input = resetPasswordSchema.safeParse(request.body);
+    if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Lien ou mot de passe invalide.");
+    return sendOk(reply, await resetPassword(input.data.token, input.data.password, { ip: request.ip }));
   });
 
   app.post("/auth/login", { schema: { tags: ["Auth"], summary: "Connexion (e-mail + mot de passe)" }, config: rate(5) }, async (request, reply) => {

@@ -33,17 +33,6 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL requise"),
 
-  PAYTECH_API_KEY: z.string().optional(),
-  PAYTECH_API_SECRET: z.string().optional(),
-  PAYTECH_WEBHOOK_SECRET: z.string().optional(),
-  // « true » / « false » en toutes lettres (z.coerce.boolean lirait « false » comme vrai).
-  PAYTECH_SANDBOX: z.enum(["true", "false"]).default("true").transform((v) => v === "true"),
-  PAYTECH_BASE_URL: z.string().url().default("https://paytech.sn"),
-  PAYTECH_CALLBACK_URL: z.string().url().optional(),
-  PAYTECH_WEBHOOK_PATH: z.string().default("/api/v1/webhooks/paytech"),
-  // Allowlist d'IPs webhook (CSV, optionnelle) — vide = contrôle d'IP désactivé.
-  PAYTECH_WEBHOOK_IPS: z.string().optional(),
-
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),

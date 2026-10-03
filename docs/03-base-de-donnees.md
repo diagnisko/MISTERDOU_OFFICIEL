@@ -160,8 +160,9 @@ Chaque table porte `createdAt` / `updatedAt`. La suppression d'utilisateurs se f
 - `userId → User` (payeur), `orderId? → Order`
 - `type` : `ORDER_PAYMENT` | `INITIAL_INSTALLMENT` | `INSTALLMENT` | `SELLER_REGISTRATION_FEE` | `FEATURED` | `WITHDRAWAL?` | `REFUND`
 - `amount`, `currency`
-- `provider` : `PAYTECH` | `BALANCE` (mise en avant payée sur solde) | `SYSTEM` (credits/mouvements internes)
-- `providerReference?` (référence PayTech), `transactionToken` (id idempotence interne, unique)
+- `provider` : `WAVE_LINK` (lien Wave + preuve) | `BALANCE` (mise en avant payée sur solde) | `SYSTEM` (credits/mouvements internes) ; une ancienne valeur reste en base pour l'historique
+- `providerReference?` (`wavelink-<paymentNumber>`), `transactionToken` (id idempotence interne, unique)
+- `PaymentProof` : capture du reçu Wave, numéro payeur, ID Wave facultatif, statut `PENDING|APPROVED|REJECTED`, vérificateur et motif de refus
 - `status` : `PENDING` | `PROCESSING` | `SUCCESS` | `FAILED` | `CANCELLED` | `REFUNDED`
 - `failureReason?`, `webhookReceivedAt?`, `verifiedAt?`, `verifiedBy` (SYSTEM)
 - `installmentPlanId? → InstallmentPlan`, `installmentId? → Installment`

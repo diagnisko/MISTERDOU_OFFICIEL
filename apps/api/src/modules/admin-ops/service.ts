@@ -11,8 +11,11 @@ import type { ManagerCreateInput, ManagerUpdateInput, PlanCollectInput } from "@
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
+import { decryptString, getFile } from "../../lib/storage.js";
+import { assertOwnedProof } from "../identity-verification/service.js";
 import { hashPassword } from "../../lib/password.js";
 import { settlePayment } from "../payments/service.js";
+import { isWaveLink } from "../settings/service.js";
 
 // Clés de configuration STRICTEMENT internes (secrets chiffrés) : ni listées
 // ni modifiables via l'API de paramètres (cf. modules/admin-console/auth.ts).
@@ -83,6 +86,9 @@ export async function updateSetting(key: string, value: unknown, actor: OpsActor
   if (!row) throw notFound("Paramètre introuvable.");
   if (!matchesValueType(row.valueType, value)) {
     throw badRequest("VALIDATION_ERROR", `Valeur invalide : ce paramètre attend une valeur de type « ${row.valueType} ».`);
+  }
+  if (key === "waveMerchantLink" && typeof value === "string" && value.trim() !== "" && !isWaveLink(value.trim())) {
+    throw badRequest("VALIDATION_ERROR", "Le lien Wave doit commencer par https://pay.wave.com/");
   }
   await prisma.settings.update({
     where: { key },
@@ -335,10 +341,16 @@ export async function listWithdrawals(args: WithdrawalListArgs) {
         amount: true,
         status: true,
         requestedAt: true,
+        processingStartedAt: true,
+        etaMinutes: true,
         processedAt: true,
         rejectionReason: true,
         paymentReference: true,
         bankDetailsSnapshot: true,
+        proofKey: true,
+        sellerConfirmedAt: true,
+        sellerDisputedAt: true,
+        sellerDisputeNote: true,
         seller: { select: { id: true, user: { select: { id: true, email: true, firstName: true, lastName: true } } } },
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
@@ -346,9 +358,38 @@ export async function listWithdrawals(args: WithdrawalListArgs) {
     prisma.withdrawal.count({ where }),
   ]);
   return {
-    items: rows.map(({ user, ...rest }) => ({ ...rest, requestedBy: user })),
+    items: rows.map(({ user, bankDetailsSnapshot, proofKey, ...rest }) => ({
+      ...rest,
+      requestedBy: user,
+      // Où envoyer l'argent : moyen et numéro choisis par le vendeur.
+      payout: readPayoutDetails(bankDetailsSnapshot),
+      hasProof: Boolean(proofKey),
+    })),
     total,
   };
+}
+
+function readPayoutDetails(snapshot: string | null): { method: string; phoneNumber: string } | null {
+  if (!snapshot) return null;
+  try {
+    const data = JSON.parse(decryptString(snapshot)) as { method?: unknown; phoneNumber?: unknown };
+    return typeof data.method === "string" && typeof data.phoneNumber === "string"
+      ? { method: data.method, phoneNumber: data.phoneNumber }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Capture de l'envoi d'un retrait (équipe WITHDRAWALS ou vendeur concerné). */
+export async function getWithdrawalProofFile(id: string, sellerUserId?: string) {
+  const withdrawal = await prisma.withdrawal.findUnique({
+    where: { id },
+    select: { proofKey: true, seller: { select: { userId: true } } },
+  });
+  if (!withdrawal || (sellerUserId && withdrawal.seller.userId !== sellerUserId)) throw notFound("Retrait introuvable.");
+  if (!withdrawal.proofKey) throw notFound("Aucune preuve d’envoi pour ce retrait.");
+  return getFile(withdrawal.proofKey);
 }
 
 export const WITHDRAWAL_ETAS = [30, 60, 720] as const;
@@ -381,7 +422,10 @@ export async function startWithdrawalProcessing(id: string, etaMinutes: number, 
   return { id, status: "PROCESSING" as const, etaMinutes };
 }
 
-export async function approveWithdrawal(id: string, paymentReference: string, actor: OpsActor) {
+// « Payé » : l'équipe a envoyé l'argent elle-même par Wave et
+// joint la capture de l'envoi. Le vendeur confirme ensuite la réception.
+export async function approveWithdrawal(id: string, input: { proofKey: string; paymentReference?: string | null }, actor: OpsActor) {
+  const paymentReference = input.paymentReference?.trim() || null;
   const withdrawal = await prisma.withdrawal.findUnique({
     where: { id },
     select: { id: true, amount: true, status: true, sellerId: true, seller: { select: { userId: true } } },
@@ -390,11 +434,12 @@ export async function approveWithdrawal(id: string, paymentReference: string, ac
   if (withdrawal.status !== "PENDING" && withdrawal.status !== "PROCESSING") {
     throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
   }
+  await assertOwnedProof(input.proofKey, actor.actorId, "withdrawal_proof");
 
   await prisma.$transaction(async (tx) => {
     const res = await tx.withdrawal.updateMany({
       where: { id, status: { in: ["PENDING", "PROCESSING"] } },
-      data: { status: "APPROVED", processedAt: new Date(), processedById: actor.actorId, paymentReference },
+      data: { status: "APPROVED", processedAt: new Date(), processedById: actor.actorId, paymentReference, proofKey: input.proofKey },
     });
     if (res.count === 0) throw conflict("INVALID_STATE", "Ce retrait n'est plus en attente.");
   });
@@ -406,10 +451,10 @@ export async function approveWithdrawal(id: string, paymentReference: string, ac
     severity: "CRITICAL",
   });
   await notifyUser(withdrawal.seller.userId, "SELLER_PAYOUT_AVAILABLE", {
-    title: "Retrait payé",
-    message: `Votre retrait de ${withdrawal.amount.toLocaleString("fr-FR")} FCFA a été envoyé (réf. ${paymentReference}).`,
-    actionUrl: "/seller",
-    priority: "NORMAL",
+    title: "Retrait envoyé",
+    message: `${withdrawal.amount.toLocaleString("fr-FR")} FCFA vous ont été envoyés${paymentReference ? ` (réf. ${paymentReference})` : ""}. La capture de l’envoi est dans votre espace vendeur : confirmez-nous la réception.`,
+    actionUrl: "/seller#retraits",
+    priority: "CRITICAL",
   });
   return { id, status: "APPROVED" as const };
 }
@@ -446,6 +491,37 @@ export async function rejectWithdrawal(id: string, reason: string, actor: OpsAct
     priority: "CRITICAL",
   });
   return { id, status: "REJECTED" as const };
+}
+
+/**
+ * Remboursement d'une vente : la part du vendeur est annulée une seule fois
+ * (commission passée à REFUNDED). Encore en attente → retirée du solde en
+ * attente ; déjà disponible → reprise sur le solde disponible (qui peut devenir
+ * négatif si le vendeur l'a déjà retirée : aucun nouveau retrait possible).
+ */
+async function reverseSellerShare(tx: Prisma.TransactionClient, orderId: string, now: Date) {
+  const commissions = await tx.commission.findMany({
+    where: { orderItem: { orderId }, status: { not: "REFUNDED" } },
+    select: { id: true, sellerId: true, status: true, netToSeller: true, commissionAmount: true },
+  });
+  const reversals: Array<{ sellerId: string; amount: number; wasAvailable: boolean }> = [];
+  for (const c of commissions) {
+    const claim = await tx.commission.updateMany({ where: { id: c.id, status: { not: "REFUNDED" } }, data: { status: "REFUNDED" } });
+    if (claim.count === 0) continue;
+    const wasAvailable = c.status === "RELEASED";
+    await tx.sellerBalance.updateMany({
+      where: { sellerId: c.sellerId },
+      data: {
+        ...(wasAvailable ? { balanceAvailable: { decrement: c.netToSeller } } : { balancePending: { decrement: c.netToSeller } }),
+        totalEarnings: { decrement: c.netToSeller },
+        totalCommissionPaid: { decrement: c.commissionAmount },
+      },
+    });
+    reversals.push({ sellerId: c.sellerId, amount: c.netToSeller, wasAvailable });
+  }
+  // Fonds en attente neutralisés : ils ne seront jamais libérés.
+  await tx.pendingCredit.updateMany({ where: { orderId, releasedAt: null }, data: { releasedAt: now } });
+  return reversals;
 }
 
 // Le solde peut être absent (vendeur sans encaissement) : on crée alors la ligne.
@@ -573,7 +649,7 @@ export async function collectInstallment(input: PlanCollectInput, actor: OpsActo
     });
   }
 
-  const settled = await settlePayment({ id: payment.id }, "SUCCESS", { source: "RECONCILE", ctx: settleCtx(actor) });
+  const settled = await settlePayment({ id: payment.id }, "SUCCESS", { source: "ADMIN", ctx: settleCtx(actor) });
 
   await audit(actor, "PLAN_INSTALLMENT_COLLECTED", {
     resourceType: "InstallmentPlan",
@@ -655,7 +731,7 @@ export async function settlePlan(planId: string, reference: string | undefined, 
           select: { id: true },
         });
       }
-      await settlePayment({ id: payment.id }, "SUCCESS", { source: "RECONCILE", ctx });
+      await settlePayment({ id: payment.id }, "SUCCESS", { source: "ADMIN", ctx });
     }
   }
 
@@ -708,7 +784,7 @@ export async function settlePlan(planId: string, reference: string | undefined, 
         select: { id: true },
       });
     }
-    await settlePayment({ id: payment.id }, "SUCCESS", { source: "RECONCILE", ctx });
+    await settlePayment({ id: payment.id }, "SUCCESS", { source: "ADMIN", ctx });
   }
 
   const finalPlan = await prisma.installmentPlan.findUnique({
@@ -762,7 +838,12 @@ export async function refundPayment(id: string, reason: string, actor: OpsActor)
 
   const isOrderType = (ORDER_PAYMENT_TYPES as readonly string[]).includes(payment.type);
   const now = new Date();
-  const effect: { featured?: Record<string, unknown>; sellerUserId?: string } = {};
+  const effect: {
+    featured?: Record<string, unknown>;
+    sellerUserId?: string;
+    /** Part vendeur annulée par le remboursement (une ligne par vendeur). */
+    sellerReversals?: Array<{ sellerId: string; amount: number; wasAvailable: boolean }>;
+  } = {};
 
   await prisma.$transaction(async (tx) => {
     const res = await tx.payment.updateMany({ where: { id, status: "SUCCESS" }, data: { status: "REFUNDED" } });
@@ -770,6 +851,7 @@ export async function refundPayment(id: string, reason: string, actor: OpsActor)
 
     if (isOrderType && payment.orderId) {
       await tx.order.update({ where: { id: payment.orderId }, data: { status: "REFUNDED" } });
+      effect.sellerReversals = await reverseSellerShare(tx, payment.orderId, now);
       if (payment.installmentPlanId) {
         await tx.installmentPlan.update({ where: { id: payment.installmentPlanId }, data: { status: "CANCELLED" } });
         await tx.installment.updateMany({
@@ -827,15 +909,28 @@ export async function refundPayment(id: string, reason: string, actor: OpsActor)
       paymentNumber: payment.paymentNumber,
       orderId: payment.orderId,
       ...(effect.featured ? { featured: effect.featured } : {}),
+      ...(effect.sellerReversals?.length ? { sellerReversals: effect.sellerReversals } : {}),
     },
     severity: "CRITICAL",
   });
 
   if (isOrderType) {
     await notifyUser(payment.userId, "ORDER_REFUNDED", {
-      title: "Remboursement effectué",
-      message: `${payment.amount} FCFA remboursés pour la commande.`,
+      title: "Remboursement en cours",
+      message: `${payment.amount.toLocaleString("fr-FR")} FCFA vous sont remboursés par Wave, sur le numéro qui a payé.`,
       actionUrl: "/account/orders",
+      priority: "CRITICAL",
+    });
+  }
+  for (const reversal of effect.sellerReversals ?? []) {
+    const seller = await prisma.seller.findUnique({ where: { id: reversal.sellerId }, select: { userId: true } });
+    if (!seller) continue;
+    await notifyUser(seller.userId, "SYSTEM", {
+      title: "Vente annulée et remboursée",
+      message: reversal.wasAvailable
+        ? `Le client a été remboursé : ${reversal.amount.toLocaleString("fr-FR")} FCFA sont retirés de votre solde disponible.`
+        : `Le client a été remboursé : les ${reversal.amount.toLocaleString("fr-FR")} FCFA en attente ne vous seront pas versés.`,
+      actionUrl: "/seller",
       priority: "CRITICAL",
     });
   }

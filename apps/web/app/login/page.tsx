@@ -201,6 +201,11 @@ export default function LoginPage() {
                 )}
               </button>
             </span>
+            <span className="mt-2 block text-end">
+              <Link href="/mot-de-passe-oublie" className="text-[12.5px] text-[var(--lux-muted)] transition hover:text-[var(--lux-gold-light)]">
+                {t("reset.forgotLink")}
+              </Link>
+            </span>
           </label>
 
           {adminCode !== null && (

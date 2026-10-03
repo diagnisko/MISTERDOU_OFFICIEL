@@ -6,6 +6,7 @@ import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
 import { getIntSetting } from "../settings/service.js";
+import { holdsReservation } from "../orders/fulfillment.js";
 
 // ---------------------------------------------------------------------------
 // Création et modification des offres.
@@ -147,8 +148,10 @@ async function editable(productId: string, owner: OfferOwner) {
   const mine = owner.kind === "seller" ? product.sellerId === owner.sellerId : product.sellerId === null;
   if (!mine) throw forbidden("Cette offre ne vous appartient pas.");
   if (product.status === "SOLD") throw conflict("INVALID_STATE", "Cette offre est vendue : elle ne peut plus être modifiée.");
+  // Bloquent la modification : un achat en tranches ouvert, ou une commande qui
+  // réserve encore le compte (récente, ou preuve Wave en vérification).
   const busy = await prisma.orderItem.count({
-    where: { productId, order: { status: { in: ["PENDING_PAYMENT", "PARTIALLY_PAID", "PAID"] } } },
+    where: { productId, order: { OR: [{ status: { in: ["PARTIALLY_PAID", "PAID"] } }, holdsReservation()] } },
   });
   if (busy > 0) throw conflict("PRODUCT_RESERVED", "Un achat est en cours sur cette offre : réessayez plus tard.");
   return product;

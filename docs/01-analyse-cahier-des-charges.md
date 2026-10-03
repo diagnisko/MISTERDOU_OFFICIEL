@@ -1,5 +1,7 @@
 # 01 — Analyse du cahier des charges
 
+> **Mise à jour du 2026-10-02** : PayTech et Orange Money ont été retirés. Les paiements se font uniquement par lien Wave Business, vérifiés par l'équipe (voir docs/06). Les passages ci-dessous qui citent l'ancien prestataire décrivent l'historique du projet.
+
 Projet : plateforme eFootball de vente de comptes
 Date : 2026-09-23
 Référentiel : `lis ce prompt et utilise max de ta capaciter.txt` (1893 lignes)

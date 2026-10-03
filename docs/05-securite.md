@@ -54,7 +54,7 @@ audit, gestion des secrets, environnement. Les paiements ont leur propre note (d
 | **SQLi** | ORM Prisma / requêtes paramétrées uniquement — jamais de SQL brut (sauf requêtes contrôlées type FOR UPDATE) |
 | **Injection méta** | zod valide chaque entrée ; longueurs, formats, enums |
 | **Mass assignment** | `select`/`include` explicites, DTOs en sortie, on exclut `passwordHash`, `otpCodeHash`, `tokenHash`, credentials |
-| **SSRF** | Aucune URL utilisateur fetchée par le serveur (hors webhook PayTech URL allow-list) |
+| **SSRF** | Aucune URL utilisateur fetchée par le serveur |
 | **Headers** | `@fastify/helmet` : HSTS, X-Frame-Options DENY, nosniff, referrer-policy, permissions-policy |
 | **Clickjacking** | X-Frame-Options + CSP `frame-ancestors 'none'` |
 | **Enumeration** | erreurs non discriminantes (login : « identifiants invalides »), délai uniforme, pas d'ID séquentiels publics (uuid), rate-limit 404 |
@@ -70,7 +70,7 @@ audit, gestion des secrets, environnement. Les paiements ont leur propre note (d
     (`loginAttempts`, verrou 15 min) après 5 échecs.
   - `/auth/register` : 3 req/min/IP + anti-bot (Turnstile/honeypot en phase prod).
   - `/v1/admin/*` : 10 req/min/IP + alerte si 20 échecs TOTP sur 15 min.
-- Webhooks PayTech : IP whitelist (ranges PayTech + secret de signature).
+- Paiements : aucun webhook externe ; seule l'équipe valide un paiement Wave (permission `PAYMENTS`, journalisé).
 
 ---
 
@@ -126,14 +126,14 @@ prévue via paramètre de version (`encryptedBy`).
 
 - Aucun secret dans le code. `.env.example` documentés ; `.env`/`.env.local` gitignorés.
 - Variables : `DATABASE_URL`, `COOKIE_SECRET` (min. 32 octets), `STORAGE_MASTER_KEY`,
-  `PAYTECH_API_KEY`, `PAYTECH_WEBHOOK_SECRET`, `GOOGLE_OAUTH_CLIENT_ID/SECRET`,
+  `GOOGLE_OAUTH_CLIENT_ID/SECRET`,
   `ADMIN_BOOTSTRAP_EMAIL/PHONE/PASSWORD`, `TOTP_SECRET_*`, `SMTP_URL`, `PUBLIC_URL`, `NODE_ENV`.
 - En prod : secrets injectés par le pipeline (pas de fichier) ; rotation périodique ;
-  séparation stricte dev/prod (providers de test PayTech).
+  séparation stricte dev/prod.
 
 ## 8. Sauvegardes, monitoring, isolation dev/prod
 
 - Sauvegardes Postgres journalières + PITR ; test de restauration périodique.
 - Monitoring : métriques (pino/sentry libre), alertes webhook sur erreurs 5xx.
-- Dev : données factices + flag `PAYTECH_SANDBOX` interdit de dollar réel ; providers SMS/dev
+- Dev : données factices ; providers SMS/dev
   loggués ; le cookie `Secure` désactivé sur http localhost uniquement.

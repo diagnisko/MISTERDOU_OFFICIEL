@@ -199,11 +199,11 @@ async function assertFeaturedOwner(product: { seller: { userId: string } | null 
   }
 }
 
-export type FeaturedPaymentMethod = "AUTO" | "BALANCE" | "PAYTECH";
+export type FeaturedPaymentMethod = "AUTO" | "BALANCE" | "WAVE";
 
 export interface RequestFeaturedResult {
   purchaseId: string;
-  /** true = déjà activée (débit solde) ; false = checkout PayTech à finaliser. */
+  /** true = déjà activée (débit solde) ; false = paiement Wave à finaliser. */
   activated: boolean;
   amount: number;
   days: number;
@@ -233,14 +233,14 @@ export async function requestFeatured(
   const method = opts.paymentMethod ?? "AUTO";
   const now = new Date();
 
-  // --- R10 : solde d'abord, PayTech en secours ------------------------------
-  if (method !== "PAYTECH" && product.seller) {
+  // --- R10 : solde d'abord, Wave en secours ---------------------------------
+  if (method !== "WAVE" && product.seller) {
     const balance = await prisma.sellerBalance.findUnique({
       where: { sellerId: product.seller.id },
       select: { balanceAvailable: true },
     });
     const available = balance?.balanceAvailable ?? 0;
-    // AUTO → solde si suffisant, sinon on retombe sur PayTech ;
+    // AUTO → solde si suffisant, sinon on retombe sur Wave ;
     // BALANCE explicite → refus net si le solde ne couvre pas le montant.
     if (available >= amount || method === "BALANCE") {
       if (available < amount) {
@@ -286,7 +286,7 @@ export async function requestFeatured(
           },
           select: { id: true },
         });
-        // Même chemin que le webhook PayTech : prolongation + statut + notification.
+        // Même chemin qu'un paiement Wave validé : prolongation + statut + notification.
         await activateFeatured(tx, { id: payment.id, userId: ctx.actorId });
         return { purchaseId: purchase.id };
       });
@@ -318,7 +318,7 @@ export async function requestFeatured(
     }
   }
 
-  // --- PayTech : paiement PENDING → checkout → webhook → activateFeatured ----
+  // --- Wave : paiement PENDING → lien Wave + preuve → validation → activateFeatured
   const token = transactionToken();
   const paymentNumber = `PAY-FEAT-${randomInt(1_000_000, 9_999_999)}`;
 
@@ -330,7 +330,7 @@ export async function requestFeatured(
         type: "FEATURED",
         amount,
         currency: "XOF",
-        provider: "PAYTECH",
+        provider: "WAVE_LINK",
         status: "PENDING",
         transactionToken: token,
       },

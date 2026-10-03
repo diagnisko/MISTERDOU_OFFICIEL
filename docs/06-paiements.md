@@ -1,12 +1,14 @@
-# 06 — Paiements PayTech & génération d'échéances
+# 06 — Paiements par Wave & génération d'échéances
 
-Ce document décrit : (1) l'intégration PayTech de bout en bout avec **confiance serveur
-uniquement**, (2) l'algorithme de génération des échéanciers avec **arrondi exact**,
-(3) la libération des soldes vendeurs et les flux financiers annexes.
+Ce document décrit : (1) le paiement par **lien Wave Business** vérifié par l'équipe,
+(2) l'algorithme de génération des échéanciers avec **arrondi exact**, (3) la libération des
+soldes vendeurs, les retraits et les flux financiers annexes.
 
-> Principe (§14/§33/§65) : une redirection frontend n'est **jamais** une preuve de paiement.
-> Seul le statut vérifié en backend (webhook signé + vérification montant/référence + contrôle
-> d'état serveur) fait évoluer les soldes, commandes et livraisons.
+> Principe (§14/§33/§65) : une action du navigateur n'est **jamais** une preuve de paiement.
+> Seule la validation d'un membre de l'équipe (administrateur ou manager `PAYMENTS`), après
+> vérification de la réception dans Wave Business, fait évoluer les soldes, commandes et livraisons.
+
+Wave est le seul moyen de paiement du site (paiements reçus et retraits envoyés).
 
 ---
 
@@ -15,77 +17,56 @@ uniquement**, (2) l'algorithme de génération des échéanciers avec **arrondi 
 ### 1.1 Création de l'ordre et de la transaction interne
 
 ```
-Client (web/mobile)          API (/api/v1)                    PayTech
-      │  POST /orders              │                             │
-      │  (produit, KYC requis vérifié)                            │
-      │────────►│ 1. Vérif KYC + disponibilité + tarif (basePrice - promo) │
-      │         │ 2. Création Order (PENDING_PAYMENT)            │
-      │         │    + OrderItem + snapshot produit              │
-      │◄────────│ 3. { orderNumber, totalAmount }                │
-      │  POST /payments (orderId) │                             │
-      │────────►│ 4. Vérif serveur : montant == totalAmount      │
-      │         │ 5. Créer Payment(PENDING) + transactionToken   │
-      │         │    (idem idempotence, unique)                  │
-      │         │ 6. Appel PayTech : createPayment               │
-      │         │    { amount, reference=paymentNumber,          │
-      │         │      customer(phone/email), callback }         │
-      │         │◄═════════ token + payment_url ────────────────►│
-      │◄────────│ 7. Payment(PROCESSING) → { redirect_url }      │
-      │──── PayTech Checkout/Hosted ───────────────►│
+Client                         API (/api/v1)
+  │  POST /orders                 │
+  │──────────────────────────────►│ 1. KYC + disponibilité + prix (promo comprise)
+  │                               │ 2. Order (PENDING_PAYMENT) + OrderItem (snapshot)
+  │                               │ 3. Payment (PENDING, provider WAVE_LINK, transactionToken)
+  │◄──────────────────────────────│ 4. { token } → page /checkout/<token>
+  │  GET /payments/<token>        │
+  │──────────────────────────────►│ 5. montant + lien Wave avec ?amount=<montant>
 ```
 
-- Le montant envoyé à PayTech est **recalculé côté serveur** à partir de la DB (pas du
-  body du client, sauf pour un retry relu depuis la dernière `Payment`).
-- `transactionToken` : uuid unique créé côté serveur — clé d'**idempotence** (`UNIQUE` en base) :
-  un éventuel double POST /payments ne crée pas deux transactions payantes.
+- Le montant est **toujours calculé côté serveur** : prix de l'offre, apport d'un achat en
+  plusieurs fois, ou total des mensualités choisies. Il est écrit dans le lien Wave Business
+  réglé dans Console > Paramètres (`waveMerchantLink`), par exemple
+  `https://pay.wave.com/m/<marchand>/c/sn/?amount=5000`.
+- `transactionToken` : identifiant unique créé côté serveur, clé d'**idempotence** (`UNIQUE`).
 
-### 1.2 Attente de confirmation
-
-- Le client est redirigé vers la page PayTech et **peut être redirigé en retour**
-  (`?success=1&reference=…`) — cette redirection est **ignorée** pour toute mutation :
-  l'UI affiche « Paiement en cours de vérification… » tant que le webhook ou le poll serveur
-  n'a pas confirmé.
-
-### 1.3 Webhook → vérification → mise à jour (flux d'état atomique)
+### 1.2 Preuve de paiement
 
 ```
-PayTech ─ webhook POST /webhooks/paytech
-      │
-      ▼
-API :
-1. Signature : HMAC-SHA256(corps, PAYTECH_WEBHOOK_SECRET) == header signature   (sinon 401, pas d'ACK)
-2. IP allowlist + fenêtre temporelle (replay : timestamps > 5 min rejetés)
-3. Référence : retrouve Payment(providerReference) ; sinon recherche par paymentNumber
-4. Montant : montant reçu == montant attendu de la Payment (sinon FLAG + audit, surtout pas d'ACK succès)
-5. Transaction unique : UPDATE Payment SET status … WHERE id=? AND status ∈ (PENDING, PROCESSING)
-   → si aucune ligne affectée : réponse 200 (idempotent) — PAS de double crédit.
-6. Si SUCCESS :
-   - Payment → SUCCESS, paidAt, verifiedAt=now, verifiedBy=SYSTEM
-   - side effects transactionnels (même tx SQL) :
-       a. Commande → PAID (ou PARTIALLY_PAID si échéancier)
-       b. Livraison credentials (si payable en 1 fois : encaissement complet)
-       c. InstallmentPlan : payer l'échéance correspondante
-       d. Commission + crédit SellerBalance (pending si hold, sinon disponible)
-       e. Notifications (client + admin + vendeur)
-       f. AuditLog PAYMENT_SUCCESS
-7. Réponse 200 au webhook (ACK) ; en cas d'erreur, 500 → PayTech retente (idempotence safe)
+Client                                   API
+  │ paie dans Wave (montant déjà rempli)  │
+  │ POST /uploads (purpose=payment_proof) │ capture chiffrée (stockage privé)
+  │ POST /payments/<token>/proof ────────►│ 1. paiement PENDING, capture du client
+  │   { proofKey, senderPhone,            │ 2. ID Wave déjà utilisé ailleurs → refus
+  │     waveReference? }                  │ 3. Payment → PROCESSING + PaymentProof (PENDING)
+  │                                       │ 4. alerte « Paiement Wave à vérifier »
+  │                                       │    (administrateurs + managers PAYMENTS)
 ```
 
-**Toutes les écritures monétaires sont dans une transaction unique** avec verrous :
-`SELECT … FOR UPDATE` sur `Order`, `Payment`, `SellerBalance` (+ `Installment` si concerné).
-Deux webhooks concurrents pour la même reference ne peuvent pas double-créditer.
+- Pendant la vérification, le compte reste réservé au client (aucune autre commande possible).
+- Le client voit « Paiement en cours de vérification » ; il peut fermer la page.
 
-### 1.4 Contrôle d'état (renfort, mobile, webhook perdu)
+### 1.3 Vérification par l'équipe (Console > Paiements)
 
-- Le webhook étant la source de vérité, un **job de réconciliation** pollates PayTech
-  (`GET /api/…/transactions/{reference}`) pour toute Payment restée `PROCESSING` > X min,
-  et applique le même flux d'état via le même service (`settlePayment`).
-- L'API ne marque jamais `SUCCESS` sans preuve serveur (webhook vérifié ou GET d'état vérifié).
+1. L'équipe compare la capture, le montant et le numéro payeur avec Wave Business.
+2. **Valider** : `PaymentProof → APPROVED`, puis `settlePayment(SUCCESS, source MANUAL)` :
+   - Payment → SUCCESS, paidAt, verifiedAt ;
+   - side effects transactionnels : commande livrée (identifiants), échéancier mis à jour,
+     commission + part du vendeur **en attente**, notifications (client, vendeur « Bravo »),
+     AuditLog `PAYMENT_SUCCESS` et `PAYMENT_PROOF_APPROVED`.
+3. **Refuser** (motif obligatoire) : `PaymentProof → REJECTED`, Payment repasse `PENDING` ;
+   le client reçoit le motif et peut envoyer une nouvelle preuve.
 
-### 1.5 Statuts & transition
+`settlePayment` est l'unique porte d'évolution de statut : `UPDATE … WHERE status ∈ (PENDING,
+PROCESSING)` — une double validation ne crédite jamais deux fois.
 
-`PENDING → PROCESSING → SUCCESS`
-`PROCESSING → FAILED | CANCELLED`
+### 1.4 Statuts & transition
+
+`PENDING → PROCESSING (preuve envoyée) → SUCCESS (validée)`
+`PROCESSING → PENDING (preuve refusée)`
 `SUCCESS → REFUNDED` (admin, actions critiques, confirmées §25)
 Toute autre transition = refusée (guard de `settlePayment`).
 
@@ -132,7 +113,7 @@ Exemple : total 100 000, down 0, n=3 → R=100 000 ; q=33 333 ; r=1 → FIRST: [
 - **Rappel** : `PENDING` et `dueDate ≤ now` → `OVERDUE` + notification « échéance en retard ».
 - **Gréement admin** (paramètre `payment_grace_days`) : échéance non payée dans X jours après dueDate
   → plan `DEFAULTED`, blocage de nouveaux achats si config, relance.
-- Paiement d'une échéance : `Payment(type=INSTALLMENT)` via le même pipeline §1 (webhook).
+- Paiement d'une échéance : `Payment(type=INSTALLMENT)` via le même pipeline §1 (lien Wave + preuve).
 
 ---
 
@@ -152,19 +133,21 @@ netVendor        = brut − commission
   libération (ou admin) dans une transaction verrouillée. Chaque écriture = ligne `Commission`
   + notification vendeur ; audité.
 - **Jamais** de crédit sur déclaration frontend : uniquement dans le flux `settlePayment`
-  (webhook/GET d'état vérifié).
+  (preuve Wave validée par l'équipe).
 
 ### 3.2 Retrait (§17)
-1. Contrôles : solde disponible ≥ montant ; profile KYC `VERIFIED` ; infos retrait complètes
-   (Settings `withdrawal_required_fields`) ; pas de litige ouvert.
-2. `Withdrawal(PENDING)` → débite le solde immédiatement (réservation) → admin approuve →
-   ordre de paiement (PayTech payout ou manuel selon market — hors scope impl pour Phase 1).
-   Échec : crédite à nouveau (restitution) en transaction.
-3. Seuil minimum : `Settings.withdrawalMinAmount` (défaut à définir par le PO).
+1. Contrôles : solde disponible ≥ montant ; profil KYC `VERIFIED` ; numéro Wave du vendeur.
+2. `Withdrawal(PENDING)` → débite le solde immédiatement (réservation) → l'équipe peut
+   « prendre en charge » (délai annoncé) → elle envoie l'argent **par Wave** puis clique « Payé »
+   en joignant **obligatoirement** la capture de l'envoi (`Withdrawal.proofKey`, stockage privé).
+3. Le vendeur voit la capture et répond « Je l'ai reçu » (`COMPLETED`) ou « Pas reçu »
+   (`sellerDisputedAt` + note, alerte aux administrateurs et managers `WITHDRAWALS`).
+4. Refus : crédite à nouveau le solde (restitution) en transaction.
+5. Seuil minimum : `Settings.minWithdrawalAmount`.
 
 ### 3.3 Mise en avant (§13)
 - `cost = dailyRate * days` (int, `dailyRate = Settings.featuredDailyRate` = 200).
-- Mode `BALANCE` (par défaut) : débit du solde **disponible** ; mode `PAYTECH` : pipeline §1
+- Mode `BALANCE` (par défaut) : débit du solde **disponible** ; mode `WAVE` : pipeline §1
   avec `type=FEATURED`. Toujours une `Payment` tracée.
 - Après succès : `FeaturedProduct(ACTIVE, startedAt, expiresAt)` ; job d'expiration daily.
 - Aucun remboursement si le produit est vendu avant expiration (cf. docs/01 R9, configurable).
@@ -177,7 +160,9 @@ netVendor        = brut − commission
 ---
 
 ## 4. Ops indispensables côté produit
-- `PAYTECH_API_KEY`, `PAYTECH_WEBHOOK_SECRET`, `PAYTECH_SANDBOX=true` en dev, URL callback/webhook
-  d'INDENT interne datés (env). Comptes de test PayTech fournis par la marketplace requise.
-- Signature exacte HMAC : à adapter/confirmer avec la doc PayTech réelle (env `paytech_signature_method`).
-- Webhook route **publique** mais dédiée (signature + IP), hors rate-limit général, et hors CSRF.
+- Lien Wave Business dans Console > Paramètres (`waveMerchantLink`, doit commencer par
+  `https://pay.wave.com/`) ; vide = paiement indisponible.
+- Toujours vérifier la réception **dans Wave Business** avant de valider : une capture peut être
+  falsifiée et le montant du lien peut être modifié par le client.
+- Les captures (paiements et retraits) sont chiffrées et servies uniquement aux personnes
+  autorisées (`Cache-Control: private, no-store`).

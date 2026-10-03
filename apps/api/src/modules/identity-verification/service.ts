@@ -115,7 +115,7 @@ export async function submitVerification(input: unknown, actor: KycActor) {
   await notifyActiveAdmins("ADMIN_ALERT", {
     title: "Nouvelle vérification",
     message: "Un dossier de vérification d'identité attend une revue.",
-    actionUrl: "/admin/kyc",
+    actionUrl: "/admin/verifications",
     priority: "NORMAL",
   });
   return publicRecord(record);
@@ -166,8 +166,22 @@ export async function getVerificationFile(id: string, kind: string, actor: KycAc
   return file;
 }
 
-export function createUploadKey(userId: string, purpose: string) { return `kyc/${userId}/${purpose}/${randomUUID()}`; }
+// Preuves de paiement (client) et d'envoi des retraits (équipe) : mêmes
+// garanties que les pièces d'identité (chiffrées, jamais servies en statique).
+export const PROOF_PURPOSES = ["payment_proof", "withdrawal_proof"] as const;
+
+export function createUploadKey(userId: string, purpose: string) {
+  const folder = (PROOF_PURPOSES as readonly string[]).includes(purpose) ? "proofs" : "kyc";
+  return `${folder}/${userId}/${purpose}/${randomUUID()}`;
+}
 export function validateUploadPurpose(purpose: string) {
-  if (!["kyc_front", "kyc_back", "kyc_passport", "kyc_selfie"].includes(purpose)) throw badRequest("VALIDATION_ERROR", "Type de document non autorisé.");
+  if (!["kyc_front", "kyc_back", "kyc_passport", "kyc_selfie", ...PROOF_PURPOSES].includes(purpose)) throw badRequest("VALIDATION_ERROR", "Type de document non autorisé.");
   return purpose;
+}
+/** Une capture déposée par cet utilisateur pour cet usage (clé non devinable). */
+export async function assertOwnedProof(key: string, userId: string, purpose: (typeof PROOF_PURPOSES)[number]) {
+  if (keyOwner(key) !== userId || !key.startsWith(`proofs/${userId}/${purpose}/`)) {
+    throw forbidden("La capture ne correspond pas à votre compte.");
+  }
+  await getFile(key);
 }

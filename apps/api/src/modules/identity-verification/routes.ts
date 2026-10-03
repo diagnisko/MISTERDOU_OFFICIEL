@@ -6,7 +6,7 @@ import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, requirePermission } from "../../lib/auth-context.js";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { putFile } from "../../lib/storage.js";
-import { createUploadKey, getMyVerification, getVerificationFile, listPendingVerifications, reviewVerification, submitVerification, validateUploadPurpose } from "./service.js";
+import { PROOF_PURPOSES, createUploadKey, getMyVerification, getVerificationFile, listPendingVerifications, reviewVerification, submitVerification, validateUploadPurpose } from "./service.js";
 
 const reviewSchema = kycAdminActionSchema.extend({ status: z.enum(["VERIFIED", "REJECTED"]) });
 
@@ -38,7 +38,8 @@ export async function registerIdentityVerificationRoutes(app: FastifyInstance) {
     }
     if (!purpose || !file) throw badRequest("VALIDATION_ERROR", "Document manquant.");
     const allowedPurpose = validateUploadPurpose(purpose);
-    if (!validFile(file.buffer, file.mimetype) || (allowedPurpose === "kyc_selfie" && file.mimetype === "application/pdf")) throw badRequest("FILE_TYPE_INVALID", "Format de document invalide.");
+    const imageOnly = allowedPurpose === "kyc_selfie" || (PROOF_PURPOSES as readonly string[]).includes(allowedPurpose);
+    if (!validFile(file.buffer, file.mimetype) || (imageOnly && file.mimetype === "application/pdf")) throw badRequest("FILE_TYPE_INVALID", imageOnly ? "Envoyez une image (JPEG, PNG ou WebP)." : "Format de document invalide.");
     const stored = await putFile(createUploadKey(auth.user.id, allowedPurpose), file.buffer, file.mimetype);
     return sendOk(reply, { key: stored.key, mime: file.mimetype, sizeBytes: stored.size, purpose: allowedPurpose });
   });

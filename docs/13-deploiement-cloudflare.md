@@ -51,7 +51,7 @@ envoi sur `master`, Cloudflare construit et met en ligne les deux Workers.
    | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | jeton R2 |
    | `R2_PRIVATE_BUCKET`, `R2_PUBLIC_BUCKET`, `R2_PUBLIC_BASE_URL` | buckets et URL publique |
    | `SMTP_URL`, `EMAIL_FROM` | envoi des e-mails (facultatif) |
-   | `PAYTECH_*`, `GOOGLE_OAUTH_*` | quand ces services sont prêts |
+   | `GOOGLE_OAUTH_*` | quand ce service est prêt |
 
    Toujours en type *Secret* : une variable simple ajoutée dans le tableau de bord serait
    effacée à la mise en ligne suivante. Après l'ajout, relancer la construction
@@ -74,8 +74,8 @@ envoi sur `master`, Cloudflare construit et met en ligne les deux Workers.
 
 ## À savoir
 
-- `PAYTECH_SANDBOX` vaut `true` dans `deploy/api/wrangler.jsonc` : paiements de test
-  tant que PayTech n'est pas branché en réel.
+- Paiements : lien Wave Business réglé dans Console > Paramètres (`waveMerchantLink`), aucune
+  clé de prestataire à déclarer.
 - Domaine personnalisé (`misterdou.com`) : l'ajouter sur `misterdou-officiel` (Settings >
   Domains & Routes), mettre à jour `WEB_ORIGIN` et `API_PUBLIC_URL`, et ajouter le domaine
   à la règle CORS du bucket des médias.

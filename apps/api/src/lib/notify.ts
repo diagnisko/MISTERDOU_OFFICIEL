@@ -1,8 +1,15 @@
 import { prisma } from "@misterdou/db";
-import type { NotificationChannel, NotificationPriority, NotificationType } from "@misterdou/db";
+import type { ManagerPermission, NotificationChannel, NotificationPriority, NotificationType } from "@misterdou/db";
 import { logger } from "./logger.js";
 import { sendEmail } from "./email.js";
 import { EMAIL_TEMPLATES, isCriticalEmailType } from "./email-templates.js";
+import { env } from "../env.js";
+
+/** « /account/orders » → « https://site/account/orders » pour les e-mails. */
+function absoluteUrl(actionUrl: string | undefined): string | undefined {
+  if (!actionUrl || !actionUrl.startsWith("/")) return actionUrl;
+  return `${env.WEB_ORIGIN[0]?.replace(/\/$/, "") ?? ""}${actionUrl}`;
+}
 
 export interface NotifyParams {
   title: string;
@@ -78,7 +85,7 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
       }
       const emailAllowed = explicitChannel ? params.channel === "EMAIL" : pref?.email !== false;
       const email = userById.get(userId)?.email;
-      if (emailWanted && email && emailAllowed && template) emails.push({ to: email, params });
+      if (emailWanted && email && emailAllowed && template) emails.push({ to: email, params: { ...params, actionUrl: absoluteUrl(params.actionUrl) } });
     }
 
     if (rows.length > 0) await prisma.notification.createMany({ data: rows });
@@ -130,5 +137,30 @@ export async function notifyActiveAdmins(
     );
   } catch (err) {
     logger.warn({ err, type }, "[notify] échec d'alerte des administrateurs");
+  }
+}
+
+// Alerte à ceux qui peuvent agir : administrateurs actifs et managers qui ont
+// la permission demandée (ex. PAYMENTS pour valider une preuve de paiement).
+export async function notifyTeam(
+  permission: ManagerPermission,
+  type: NotificationType,
+  params: NotifyParams,
+): Promise<void> {
+  try {
+    const team = await prisma.user.findMany({
+      where: {
+        status: "ACTIVE",
+        deletedAt: null,
+        OR: [{ role: { name: "ADMIN" } }, { role: { name: "STAFF" }, managerProfile: { permissions: { has: permission } } }],
+      },
+      select: { id: true },
+    });
+    await notifyMany(
+      type,
+      team.map((member) => ({ userId: member.id, params })),
+    );
+  } catch (err) {
+    logger.warn({ err, type, permission }, "[notify] échec d'alerte de l'équipe");
   }
 }

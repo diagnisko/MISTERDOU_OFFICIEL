@@ -1,6 +1,7 @@
 // PHASE 13 — Retraits vendeurs (§39 : « retraits »). Approbation, refus
 // avec recrédit du solde, double traitement concurrent, journal CRITICAL et
 // routes admin protégées par la permission WITHDRAWALS.
+import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
 import {
@@ -12,6 +13,7 @@ import {
   createSeller,
   createStaff,
   createUser,
+  putStorageFile,
   tracker,
   track,
 } from "./helpers.js";
@@ -27,6 +29,15 @@ const t = tracker();
 afterAll(async () => {
   await cleanup(t);
 });
+
+/** Capture de l'envoi déposée par ce membre de l'équipe (obligatoire pour « Payé »). */
+async function sentProof(actorId: string): Promise<string> {
+  return putStorageFile(t, `proofs/${actorId}/withdrawal_proof/${randomUUID()}`);
+}
+
+async function paid(id: string, reference: string, actor: { actorId: string; actorRole?: "ADMIN"; ip?: string }) {
+  return approveWithdrawal(id, { proofKey: await sentProof(actor.actorId), paymentReference: reference }, actor);
+}
 
 async function pendingWithdrawal(amount = 25_000) {
   const owner = await createUser(t, { role: "VENDOR" });
@@ -44,7 +55,7 @@ describe("Approbation d'un retrait", () => {
     const { owner, seller, id, amount } = await pendingWithdrawal(40_000);
     const actor = { actorId: admin.user.id, actorRole: "ADMIN" as const, ip: "127.0.0.1" };
 
-    const result = await approveWithdrawal(id, "WAVE-REF-7788", actor);
+    const result = await paid(id, "WAVE-REF-7788", actor);
     expect(result).toEqual({ id, status: "APPROVED" });
 
     const row = await prisma.withdrawal.findUniqueOrThrow({ where: { id } });
@@ -66,7 +77,8 @@ describe("Approbation d'un retrait", () => {
     const notification = await prisma.notification.findFirst({
       where: { userId: owner.id, type: "SELLER_PAYOUT_AVAILABLE", createdAt: { gte: SUITE_STARTED_AT } },
     });
-    expect(notification?.title).toBe("Retrait payé");
+    expect(notification?.title).toBe("Retrait envoyé");
+    expect(row.proofKey).toMatch(/^proofs\//);
     expect(notification?.message).toContain((40_000).toLocaleString("fr-FR"));
   });
 
@@ -75,12 +87,12 @@ describe("Approbation d'un retrait", () => {
     const actor = { actorId: admin.user.id, actorRole: "ADMIN" as const };
 
     await expect(
-      approveWithdrawal("00000000-0000-4000-8000-000000000000", "REF-1", actor),
+      paid("00000000-0000-4000-8000-000000000000", "REF-1", actor),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     const { id } = await pendingWithdrawal(10_000);
-    await approveWithdrawal(id, "REF-FIRST", actor);
-    await expect(approveWithdrawal(id, "REF-SECOND", actor)).rejects.toMatchObject({ code: "INVALID_STATE" });
+    await paid(id, "REF-FIRST", actor);
+    await expect(paid(id, "REF-SECOND", actor)).rejects.toMatchObject({ code: "INVALID_STATE" });
   });
 
   it("ne traite qu'UNE des deux demandes concurrentes (garde idempotente)", async () => {
@@ -89,8 +101,8 @@ describe("Approbation d'un retrait", () => {
     const actor = { actorId: admin.user.id, actorRole: "ADMIN" as const };
 
     const results = await Promise.allSettled([
-      approveWithdrawal(id, "REF-A", actor),
-      approveWithdrawal(id, "REF-B", actor),
+      paid(id, "REF-A", actor),
+      paid(id, "REF-B", actor),
     ]);
     const ok = results.filter((r) => r.status === "fulfilled");
     const failed = results.filter((r) => r.status === "rejected");
@@ -139,7 +151,7 @@ describe("Refus d'un retrait", () => {
       code: "INVALID_STATE",
     });
     const second = await pendingWithdrawal(12_000);
-    await approveWithdrawal(second.id, "REF-OK", { actorId: admin.user.id });
+    await paid(second.id, "REF-OK", { actorId: admin.user.id });
     await expect(rejectWithdrawal(second.id, "Trop tard.", { actorId: admin.user.id })).rejects.toMatchObject({
       code: "INVALID_STATE",
     });
@@ -174,7 +186,7 @@ describe("Refus d'un retrait", () => {
     const actor = { actorId: admin.user.id, actorRole: "ADMIN" as const };
 
     const results = await Promise.allSettled([
-      approveWithdrawal(id, "REF-RACE", actor),
+      paid(id, "REF-RACE", actor),
       rejectWithdrawal(id, "Refus en course.", actor),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
@@ -193,7 +205,7 @@ describe("Liste des retraits", () => {
   it("pagine, filtre par statut et par e-mail vendeur", async () => {
     const admin = await createAdmin(t);
     const { owner, id } = await pendingWithdrawal(11_000);
-    await approveWithdrawal(id, "REF-LIST", { actorId: admin.user.id });
+    await paid(id, "REF-LIST", { actorId: admin.user.id });
 
     const pending = await listWithdrawals({ page: 1, perPage: 10, status: "PENDING" });
     expect(pending.items.every((row) => row.status === "PENDING")).toBe(true);
@@ -251,25 +263,45 @@ describe("Routes retraits (inject)", () => {
     const badBody = await app.inject({ method: "POST", url: `/api/v1/admin/withdrawals/${id}/approve`, payload: {} });
     expect(badBody.statusCode).toBe(400);
 
+    // Sans capture de l'envoi, « Payé » est refusé.
+    const noProof = await app.inject({
+      method: "POST",
+      url: `/api/v1/admin/withdrawals/${id}/approve`,
+      payload: { paymentReference: "WAVE-123456" },
+    });
+    expect(noProof.statusCode).toBe(400);
+
     const missing = await app.inject({
       method: "POST",
       url: "/api/v1/admin/withdrawals/00000000-0000-4000-8000-000000000000/approve",
-      payload: { paymentReference: "REF-X" },
+      payload: { proofKey: await sentProof(staff.user.id), paymentReference: "REF-X" },
     });
     expect(missing.statusCode).toBe(404);
+
+    // Une capture déposée par quelqu'un d'autre n'est pas acceptée.
+    const foreign = await app.inject({
+      method: "POST",
+      url: `/api/v1/admin/withdrawals/${id}/approve`,
+      payload: { proofKey: await sentProof(owner.id) },
+    });
+    expect(foreign.statusCode).toBe(403);
 
     const approved = await app.inject({
       method: "POST",
       url: `/api/v1/admin/withdrawals/${id}/approve`,
-      payload: { paymentReference: "WAVE-123456" },
+      payload: { proofKey: await sentProof(staff.user.id), paymentReference: "WAVE-123456" },
     });
     expect(approved.statusCode).toBe(200);
     expect(approved.json().data).toEqual({ id, status: "APPROVED" });
 
+    const proof = await app.inject({ method: "GET", url: `/api/v1/admin/withdrawals/${id}/proof` });
+    expect(proof.statusCode).toBe(200);
+    expect(proof.headers["cache-control"]).toBe("private, no-store");
+
     const again = await app.inject({
       method: "POST",
       url: `/api/v1/admin/withdrawals/${id}/approve`,
-      payload: { paymentReference: "WAVE-123456" },
+      payload: { proofKey: await sentProof(staff.user.id), paymentReference: "WAVE-123456" },
     });
     expect(again.statusCode).toBe(409);
     expect(again.json().error.code).toBe("INVALID_STATE");

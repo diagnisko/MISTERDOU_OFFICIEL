@@ -24,8 +24,7 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ApiContainer"] }],
   "triggers": { "crons": ["*/30 * * * *"] },
   "vars": {
-    "NODE_ENV": "production",
-    "PAYTECH_SANDBOX": "true"
+    "NODE_ENV": "production"
   },
   "observability": { "enabled": true }
 }

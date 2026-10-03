@@ -132,7 +132,7 @@ describe("Lecture de l'échéancier", () => {
     const initial = await prisma.payment.findFirstOrThrow({
       where: { orderId: order.orderId, type: "INITIAL_INSTALLMENT" },
     });
-    await settlePayment({ id: initial.id }, "SUCCESS", { source: "DEV" });
+    await settlePayment({ id: initial.id }, "SUCCESS", { source: "MANUAL" });
 
     const afterDown = await getSchedule(order.orderId);
     expect(afterDown?.downPaid).toBe(true);
@@ -149,11 +149,11 @@ describe("Lecture de l'échéancier", () => {
     const initial = await prisma.payment.findFirstOrThrow({
       where: { orderId: order.orderId, type: "INITIAL_INSTALLMENT" },
     });
-    await settlePayment({ id: initial.id }, "SUCCESS", { source: "DEV" });
+    await settlePayment({ id: initial.id }, "SUCCESS", { source: "MANUAL" });
 
     for (let i = 0; i < 4; i += 1) {
       const next = await createNextInstallmentPayment(order.orderId, { actorId: user.id });
-      await settlePayment({ id: next.paymentId }, "SUCCESS", { source: "DEV" });
+      await settlePayment({ id: next.paymentId }, "SUCCESS", { source: "MANUAL" });
     }
 
     const schedule = await getSchedule(order.orderId);

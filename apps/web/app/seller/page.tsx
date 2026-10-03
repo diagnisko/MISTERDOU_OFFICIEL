@@ -88,7 +88,7 @@ export default function SellerPage() {
 
   const [modalProduct, setModalProduct] = useState<Dashboard["products"][number] | null>(null);
   const [days, setDays] = useState(DAY_PRESETS[0]!);
-  const [paying, setPaying] = useState<"BALANCE" | "PAYTECH" | null>(null);
+  const [paying, setPaying] = useState<"BALANCE" | "WAVE" | null>(null);
   const [mediaProduct, setMediaProduct] = useState<Dashboard["products"][number] | null>(null);
 
   const load = useCallback(async () => {
@@ -126,7 +126,7 @@ export default function SellerPage() {
     setError(null);
   }
 
-  async function pay(method: "BALANCE" | "PAYTECH") {
+  async function pay(method: "BALANCE" | "WAVE") {
     if (!modalProduct) return;
     setPaying(method);
     setError(null);
@@ -504,9 +504,9 @@ export default function SellerPage() {
                 type="button"
                 className="dash-btn dash-btn-ghost flex-1"
                 disabled={!daysValid || paying !== null}
-                onClick={() => void pay("PAYTECH")}
+                onClick={() => void pay("WAVE")}
               >
-                {paying === "PAYTECH" ? t("seller.redirecting") : t("seller.payOnline")}
+                {paying === "WAVE" ? t("seller.redirecting") : t("seller.payOnline")}
               </button>
             </div>
             <button

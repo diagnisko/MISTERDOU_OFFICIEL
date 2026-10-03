@@ -5,12 +5,14 @@ import { forbidden } from "../lib/errors.js";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-// Chemins exemptés de la vérification CSRF (points d'échange de cookies / webhooks)
+// Chemins exemptés de la vérification CSRF (points d'échange de cookies)
 const CSRF_EXEMPT = new Set<string>([
   "/api/v1/auth/register",
   "/api/v1/auth/login",
   "/api/v1/auth/google",
   "/api/v1/auth/admin/login",
+  "/api/v1/auth/password/forgot",
+  "/api/v1/auth/password/reset",
 ]);
 
 export function attachRequestHooks(app: FastifyInstance) {
@@ -26,7 +28,6 @@ export function attachRequestHooks(app: FastifyInstance) {
     if (!MUTATING_METHODS.has(request.method)) return;
     if (!url.includes("/api/v1")) return;
     if (CSRF_EXEMPT.has(url)) return;
-    if (url.includes("/api/v1/webhooks/")) return;
 
     const cookieToken = request.cookies[CSRF_COOKIE_NAME];
     const headerToken = request.headers["x-csrf-token"];

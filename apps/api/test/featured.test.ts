@@ -1,5 +1,5 @@
 // PHASE 13 — Mise en avant (§39 : « mise en avant »). Paiement par solde
-// vendeur, repli PayTech, activation, prolongation, activation admin offerte
+// vendeur, repli Wave, activation, prolongation, activation admin offerte
 // et jobs périodiques (expiration / synchronisation).
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
@@ -131,7 +131,7 @@ describe("Demande de mise en avant", () => {
     expect(balance.balanceAvailable).toBe(100);
   });
 
-  it("replie sur PayTech quand le solde ne suffit pas (AUTO) ou si PAYTECH est demandé", async () => {
+  it("replie sur Wave quand le solde ne suffit pas (AUTO) ou si Wave est demandé", async () => {
     const { owner, product } = await sellerProduct({ balanceAvailable: 0 });
 
     const auto = await requestFeatured(product.id, 4, { actorId: owner.id, actorRole: "VENDOR" });
@@ -140,7 +140,7 @@ describe("Demande de mise en avant", () => {
     const payment = await prisma.payment.findUniqueOrThrow({
       where: { id: (await prisma.featuredProduct.findUniqueOrThrow({ where: { id: auto.purchaseId } })).paymentId! },
     });
-    expect(payment).toMatchObject({ status: "PENDING", provider: "PAYTECH", transactionToken: auto.token });
+    expect(payment).toMatchObject({ status: "PENDING", provider: "WAVE_LINK", transactionToken: auto.token });
 
     const purchase = await prisma.featuredProduct.findUniqueOrThrow({ where: { id: auto.purchaseId } });
     expect(purchase.status).toBe("PENDING");
@@ -152,7 +152,7 @@ describe("Demande de mise en avant", () => {
       rich.product.id,
       2,
       { actorId: rich.owner.id, actorRole: "VENDOR" },
-      { paymentMethod: "PAYTECH" },
+      { paymentMethod: "WAVE" },
     );
     expect(forced.activated).toBe(false);
     expect(forced.token).not.toBeNull();
@@ -160,13 +160,13 @@ describe("Demande de mise en avant", () => {
     expect(stillRich.balanceAvailable).toBe(10_000);
   });
 
-  it("active la mise en avant à l'encaissement PayTech et prolonge sans perte de jours", async () => {
+  it("active la mise en avant à l'encaissement Wave et prolonge sans perte de jours", async () => {
     const { owner, product } = await sellerProduct({ balanceAvailable: 0 });
 
     const first = await requestFeatured(product.id, 3, { actorId: owner.id, actorRole: "VENDOR" });
     const firstPurchase = await prisma.featuredProduct.findUniqueOrThrow({ where: { id: first.purchaseId } });
     const payment = await prisma.payment.findUniqueOrThrow({ where: { id: firstPurchase.paymentId! } });
-    const settled = await settlePayment({ id: payment.id }, "SUCCESS", { source: "WEBHOOK" });
+    const settled = await settlePayment({ id: payment.id }, "SUCCESS", { source: "MANUAL" });
     expect(settled.status).toBe("SUCCESS");
 
     const afterFirst = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
@@ -181,7 +181,7 @@ describe("Demande de mise en avant", () => {
     const secondPayment = await prisma.payment.findUniqueOrThrow({
       where: { id: (await prisma.featuredProduct.findUniqueOrThrow({ where: { id: second.purchaseId } })).paymentId! },
     });
-    await settlePayment({ id: secondPayment.id }, "SUCCESS", { source: "WEBHOOK" });
+    await settlePayment({ id: secondPayment.id }, "SUCCESS", { source: "MANUAL" });
 
     const afterSecond = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
     const expected = (afterFirst.featuredUntil?.getTime() ?? 0) + 5 * DAY_MS;
@@ -375,7 +375,7 @@ describe("Routes mise en avant (inject)", () => {
     const requested = await app.inject({
       method: "POST",
       url: `/api/v1/products/${product.id}/featured`,
-      payload: { days: 3, paymentMethod: "PAYTECH" },
+      payload: { days: 3, paymentMethod: "WAVE" },
     });
     expect(requested.statusCode).toBe(201);
     expect(requested.json().data).toMatchObject({ activated: false, days: 3 });

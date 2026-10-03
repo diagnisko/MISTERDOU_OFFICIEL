@@ -614,12 +614,8 @@ function MonthStrip({ row, onCollect }: { row: Receivable; onCollect: (item: Sch
   );
 }
 
-const METHODS = [
-  { value: "MOBILE_MONEY", label: "Mobile money" },
-  { value: "CASH", label: "Espèces" },
-  { value: "TRANSFER", label: "Virement" },
-  { value: "OTHER", label: "Autre" },
-] as const;
+// Paiements reçus uniquement par Wave.
+const METHODS = [{ value: "MOBILE_MONEY", label: "Wave" }] as const;
 
 function CollectModal({
   row,

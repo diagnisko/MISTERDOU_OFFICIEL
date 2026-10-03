@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ApiClientError, formatXof, request } from "@/lib/api";
-import { Alert, Button, Spinner, StatusBadge } from "@/components/ui";
+import { ApiClientError, errorMessage, formatXof, request, uploadFile } from "@/lib/api";
+import { Alert, Button, Field, Spinner, StatusBadge, TextInput } from "@/components/ui";
 import { LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { refreshAccount } from "@/lib/account";
@@ -17,17 +17,13 @@ type CheckoutState = {
   paymentNumber: string;
   paidAt: string | null;
   orderId: string | null;
+  /** Lien Wave Business avec le montant déjà rempli (null : désactivé). */
+  waveLink: string | null;
+  proof: { status: "PENDING" | "APPROVED" | "REJECTED"; createdAt: string; reviewedAt: string | null; rejectionReason: string | null } | null;
 };
 
-type CheckoutInit =
-  | { mode: "REDIRECT"; url: string; status: string }
-  | { mode: "LOCAL"; status: string }
-  | { mode: "POLL"; status: string }
-  | { mode: "DONE"; status: string };
-
-type Method = "wave" | "orange_money";
-
-const POLL_MS = 2500;
+// Preuve Wave en vérification par l'équipe : la réponse prend quelques minutes.
+const REVIEW_POLL_MS = 15_000;
 
 // Page de retour selon le motif du paiement.
 function backHref(state: { type: string; orderId: string | null }) {
@@ -46,19 +42,10 @@ export default function CheckoutPage() {
   const [state, setState] = useState<CheckoutState | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busyMethod, setBusyMethod] = useState<Method | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [needLogin, setNeedLogin] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const pollErrors = useRef(0);
 
   const refresh = useCallback(async () => {
-    const s = await request<CheckoutState>(`/api/v1/payments/${token}`);
-    setState(s);
-    if (s.status === "PROCESSING") setVerifying(true);
-    if (s.status !== "PROCESSING") setVerifying(false);
-    return s;
+    setState(await request<CheckoutState>(`/api/v1/payments/${token}`));
   }, [token]);
 
   useEffect(() => {
@@ -67,9 +54,7 @@ export default function CheckoutPage() {
     setLoadError(null);
     request<CheckoutState>(`/api/v1/payments/${token}`)
       .then((s) => {
-        if (!alive) return;
-        setState(s);
-        if (s.status === "PROCESSING") setVerifying(true);
+        if (alive) setState(s);
       })
       .catch((err: unknown) => {
         if (!alive) return;
@@ -100,59 +85,16 @@ export default function CheckoutPage() {
     }
   }, [state, router]);
 
-  // Polling de vérification serveur (mode local ou confirmation différée).
-  useEffect(() => {
-    if (!verifying || state?.status !== "PROCESSING") return;
-    const id = setInterval(() => {
-      request<CheckoutState>(`/api/v1/payments/${token}`)
-        .then((s) => {
-          pollErrors.current = 0;
-          setState(s);
-          if (s.status !== "PROCESSING") setVerifying(false);
-        })
-        .catch(() => {
-          pollErrors.current += 1;
-          if (pollErrors.current >= 5) setVerifying(false);
-        });
-    }, POLL_MS);
-    return () => clearInterval(id);
-  }, [verifying, state?.status, token]);
+  // Paiement en vérification par l'équipe : on guette la validation.
+  const underReview = state?.status === "PROCESSING";
 
-  async function start(method: Method) {
-    setBusyMethod(method);
-    setActionError(null);
-    setNeedLogin(false);
-    try {
-      const init = await request<CheckoutInit>(`/api/v1/payments/${token}/checkout`, {
-        method: "POST",
-        body: JSON.stringify({ method }),
-      });
-      if (init.mode === "REDIRECT") {
-        window.location.assign(init.url);
-        return;
-      }
-      setState((prev) => (prev ? { ...prev, status: init.status } : prev));
-      if (init.status === "PROCESSING") {
-        pollErrors.current = 0;
-        setVerifying(true);
-      } else if (init.status !== "SUCCESS") {
-        await refresh();
-      }
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        if (err.code === "UNAUTHORIZED") {
-          setNeedLogin(true);
-        } else {
-          setActionError(err.message);
-        }
-        if (err.code === "CONFLICT") await refresh().catch(() => undefined);
-      } else {
-        setActionError(t("pay.network"));
-      }
-    } finally {
-      setBusyMethod(null);
-    }
-  }
+  useEffect(() => {
+    if (!underReview) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh().catch(() => undefined);
+    }, REVIEW_POLL_MS);
+    return () => clearInterval(id);
+  }, [underReview, refresh]);
 
   if (loading) {
     return (
@@ -188,7 +130,7 @@ export default function CheckoutPage() {
 
   if (!state) return null;
 
-  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND", "SELLER_REGISTRATION_FEE"].includes(state.type)
+  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND", "SELLER_REGISTRATION_FEE", "FEATURED"].includes(state.type)
     ? t(`pay.type${state.type}` as MessageKey)
     : t("pay.kicker");
 
@@ -215,47 +157,39 @@ export default function CheckoutPage() {
         </p>
       </div>
 
-      {actionError && (
-        <div className="mt-4">
-          <Alert tone="danger">{actionError}</Alert>
-        </div>
+      {state.status === "PENDING" && state.waveLink && (
+        <WavePayment
+          token={token}
+          amount={state.amount}
+          link={state.waveLink}
+          rejection={state.proof?.status === "REJECTED" ? state.proof.rejectionReason : null}
+          onSent={refresh}
+        />
       )}
-      {needLogin && (
-        <div className="mt-4">
-          <Alert tone="warning" title={t("pay.loginTitle")}>
-            {t("pay.loginBody")}{" "}
-            <Link href="/login" className="font-semibold text-brand underline">
-              {t("pay.login")}
-            </Link>
+
+      {state.status === "PENDING" && !state.waveLink && (
+        <div className="mt-6">
+          <Alert tone="warning" title={t("pay.unavailable")}>
+            {t("wave.unavailable")}
           </Alert>
         </div>
       )}
 
-      {state.status === "PENDING" && (
-        <div className="mt-6">
-          <p className="mb-3 text-sm text-muted">{t("pay.choose")}</p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button className="flex-1" onClick={() => start("wave")} loading={busyMethod === "wave"} disabled={busyMethod !== null}>
-              {t("pay.wave")}
-            </Button>
-            <Button
-              className="flex-1"
-              variant="outline"
-              onClick={() => start("orange_money")}
-              loading={busyMethod === "orange_money"}
-              disabled={busyMethod !== null}
-            >
-              {t("pay.orange")}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {(state.status === "PROCESSING" || verifying) && (
-        <div className="mt-6 rounded-2xl border border-brand/30 bg-brand/10 px-4 py-5 text-center" role="status">
-          <Spinner className="mx-auto h-5 w-5 text-brand" />
-          <p className="mt-3 text-sm font-semibold">{t("pay.verifying")}</p>
-          <p className="mt-1 text-xs text-muted">{t("pay.dontClose")}</p>
+      {underReview && (
+        <div className="mt-6 rounded-2xl border border-brand/30 bg-brand/10 px-5 py-5" role="status">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Spinner className="h-4 w-4 text-brand" /> {t("wave.reviewTitle")}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            {state.proof
+              ? t("wave.reviewBody", {
+                  date: new Date(state.proof.createdAt).toLocaleString(t.intl, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
+                })
+              : t("pay.verifying")}
+          </p>
+          <Link href={backHref(state)} className="mt-4 inline-flex text-xs font-semibold text-brand underline">
+            {t("wave.backToOrder")}
+          </Link>
         </div>
       )}
 
@@ -288,6 +222,119 @@ export default function CheckoutPage() {
         </div>
       )}
     </Main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Paiement par lien Wave Business : le montant est déjà écrit dans le lien.
+// Le client paie dans Wave, revient, puis envoie sa preuve (capture du reçu +
+// numéro Wave payeur). L'équipe vérifie la réception et valide.
+// ---------------------------------------------------------------------------
+
+function WavePayment({
+  token,
+  amount,
+  link,
+  rejection,
+  onSent,
+}: {
+  token: string;
+  amount: number;
+  link: string;
+  rejection: string | null;
+  onSent: () => Promise<void>;
+}) {
+  const t = useT();
+  const [file, setFile] = useState<File | null>(null);
+  const [phone, setPhone] = useState("");
+  const [reference, setReference] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const price = formatXof(amount);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!file) return setError(t("wave.needScreenshot"));
+    setBusy(true);
+    setError(null);
+    try {
+      const uploaded = await uploadFile(file, "payment_proof");
+      await request(`/api/v1/payments/${token}/proof`, {
+        method: "POST",
+        body: JSON.stringify({ proofKey: uploaded.key, senderPhone: phone.trim(), waveReference: reference.trim() || undefined }),
+      });
+      await onSent();
+    } catch (err) {
+      setError(err instanceof ApiClientError && err.code === "UNAUTHORIZED" ? t("pay.loginBody") : errorMessage(err, t("wave.failed")));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-4">
+      {rejection && (
+        <Alert tone="danger" title={t("wave.rejectedTitle")}>
+          {t("wave.rejectedBody", { reason: rejection })}
+        </Alert>
+      )}
+
+      <section className="lux-glass rounded-[24px] p-6">
+        <h2 className="text-base font-semibold text-stone-50">{t("wave.title")}</h2>
+        <ol className="mt-4 space-y-3 text-sm text-stone-300">
+          {(["wave.step1", "wave.step2", "wave.step3"] as const).map((key, i) => (
+            <li key={key} className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 text-xs tabular-nums text-stone-200">
+                {i + 1}
+              </span>
+              <span className="pt-0.5 leading-relaxed">{t(key, { amount: price })}</span>
+            </li>
+          ))}
+        </ol>
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="lux-btn lux-btn-gold mt-5 flex w-full !min-h-[48px] items-center justify-center text-[12px] uppercase tracking-[0.14em]"
+          style={{ borderRadius: 16 }}
+        >
+          {t("wave.open", { amount: price })}
+        </a>
+        <p className="mt-2 text-center text-xs text-stone-400">{t("wave.exactAmount", { amount: price })}</p>
+      </section>
+
+      <form onSubmit={(e) => void submit(e)} className="lux-glass space-y-4 rounded-[24px] p-6">
+        <h2 className="text-base font-semibold text-stone-50">{t("wave.proofTitle")}</h2>
+        <Field label={t("wave.screenshot")} hint={t("wave.screenshotHint")} required>
+          <TextInput
+            required
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            className="file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200"
+          />
+        </Field>
+        <Field label={t("wave.phone")} required>
+          <TextInput
+            required
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            dir="ltr"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            placeholder={t("wave.phonePlaceholder")}
+          />
+        </Field>
+        <Field label={t("wave.reference")} hint={t("wave.referenceHint")}>
+          <TextInput dir="ltr" maxLength={80} value={reference} onChange={(event) => setReference(event.target.value)} />
+        </Field>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Button type="submit" className="w-full" loading={busy} disabled={busy}>
+          {busy ? t("wave.sending") : t("wave.send")}
+        </Button>
+      </form>
+    </div>
   );
 }
 

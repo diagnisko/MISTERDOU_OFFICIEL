@@ -7,6 +7,7 @@ import { badRequest } from "../../lib/errors.js";
 import { requireAdminSession, requireAuth, requirePermission } from "../../lib/auth-context.js";
 import {
   approveWithdrawal,
+  getWithdrawalProofFile,
   collectInstallment,
   createManager,
   deleteManager,
@@ -58,7 +59,10 @@ const receivableQuery = pageQuery.extend({
 });
 
 const settingsValueBody = z.object({ value: z.unknown() });
-const approveBody = z.object({ paymentReference: z.string().trim().min(3).max(120) });
+const approveBody = z.object({
+  proofKey: z.string().min(10).max(200),
+  paymentReference: z.string().trim().max(120).optional(),
+});
 const processingBody = z.object({ etaMinutes: z.number().int().refine((v) => (WITHDRAWAL_ETAS as readonly number[]).includes(v), "Délai invalide") });
 const rejectBody = z.object({ reason: z.string().trim().min(5).max(300) });
 const refundBody = z.object({ reason: z.string().trim().min(5).max(500) });
@@ -189,8 +193,24 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = approveBody.safeParse(request.body);
-      if (!input.success) throw badRequest("VALIDATION_ERROR", "Référence de paiement invalide (3 à 120 caractères).");
-      return sendOk(reply, await approveWithdrawal(id, input.data.paymentReference, actor(request)));
+      if (!input.success) throw badRequest("VALIDATION_ERROR", "Joignez la capture de l’envoi (référence : 120 caractères maximum).");
+      return sendOk(reply, await approveWithdrawal(id, input.data, actor(request)));
+    },
+  );
+
+  app.get(
+    "/admin/withdrawals/:id/proof",
+    { preHandler: permissionGuard("WITHDRAWALS"), schema: secured("Capture de l'envoi d'un retrait") },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const file = await getWithdrawalProofFile(id);
+      reply
+        .header("Content-Type", file.mime)
+        .header("Content-Length", file.size)
+        .header("Content-Disposition", "inline")
+        .header("Cache-Control", "private, no-store")
+        .header("X-Content-Type-Options", "nosniff");
+      return reply.send(file.buffer);
     },
   );
 

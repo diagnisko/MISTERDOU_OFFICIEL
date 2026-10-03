@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     template: "%s · MISTERDOU",
   },
   description:
-    "Achetez et vendez des comptes eFootball en toute sécurité : vérification d'identité, paiement Wave / Orange Money, support dédié.",
+    "Achetez et vendez des comptes eFootball en toute sécurité : vérification d'identité, paiement par Wave, support dédié.",
   keywords: ["eFootball", "comptes", "KONAMI", "achat", "vente", "western"],
   robots: "index, follow",
 };

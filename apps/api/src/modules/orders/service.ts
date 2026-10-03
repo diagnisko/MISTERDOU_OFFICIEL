@@ -9,16 +9,13 @@ import { notifyUser } from "../../lib/notify.js";
 import { logger } from "../../lib/logger.js";
 import { assertSplittable, createInstallmentPlan } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
-import { alertDoubleSale, markProductsSold, recordSellerSale, releaseOrderCredits } from "./fulfillment.js";
+import { alertDoubleSale, holdsReservation, markProductsSold, recordSellerSale, releaseOrderCredits } from "./fulfillment.js";
 import { latestCodeForOrder } from "../verification-codes/service.js";
 import { getSchedule } from "../installments/service.js";
 import { getIntSetting } from "../settings/service.js";
 
 /** Statuts où le compte est entre les mains du client (livré, puis réception confirmée). */
 const ACCESS_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
-
-// Durée pendant laquelle un compte en cours de paiement reste réservé.
-const RESERVATION_MINUTES = 20;
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -89,12 +86,12 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
   }
 
   // Réservation douce : un compte en cours de paiement par un autre client
-  // n'est pas revendu pendant RESERVATION_MINUTES.
+  // n'est pas revendu pendant RESERVATION_MINUTES, ni tant que sa preuve de
+  // paiement Wave attend la vérification de l'équipe.
   const reservedBy = await prisma.order.findFirst({
     where: {
-      status: "PENDING_PAYMENT",
+      ...holdsReservation(now),
       buyerId: { not: ctx.actorId },
-      createdAt: { gte: new Date(now.getTime() - RESERVATION_MINUTES * 60_000) },
       items: { some: { productId: product.id } },
     },
     select: { id: true },
@@ -164,7 +161,7 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
             type: split ? "INITIAL_INSTALLMENT" : "ORDER_PAYMENT",
             amount: split ? downPayment : totalAmount,
             currency: "XOF",
-            provider: "PAYTECH",
+            provider: "WAVE_LINK",
             status: "PENDING",
             transactionToken,
           },
@@ -292,13 +289,13 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
     priority: "NORMAL",
   });
 
-  // §59 — le vendeur est prévenu dès la livraison, avec sa part nette.
+  // §59 — le vendeur est félicité dès la livraison, avec sa part nette.
   for (const sale of credited) {
     await notifyUser(sale.sellerUserId, "PRODUCT_SOLD", {
-      title: "Compte vendu",
-      message: `« ${sale.title} » est vendu (commande ${order.orderNumber}). ${sale.net.toLocaleString("fr-FR")} FCFA vous reviennent : ils seront disponibles dès que le client confirme la réception.`,
+      title: "👏 Bravo, votre compte est vendu !",
+      message: `Un client vient d’acheter « ${sale.title} » (commande ${order.orderNumber}). ${sale.net.toLocaleString("fr-FR")} FCFA vous reviennent : ils passeront dans votre solde disponible dès que le client aura confirmé la réception du compte.`,
       actionUrl: "/seller",
-      priority: "NORMAL",
+      priority: "CRITICAL",
     });
   }
 }
@@ -378,7 +375,16 @@ export async function getMyOrder(orderId: string, userId: string) {
         orderBy: { createdAt: "desc" },
       },
       payments: {
-        select: { id: true, paymentNumber: true, type: true, amount: true, status: true, paidAt: true },
+        select: {
+          id: true,
+          paymentNumber: true,
+          type: true,
+          amount: true,
+          status: true,
+          paidAt: true,
+          provider: true,
+          transactionToken: true,
+        },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -390,9 +396,14 @@ export async function getMyOrder(orderId: string, userId: string) {
     hasAccess ? latestCodeForOrder(order.id) : Promise.resolve(null),
     getIntSetting("payoutHoldDays", 3),
   ]);
-  const { supportTicket, items, ...rest } = order;
+  const { supportTicket, items, payments, ...rest } = order;
+  // Règlement encore ouvert : lien pour le reprendre, ou preuve Wave en vérification.
+  const open = payments.find((p) => p.status === "PENDING" || p.status === "PROCESSING") ?? null;
   return {
     ...rest,
+    payments: payments.map(({ provider: _provider, transactionToken: _token, ...p }) => p),
+    checkoutUrl: open?.transactionToken ? `/checkout/${open.transactionToken}` : null,
+    paymentUnderReview: open?.status === "PROCESSING" && open.provider === "WAVE_LINK",
     items: items.map(({ product, ...item }) => ({
       ...item,
       productSlug: product.slug,

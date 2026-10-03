@@ -358,7 +358,7 @@ export async function createNextInstallmentPayment(orderId: string, actor: Insta
       type: "INSTALLMENT",
       amount,
       currency: "XOF",
-      provider: "PAYTECH",
+      provider: "WAVE_LINK",
       status: "PENDING",
       transactionToken,
     },

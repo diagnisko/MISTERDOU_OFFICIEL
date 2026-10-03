@@ -137,7 +137,8 @@ export const PAYMENT_TYPES = [
 ] as const;
 export type PaymentType = (typeof PAYMENT_TYPES)[number];
 
-export const PAYMENT_PROVIDERS = ["PAYTECH", "BALANCE", "SYSTEM"] as const;
+// PAYTECH : ancien prestataire, conservé uniquement pour l'historique.
+export const PAYMENT_PROVIDERS = ["WAVE_LINK", "BALANCE", "SYSTEM", "PAYTECH"] as const;
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number];
 
 export const PLAN_STATUSES = ["ACTIVE", "COMPLETED", "DEFAULTED", "CANCELLED"] as const;
@@ -287,6 +288,11 @@ export const API_ERROR_CODES = [
   // Vendeur : sa propre offre, adhésion
   "OWN_OFFER",
   "SELLER_ALREADY_ACTIVE",
+  // Paiement par lien Wave : preuve vérifiée par l'équipe
+  "WAVE_LINK_UNAVAILABLE",
+  "PROOF_ALREADY_SENT",
+  "PROOF_REFERENCE_USED",
+  "PROOF_ALREADY_REVIEWED",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 

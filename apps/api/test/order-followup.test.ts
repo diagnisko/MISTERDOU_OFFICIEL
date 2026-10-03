@@ -35,7 +35,7 @@ async function vendorSale(price = 20_000) {
   const order = await createOrder({ productId: product.id, quantity: 1, paymentMode: "ONE_TIME" }, { actorId: buyer.id });
   track(t, "orderIds", order.orderId);
   const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: order.orderId } });
-  await settlePayment({ id: payment.id }, "SUCCESS", { source: "WEBHOOK" });
+  await settlePayment({ id: payment.id }, "SUCCESS", { source: "MANUAL" });
   return { owner, seller, product, buyer, orderId: order.orderId };
 }
 
@@ -206,7 +206,7 @@ describe("Mensualités payées d'avance", () => {
     const order = await createOrder({ productId: product.id, quantity: 1, paymentMode: "INSTALLMENTS" }, { actorId: buyer.id });
     track(t, "orderIds", order.orderId);
     const down = await prisma.payment.findFirstOrThrow({ where: { orderId: order.orderId } });
-    await settlePayment({ id: down.id }, "SUCCESS", { source: "WEBHOOK" });
+    await settlePayment({ id: down.id }, "SUCCESS", { source: "MANUAL" });
 
     await expect(createNextInstallmentPayment(order.orderId, { actorId: buyer.id }, 5)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
 
@@ -216,7 +216,7 @@ describe("Mensualités payées d'avance", () => {
     // Changer le nombre de mois annule le paiement en attente précédent.
     expect((await prisma.payment.findUniqueOrThrow({ where: { id: one.paymentId } })).status).toBe("CANCELLED");
 
-    await settlePayment({ id: two.paymentId }, "SUCCESS", { source: "WEBHOOK" });
+    await settlePayment({ id: two.paymentId }, "SUCCESS", { source: "MANUAL" });
     const schedule = (await getMyOrder(order.orderId, buyer.id)).schedule!;
     expect(schedule.installments.map((i) => i.status)).toEqual(["PAID", "PAID", "PENDING", "PENDING"]);
     expect(schedule.totalPaid).toBe(60_000);
@@ -224,7 +224,7 @@ describe("Mensualités payées d'avance", () => {
     // Le reste d'un coup : le plan est soldé et le compte livré.
     const rest = await createNextInstallmentPayment(order.orderId, { actorId: buyer.id }, 2);
     expect(rest.amount).toBe(40_000);
-    await settlePayment({ id: rest.paymentId }, "SUCCESS", { source: "WEBHOOK" });
+    await settlePayment({ id: rest.paymentId }, "SUCCESS", { source: "MANUAL" });
     const done = await getMyOrder(order.orderId, buyer.id);
     expect(done.status).toBe("DELIVERED");
     expect(done.schedule?.fullyPaid).toBe(true);

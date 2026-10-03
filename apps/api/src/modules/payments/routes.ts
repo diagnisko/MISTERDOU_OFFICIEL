@@ -1,23 +1,18 @@
 ﻿import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
-import { requireAuth } from "../../lib/auth-context.js";
-import { logAudit } from "../../lib/audit.js";
-import { env } from "../../env.js";
+import { requireAuth, requirePermission } from "../../lib/auth-context.js";
+import { badRequest } from "../../lib/errors.js";
+import { getCheckoutState, listMyPayments, type PaymentContext } from "./service.js";
 import {
-  CHECKOUT_METHODS,
-  isAllowedWebhookIp,
-  verifyWebhookSignature,
-  verifyWebhookTimestamp,
-} from "./paytech.js";
-import {
-  getCheckoutState,
-  initiateCheckout,
-  listMyPayments,
-  settlePayment,
-  type PaymentContext,
-} from "./service.js";
+  approvePaymentProof,
+  getPaymentProofFile,
+  listPaymentProofs,
+  paymentProofSchema,
+  proofListQuery,
+  rejectPaymentProof,
+  submitPaymentProof,
+} from "./proofs.js";
 
 function ctx(request: FastifyRequest): PaymentContext {
   const auth = requireAuth(request);
@@ -28,24 +23,14 @@ function ctx(request: FastifyRequest): PaymentContext {
   };
 }
 
-const checkoutSchema = z.object({
-  method: z.enum(CHECKOUT_METHODS as [string, ...string[]]),
-});
+const proofRejectSchema = z.object({ reason: z.string().trim().min(5).max(300) });
 
-const webhookSchema = z.object({
-  reference: z.string().trim().min(3).max(120),
-  amount: z.number().int().nonnegative(),
-  status: z.enum(["SUCCESS", "FAILED", "CANCELLED"]),
-  failure_reason: z.string().trim().max(500).optional(),
-});
-
-type RawBodyRequest = FastifyRequest & { rawBody?: string };
+// ---------------------------------------------------------------------------
+// Paiements : uniquement par lien Wave Business. Le client paie le montant
+// écrit dans le lien, envoie sa preuve, et l'équipe valide (voir proofs.ts).
+// ---------------------------------------------------------------------------
 
 export async function registerPaymentRoutes(app: FastifyInstance) {
-  // PAYTECH_WEBHOOK_PATH est un chemin PUBLIC complet (ex. /api/v1/webhooks/paytech) ;
-  // ici on est déjà sous le préfixe /api/v1 → on retire le préfixe éventuel.
-  const webhookPath = env.PAYTECH_WEBHOOK_PATH.replace(/^\/api\/v1(?=\/|$)/, "") || "/webhooks/paytech";
-
   // --- Historique de mes paiements (connecté) ---
   app.get(
     "/payments",
@@ -56,13 +41,11 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     },
   );
 
-  // --- État du checkout (poll) — le token fait office de capacité ---
+  // --- État d'un paiement — le token fait office de capacité ---
   app.get(
     "/payments/:token",
     {
-      schema: { tags: ["Payments"], summary: "État d'un paiement (checkout / vérification serveur)" },
-      // Route PUBLIQUE qui peut déclencher settlePayment (écriture monétaire) :
-      // on borne fortement les interrogations par token.
+      schema: { tags: ["Payments"], summary: "État d'un paiement (montant, lien Wave, preuve envoyée)" },
       config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
@@ -71,97 +54,71 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     },
   );
 
-  // --- Initier le checkout (Wave / Orange Money) ---
+  // --- Paiement par lien Wave : le client envoie sa preuve (capture + numéro) ---
   app.post(
-    "/payments/:token/checkout",
+    "/payments/:token/proof",
     {
-      schema: { tags: ["Payments"], summary: "Initier le paiement (Wave / Orange Money)", security: [{ bearerAuth: [] }] },
+      schema: { tags: ["Payments"], summary: "Envoyer la preuve d'un paiement Wave (vérifiée par l'équipe)", security: [{ bearerAuth: [] }] },
       config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
       const { token } = request.params as { token: string };
-      const parsed = checkoutSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({
-          ok: false,
-          error: { code: "VALIDATION_ERROR", message: "Canal de paiement invalide (wave ou orange_money)" },
-        });
-      }
-      const result = await initiateCheckout(token, parsed.data.method as "wave" | "orange_money", ctx(request));
-      return sendOk(reply, result);
+      const parsed = paymentProofSchema.safeParse(request.body);
+      if (!parsed.success) throw badRequest("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Preuve de paiement invalide.");
+      const c = ctx(request);
+      return sendOk(reply, await submitPaymentProof(token, parsed.data, { ...c, actorId: c.actorId! }));
     },
   );
 
-  // --- Webhook fournisseur (public, hors CSRF — signature HMAC obligatoire) ---
-  app.post(
-    webhookPath,
-    {
-      schema: { tags: ["Payments"], summary: "Webhook fournisseur (HMAC-SHA256)" },
-      config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
-    },
+  // --- Équipe : preuves Wave à vérifier (admin ou manager PAYMENTS) ---
+  app.get(
+    "/admin/payment-proofs",
+    { schema: { tags: ["Payments"], summary: "Preuves de paiement Wave (à vérifier, validées, refusées)", security: [{ bearerAuth: [] }] } },
     async (request, reply) => {
-      const raw = (request as RawBodyRequest).rawBody;
-      if (typeof raw !== "string" || raw.length === 0) {
-        return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "Corps vide" } });
-      }
-      if (!env.PAYTECH_WEBHOOK_SECRET) {
-        return reply.status(503).send({ ok: false, error: { code: "INTERNAL_ERROR", message: "Webhook non configuré" } });
-      }
-
-      const signature = request.headers["x-paytech-signature"];
-      const timestamp = request.headers["x-paytech-timestamp"];
-      if (!verifyWebhookSignature(raw, typeof signature === "string" ? signature : undefined)) {
-        await logAudit({
-          action: "WEBHOOK_REJECTED",
-          resourceType: "Payment",
-          ip: request.ip,
-          metadata: { reason: "signature" },
-          severity: "CRITICAL",
-        });
-        return reply.status(401).send({ ok: false, error: { code: "UNAUTHORIZED", message: "Signature invalide" } });
-      }
-      if (!verifyWebhookTimestamp(typeof timestamp === "string" ? timestamp : undefined)) {
-        return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "Horodatage hors fenêtre" } });
-      }
-      if (!isAllowedWebhookIp(request.ip)) {
-        return reply.status(403).send({ ok: false, error: { code: "FORBIDDEN", message: "IP non autorisée" } });
-      }
-
-      const parsed = webhookSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "Payload webhook invalide" } });
-      }
-      const payload = parsed.data;
-
-      const found =
-        (await prisma.payment.findUnique({ where: { providerReference: payload.reference } })) ??
-        (await prisma.payment.findUnique({ where: { paymentNumber: payload.reference } }));
-      if (!found) {
-        return reply.status(404).send({ ok: false, error: { code: "NOT_FOUND", message: "Référence inconnue" } });
-      }
-
-      // Jamais d'ACK succès sur un montant divergent (docs/06 §1.3.4).
-      if (payload.amount !== found.amount) {
-        await logAudit({
-          action: "WEBHOOK_AMOUNT_MISMATCH",
-          resourceType: "Payment",
-          resourceId: found.id,
-          ip: request.ip,
-          metadata: { expected: found.amount, received: payload.amount, reference: payload.reference },
-          severity: "CRITICAL",
-        });
-        return reply.status(400).send({ ok: false, error: { code: "VALIDATION_ERROR", message: "Montant divergent" } });
-      }
-
-      const result = await settlePayment({ id: found.id }, payload.status, {
-        source: "WEBHOOK",
-        providerReference: found.providerReference ?? payload.reference,
-        failureReason: payload.failure_reason ?? null,
-        ctx: { ip: request.ip },
-      });
-      // 200 dans tous les cas (idempotent) : le fournisseur ne doit pas rejouer.
-      return sendOk(reply, { received: true, idempotent: result.already, status: result.status });
+      await requirePermission(request, "PAYMENTS");
+      const { status } = proofListQuery.parse(request.query);
+      return sendOk(reply, await listPaymentProofs(status));
     },
   );
 
+  app.get(
+    "/admin/payment-proofs/:id/file",
+    { schema: { tags: ["Payments"], summary: "Capture d'une preuve de paiement", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      await requirePermission(request, "PAYMENTS");
+      const { id } = request.params as { id: string };
+      const file = await getPaymentProofFile(id);
+      reply
+        .header("Content-Type", file.mime)
+        .header("Content-Length", file.size)
+        .header("Content-Disposition", "inline")
+        .header("Cache-Control", "private, no-store")
+        .header("X-Content-Type-Options", "nosniff");
+      return reply.send(file.buffer);
+    },
+  );
+
+  app.post(
+    "/admin/payment-proofs/:id/approve",
+    { schema: { tags: ["Payments"], summary: "Valider un paiement Wave (livre la commande)", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      await requirePermission(request, "PAYMENTS");
+      const { id } = request.params as { id: string };
+      const c = ctx(request);
+      return sendOk(reply, await approvePaymentProof(id, { ...c, actorId: c.actorId! }));
+    },
+  );
+
+  app.post(
+    "/admin/payment-proofs/:id/reject",
+    { schema: { tags: ["Payments"], summary: "Refuser une preuve de paiement Wave (motif transmis au client)", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      await requirePermission(request, "PAYMENTS");
+      const { id } = request.params as { id: string };
+      const parsed = proofRejectSchema.safeParse(request.body);
+      if (!parsed.success) throw badRequest("VALIDATION_ERROR", "Motif du refus : 5 caractères minimum.");
+      const c = ctx(request);
+      return sendOk(reply, await rejectPaymentProof(id, parsed.data.reason, { ...c, actorId: c.actorId! }));
+    },
+  );
 }

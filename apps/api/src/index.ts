@@ -3,7 +3,6 @@ import { env } from "./env.js";
 import { buildApp } from "./app.js";
 import { prisma } from "@misterdou/db";
 import { logger } from "./lib/logger.js";
-import { startPaymentReconciliation } from "./modules/payments/service.js";
 import { startInstallmentJobs } from "./modules/installments/service.js";
 import { startPromotionJobs } from "./modules/promotions/service.js";
 import { startSellerPayoutJobs } from "./modules/orders/fulfillment.js";
@@ -17,17 +16,25 @@ async function main() {
   logger.info(`API MISTERDOU démarrée sur ${env.API_PUBLIC_URL}`);
   logger.info(`Docs OpenAPI : ${env.API_PUBLIC_URL}/docs`);
 
-  // Réconciliation des paiements (webhook perdu → vérification périodique).
-  startPaymentReconciliation();
-
   // Échéanciers : retards (OVERDUE) + rappels J-3 (idempotents, anti-doublon).
   startInstallmentJobs();
 
   // Promotions & mises en avant : expiration + synchronisation des statuts.
   startPromotionJobs();
 
-  // Fonds vendeurs : libération automatique après le délai de sécurité.
+  // Fonds vendeurs : libération automatique après le délai de sécurité ;
+  // commandes jamais réglées annulées après le délai configuré.
   startSellerPayoutJobs();
+
+  // Réglages manquants qui rendent une fonction inopérante en production.
+  if (env.NODE_ENV === "production") {
+    if (!env.R2_PUBLIC_BUCKET) {
+      logger.warn("[config] R2_PUBLIC_BUCKET absent : les photos des offres sont gardées sur le disque du serveur et perdues à son redémarrage.");
+    }
+    if (!env.SMTP_URL) {
+      logger.warn("[config] SMTP_URL absent : aucun e-mail n'est envoyé (mot de passe oublié, alertes de sécurité, paiements).");
+    }
+  }
 
   const shutdown = async (signal: string) => {
     logger.info(`Signal ${signal} reçu — arrêt propre…`);

@@ -42,6 +42,24 @@ const DEFAULT_SETTINGS = [
   { key: "supportWhatsapp", value: "+12272254876", valueType: "string", group: "support", description: "Numéro WhatsApp du support (vide = bouton masqué)" },
   { key: "supportEmail", value: "", valueType: "string", group: "support", description: "E-mail du support (vide = bouton masqué)" },
   { key: "sellerRegistrationFee", value: 1000, valueType: "int", group: "sellers", description: "Frais d'adhésion pour devenir vendeur (FCFA)" },
+  { key: "legalEntityName", value: "", valueType: "string", group: "legal", description: "Pages légales : nom de l'entreprise ou de l'exploitant" },
+  { key: "legalAddress", value: "", valueType: "string", group: "legal", description: "Pages légales : adresse du siège" },
+  { key: "legalRegistration", value: "", valueType: "string", group: "legal", description: "Pages légales : NINEA / RCCM" },
+  { key: "legalPublisher", value: "", valueType: "string", group: "legal", description: "Pages légales : responsable de la publication" },
+  {
+    key: "unpaidOrderExpiryHours",
+    value: 24,
+    valueType: "int",
+    group: "orders",
+    description: "Délai avant l'annulation d'une commande jamais réglée (heures) ; une preuve Wave en vérification la garde ouverte",
+  },
+  {
+    key: "waveMerchantLink",
+    value: "https://pay.wave.com/m/M_sn_FXjtL8L8mMRr/c/sn/",
+    valueType: "string",
+    group: "payments",
+    description: "Lien de paiement Wave Business (le montant est ajouté tout seul ; vide = paiement Wave désactivé)",
+  },
 ];
 
 export async function ensureDefaultSettings(): Promise<void> {
@@ -56,4 +74,80 @@ export async function getSupportContacts(): Promise<{ whatsapp: string | null; e
     return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
   };
   return { whatsapp: read("supportWhatsapp"), email: read("supportEmail") };
+}
+
+// ---------------------------------------------------------------------------
+// Lien de paiement Wave Business : le montant à payer est écrit dans le lien
+// (?amount=…), calculé côté serveur (prix de l'offre, apport, mensualités…).
+// ---------------------------------------------------------------------------
+
+const WAVE_LINK_PREFIX = "https://pay.wave.com/";
+
+/** Un lien Wave Business valide (https://pay.wave.com/…). */
+export function isWaveLink(value: string): boolean {
+  if (!value.startsWith(WAVE_LINK_PREFIX)) return false;
+  try {
+    return new URL(value).host === "pay.wave.com";
+  } catch {
+    return false;
+  }
+}
+
+/** Lien Wave réglé dans Console > Paramètres, sans montant ; null si absent. */
+export async function getWaveMerchantLink(): Promise<string | null> {
+  const v = await getSetting("waveMerchantLink");
+  return typeof v === "string" && isWaveLink(v.trim()) ? v.trim() : null;
+}
+
+/** Lien Wave avec le montant à payer (remplace un éventuel montant déjà présent). */
+export function waveLinkWithAmount(base: string, amount: number): string {
+  const url = new URL(base);
+  url.searchParams.set("amount", String(amount));
+  return url.toString();
+}
+
+// ---------------------------------------------------------------------------
+// Pages légales (CGU, confidentialité, mentions légales) : identité de
+// l'exploitant et règles chiffrées, toutes réglées dans Console > Paramètres.
+// ---------------------------------------------------------------------------
+
+export async function getLegalInfo() {
+  const KEYS = [
+    "platformName",
+    "legalEntityName",
+    "legalAddress",
+    "legalRegistration",
+    "legalPublisher",
+    "supportEmail",
+    "supportWhatsapp",
+    "sellerCommissionPercent",
+    "payoutHoldDays",
+    "unpaidOrderExpiryHours",
+    "sellerRegistrationFee",
+    "minWithdrawalAmount",
+  ] as const;
+  const rows = await prisma.settings.findMany({ where: { key: { in: [...KEYS] } }, select: { key: true, value: true } });
+  const byKey = new Map(rows.map((r) => [r.key, r.value as SettingValue | undefined]));
+  const text = (key: (typeof KEYS)[number]) => {
+    const v = byKey.get(key);
+    return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+  };
+  const int = (key: (typeof KEYS)[number], fallback: number) => {
+    const v = byKey.get(key);
+    return typeof v === "number" ? v : fallback;
+  };
+  return {
+    platformName: text("platformName") ?? "MISTERDOU",
+    entityName: text("legalEntityName"),
+    address: text("legalAddress"),
+    registration: text("legalRegistration"),
+    publisher: text("legalPublisher"),
+    supportEmail: text("supportEmail"),
+    supportWhatsapp: text("supportWhatsapp"),
+    commissionPercent: int("sellerCommissionPercent", 15),
+    payoutHoldDays: int("payoutHoldDays", 3),
+    unpaidOrderExpiryHours: int("unpaidOrderExpiryHours", 24),
+    sellerRegistrationFee: int("sellerRegistrationFee", 1000),
+    minWithdrawal: int("minWithdrawalAmount", 1000),
+  };
 }

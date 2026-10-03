@@ -1,5 +1,7 @@
 # 08 — Plan de développement (14 phases)
 
+> **Mise à jour du 2026-10-02** : PayTech et Orange Money ont été retirés. Les paiements se font uniquement par lien Wave Business, vérifiés par l'équipe (voir docs/06). Les passages ci-dessous qui citent l'ancien prestataire décrivent l'historique du projet.
+
 Chaque phase = périmètre du cahier des charges + critères d'acceptation + plan de test.
 
 | Phase | Intitulé | Périmètre (réf.) | Statut |

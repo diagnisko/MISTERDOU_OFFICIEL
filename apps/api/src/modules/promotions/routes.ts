@@ -36,8 +36,8 @@ const createPromotionBody = z
 
 const featuredBody = z.object({
   days: z.coerce.number().int().min(1).max(FEATURED_MAX_DAYS),
-  // R10 : solde d'abord (AUTO), PayTech en secours ; BALANCE = strict.
-  paymentMethod: z.enum(["AUTO", "BALANCE", "PAYTECH"]).default("AUTO"),
+  // R10 : solde d'abord (AUTO), Wave en secours ; BALANCE = strict.
+  paymentMethod: z.enum(["AUTO", "BALANCE", "WAVE"]).default("AUTO"),
 });
 
 // ---------------------------------------------------------------------------

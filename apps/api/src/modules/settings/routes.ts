@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { getPublicMeta, getSupportContacts } from "./service.js";
+import { getLegalInfo, getPublicMeta, getSupportContacts } from "./service.js";
 import { sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
 
 export async function registerSettingsRoutes(app: FastifyInstance) {
@@ -13,6 +13,12 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
       reply.header("Cache-Control", PUBLIC_CACHE_CONTROL);
       return sendPublicOk(request, reply, await getPublicMeta());
     },
+  });
+
+  // Informations des pages légales (exploitant, contacts, règles chiffrées).
+  app.get("/legal", { schema: { tags: ["Public"], summary: "Informations des pages légales" } }, async (request, reply) => {
+    reply.header("Cache-Control", PUBLIC_CACHE_CONTROL);
+    return sendPublicOk(request, reply, await getLegalInfo());
   });
 
   // Contacts du support (WhatsApp, e-mail) réglés dans Console > Paramètres.

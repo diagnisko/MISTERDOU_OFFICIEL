@@ -1,6 +1,7 @@
 // Argent des ventes vendeur et disponibilité des comptes :
 // produit retiré de la boutique, commission, fonds en attente puis libérés
 // (« Reçu » du client ou délai de sécurité), réservation, retraits vendeur.
+import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
 import {
@@ -13,6 +14,7 @@ import {
   createSeller,
   createUser,
   expectApiError,
+  putStorageFile,
   tracker,
   track,
 } from "./helpers.js";
@@ -40,7 +42,7 @@ async function purchase(buyerId: string, productId: string, paymentMode: "ONE_TI
   const order = await createOrder({ productId, quantity: 1, paymentMode }, { actorId: buyerId });
   track(t, "orderIds", order.orderId);
   const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: order.orderId } });
-  await settlePayment({ id: payment.id }, "SUCCESS", { source: "WEBHOOK" });
+  await settlePayment({ id: payment.id }, "SUCCESS", { source: "MANUAL" });
   return order;
 }
 
@@ -210,7 +212,7 @@ describe("Retraits vendeur", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/seller/withdrawals",
-      payload: { amount: 8_000, method: "ORANGE_MONEY", phoneNumber: "+221 77 123 45 67" },
+      payload: { amount: 8_000, method: "WAVE", phoneNumber: "+221 77 123 45 67" },
     });
     expect(res.statusCode).toBe(200);
     const id = res.json().data.id as string;
@@ -234,7 +236,8 @@ describe("Retraits vendeur", () => {
     const eta = await prisma.notification.findFirst({ where: { userId: owner.id, title: "Retrait en cours de traitement" } });
     expect(eta?.message).toContain("30 minutes");
 
-    await approveWithdrawal(id, "OM-REF-123", actor);
+    const proofKey = await putStorageFile(t, `proofs/${admin.user.id}/withdrawal_proof/${randomUUID()}`);
+    await approveWithdrawal(id, { proofKey, paymentReference: "OM-REF-123" }, actor);
     expect((await prisma.withdrawal.findUniqueOrThrow({ where: { id } })).status).toBe("APPROVED");
   });
 });

@@ -143,7 +143,7 @@ export const fr = {
   "join.lead": "Vendez vos comptes eFootball sur MISTERDOU. Une adhésion unique de {fee}, et votre compte passe vendeur dès le paiement confirmé.",
   "join.b1": "Vos offres sont visibles par tous les clients, à côté de celles de MISTERDOU.",
   "join.b2": "À chaque vente, {rate} % reviennent à la plateforme ; le reste est pour vous.",
-  "join.b3": "Vos gains se retirent par Wave ou Orange Money.",
+  "join.b3": "Vos gains vous sont envoyés par Wave.",
   "join.b4": "Vous restez client : vous voyez et achetez les offres des autres vendeurs. Seule la vôtre ne peut pas être achetée par vous.",
   "join.pay": "Payer {fee} et devenir vendeur",
   "join.resume": "Reprendre le paiement en cours",
@@ -153,6 +153,12 @@ export const fr = {
   "join.openSpace": "Ouvrir l’espace vendeur",
   "join.blocked": "Votre accès vendeur est suspendu. Contactez le support pour en savoir plus.",
   "join.failed": "Le paiement n’a pas pu être ouvert. Réessayez.",
+  "order.reviewTitle": "Paiement en cours de vérification",
+  "order.reviewBody": "Votre preuve de paiement Wave est entre les mains de l’équipe. Dès la validation, les accès du compte s’affichent ici.",
+  "order.payNow": "Payer maintenant →",
+  "order.helpTitle": "Besoin d’aide pour vous connecter ?",
+  "order.helpBody": "Discutez avec l’équipe MISTERDOU : elle vous accompagne jusqu’à la connexion au compte.",
+  "order.helpCta": "Discuter avec l’équipe",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -290,7 +296,7 @@ export const en: Translations<typeof fr> = {
   "join.lead": "Sell your eFootball accounts on MISTERDOU. A one-time membership of {fee}, and your account becomes a seller account as soon as the payment is confirmed.",
   "join.b1": "Your offers are visible to every customer, next to MISTERDOU’s own.",
   "join.b2": "On each sale, {rate}% goes to the platform; the rest is yours.",
-  "join.b3": "Withdraw your earnings with Wave or Orange Money.",
+  "join.b3": "Your earnings are sent to you with Wave.",
   "join.b4": "You remain a customer: you can see and buy other sellers’ offers. Only your own can’t be bought by you.",
   "join.pay": "Pay {fee} and become a seller",
   "join.resume": "Resume the pending payment",
@@ -300,6 +306,12 @@ export const en: Translations<typeof fr> = {
   "join.openSpace": "Open the seller area",
   "join.blocked": "Your seller access is suspended. Contact support to learn more.",
   "join.failed": "The payment could not be opened. Please try again.",
+  "order.reviewTitle": "Payment being checked",
+  "order.reviewBody": "Your Wave payment proof is with the team. As soon as it’s confirmed, the account details appear here.",
+  "order.payNow": "Pay now →",
+  "order.helpTitle": "Need help signing in?",
+  "order.helpBody": "Chat with the MISTERDOU team: they’ll help you until you’re signed in to the account.",
+  "order.helpCta": "Chat with the team",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -437,7 +449,7 @@ export const ar: Translations<typeof fr> = {
   "join.lead": "بِع حسابات eFootball الخاصة بك على MISTERDOU. اشتراك لمرة واحدة بقيمة {fee}، ويصبح حسابك حساب بائع فور تأكيد الدفع.",
   "join.b1": "عروضك مرئية لجميع العملاء، بجانب عروض MISTERDOU.",
   "join.b2": "في كل عملية بيع، تذهب {rate}٪ إلى المنصة والباقي لك.",
-  "join.b3": "اسحب أرباحك عبر Wave أو Orange Money.",
+  "join.b3": "تصلك أرباحك عبر Wave.",
   "join.b4": "تبقى عميلًا: ترى عروض البائعين الآخرين وتشتريها. عرضك وحده لا يمكنك شراؤه.",
   "join.pay": "ادفع {fee} وكن بائعًا",
   "join.resume": "استئناف الدفع الجاري",
@@ -447,4 +459,10 @@ export const ar: Translations<typeof fr> = {
   "join.openSpace": "فتح مساحة البائع",
   "join.blocked": "تم تعليق وصولك كبائع. تواصل مع الدعم لمعرفة المزيد.",
   "join.failed": "تعذر فتح الدفع. أعد المحاولة.",
+  "order.reviewTitle": "الدفع قيد التحقق",
+  "order.reviewBody": "إثبات دفعك عبر Wave لدى الفريق. فور التأكيد تظهر بيانات الحساب هنا.",
+  "order.payNow": "ادفع الآن ←",
+  "order.helpTitle": "تحتاج مساعدة لتسجيل الدخول؟",
+  "order.helpBody": "تحدّث مع فريق MISTERDOU: سيرافقك حتى تسجّل الدخول إلى الحساب.",
+  "order.helpCta": "تحدّث مع الفريق",
 };

@@ -65,6 +65,7 @@ model User {
   notificationPreference                             NotificationPreference?
   orders                                             Order[]                 @relation("OrderBuyer")
   payments                                           Payment[]
+  paymentProofs                                      PaymentProof[]
   phoneVerifications                                 PhoneVerification[]
   productReviews                                     ProductReview[]
   pushToken                                          PushToken[]
@@ -342,7 +343,7 @@ model Payment {
   type              PaymentType
   amount            Int
   currency          String            @default("XOF")
-  provider          PaymentProvider   @default(PAYTECH)
+  provider          PaymentProvider   @default(WAVE_LINK)
   providerReference String?           @unique
   transactionToken  String?           @unique
   status            PaymentStatus     @default(PENDING)
@@ -358,10 +359,35 @@ model Payment {
   order             Order?            @relation(fields: [orderId], references: [id])
   user              User              @relation(fields: [userId], references: [id])
   featuredPurchases FeaturedProduct[]
+  proofs            PaymentProof[]
 
   @@index([userId])
   @@index([orderId])
   @@index([status, createdAt])
+}
+
+// Preuve d'un paiement par lien Wave : capture + numéro payeur, vérifiée par
+// un administrateur ou un manager (permission PAYMENTS) avant la livraison.
+model PaymentProof {
+  id              String             @id @default(uuid())
+  paymentId       String
+  userId          String
+  status          PaymentProofStatus @default(PENDING)
+  // Montant attendu au moment de l'envoi (celui écrit dans le lien Wave).
+  amount          Int
+  screenshotKey   String
+  senderPhone     String
+  waveReference   String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  payment         Payment            @relation(fields: [paymentId], references: [id])
+  user            User               @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([paymentId])
+  @@index([waveReference])
 }
 
 model InstallmentPlan {
@@ -709,6 +735,12 @@ model Withdrawal {
   etaMinutes          Int?
   rejectionReason     String?
   paymentReference    String?
+  // Capture de l'envoi faite par l'équipe (stockage privé chiffré).
+  proofKey            String?
+  // Réponse du vendeur après l'envoi : « Reçu » ou « Pas reçu ».
+  sellerConfirmedAt   DateTime?
+  sellerDisputedAt    DateTime?
+  sellerDisputeNote   String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   user                User             @relation(fields: [requestedById], references: [id])
@@ -818,9 +850,19 @@ enum PaymentType {
 }
 
 enum PaymentProvider {
+  // Ancien prestataire, conservé uniquement pour l'historique des paiements.
   PAYTECH
   BALANCE
   SYSTEM
+  // Lien de paiement Wave Business : le client paie puis envoie sa preuve,
+  // l'équipe valide à la main (PaymentProof).
+  WAVE_LINK
+}
+
+enum PaymentProofStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum PaymentStatus {

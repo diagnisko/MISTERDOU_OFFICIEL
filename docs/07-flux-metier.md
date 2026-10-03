@@ -37,7 +37,7 @@ Règles
 ```
 [1] Client vérifié (KYC VERIFIED) demande le statut vendeur
 [2] Paiement frais (SellerRegistrationFee = Settings, défaut 1 000 FCFA, définitif)
-      via pipeline PayTech (docs/06) — Payment(type=SELLER_REGISTRATION_FEE)
+      via paiement Wave (docs/06) — Payment(type=SELLER_REGISTRATION_FEE)
 [3] Après SUCCESS serveur : Seller(ACTIVE, sellerSince, registrationFeeAmount snapshot)
 [4] Dashboard vendeur activé : publier, gérer, suivre
 ```
@@ -72,7 +72,7 @@ Règles
 ### 4.1 Produit vendeur (ONE_TIME)
 ```
 Catalogue → Détail → « Acheter » (KYC requis) → POST /orders → POST /payments
-→ redirection PayTech → webhook vérifié → Payment=SUCCESS
+→ lien Wave (montant rempli) → preuve envoyée → validation par l'équipe → Payment=SUCCESS
 → Order=PAID → OrderItem snapshot → credentials révélés au client (après paiement)
 → Commission 15% + crédit solde vendeur (pending hold) → notifications + audit
 ```
@@ -100,7 +100,7 @@ Client voit (dashboard) : total, payé, restant, prochaine échéance, historiqu
 
 ```
 Mise en avant (vendeur) : choisit produit + jours → coût calculé serveur (dailyRate × jours)
-  → paiement BALANCE (débit solde disponible) ou PAYTECH (webhook)
+  → paiement BALANCE (débit solde disponible) ou WAVE (lien + preuve validée)
   → FeaturedProduct(ACTIVE, expiresAt) → badge « Mis en avant » + emplacements
   → job daily : expiration automatique + notification vendeur
 Promo (admin) : Promotion(SCHEDULED→ACTIVE, début/fin, promoPrice OU discountPercent)
@@ -117,7 +117,7 @@ Promo (admin) : Promotion(SCHEDULED→ACTIVE, début/fin, promoPrice OU discount
 | KYC | consulter dossier → accepter / refuser (motif) / demander nouvelle soumission → AuditLog |
 | Produits | ajouter (produits ADMIN + INSTALLMENTS), modifier, désactiver, mettre en avant, promos |
 | Vendeurs | approuver, suspendre, voir ventes/commissions, gérer paiements |
-| Paiements | toutes transactions, statuts, recherche par référence PayTech |
+| Paiements | preuves Wave à vérifier, toutes transactions, statuts, recherche par référence |
 | Retraits | approuver / rejeter (réservation & restitution atomiques) |
 | Commandes | suivi, remboursement (2FA + confirmation), relance échéances |
 | Settings | commission %, frais vendeur, featuredDailyRate, maxInstallments (≤8), règles paiement |

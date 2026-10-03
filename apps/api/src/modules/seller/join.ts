@@ -81,7 +81,7 @@ export async function requestSellerJoin(ctx: { actorId: string; ip?: string }): 
       type: "SELLER_REGISTRATION_FEE",
       amount,
       currency: "XOF",
-      provider: "PAYTECH",
+      provider: "WAVE_LINK",
       status: "PENDING",
       transactionToken: token,
     },

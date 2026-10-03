@@ -2,7 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
-import { requireAuth, requirePermission } from "../../lib/auth-context.js";
+import { requireAdminSession, requireAuth, requirePermission } from "../../lib/auth-context.js";
+import { adminPasswordResetLink } from "../auth/password-reset.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 
@@ -106,6 +107,13 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const dossier = await memberDossier(seller.userId);
     await audit(request, "ADMIN_MEMBER_VIEWED", "User", seller.userId, { sellerId: id });
     return sendOk(reply, dossier);
+  });
+
+  // Lien de réinitialisation du mot de passe à transmettre au client (ADMIN seul).
+  app.post("/admin/clients/:id/password-reset-link", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const auth = requireAdminSession(request);
+    const { id } = request.params as { id: string };
+    return sendOk(reply, await adminPasswordResetLink(id, { actorId: auth.user.id, actorRole: "ADMIN", ip: request.ip }));
   });
 
   app.patch("/admin/clients/:id/status", async (request, reply) => {

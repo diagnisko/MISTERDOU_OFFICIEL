@@ -15,9 +15,10 @@ export type SellerWithdrawal = {
   processedAt: string | null;
   rejectionReason: string | null;
   paymentReference: string | null;
+  hasProof: boolean;
+  sellerConfirmedAt: string | null;
+  sellerDisputedAt: string | null;
 };
-
-type Method = "WAVE" | "ORANGE_MONEY";
 
 const ETA_KEYS: Record<number, MessageKey> = { 30: "wd.eta30", 60: "wd.eta60", 720: "wd.eta720" };
 
@@ -31,9 +32,10 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Retrait du solde disponible : le vendeur demande, l'équipe traite à la main
-// (« en traitement » avec un délai annoncé, puis payé). Le solde est bloqué dès
-// la demande côté serveur.
+// Retrait du solde disponible : le vendeur demande, l'équipe envoie l'argent à
+// la main (« en traitement » avec un délai annoncé, puis envoyé avec la capture
+// de l'envoi) et le vendeur confirme la réception. Le solde est bloqué dès la
+// demande côté serveur.
 // ---------------------------------------------------------------------------
 
 export function WithdrawalsPanel({
@@ -49,7 +51,6 @@ export function WithdrawalsPanel({
 }) {
   const t = useT();
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<Method>("WAVE");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
@@ -66,7 +67,7 @@ export function WithdrawalsPanel({
     try {
       await request("/api/v1/seller/withdrawals", {
         method: "POST",
-        body: JSON.stringify({ amount: value, method, phoneNumber: phone.trim() }),
+        body: JSON.stringify({ amount: value, method: "WAVE", phoneNumber: phone.trim() }),
       });
       setAmount("");
       setMessage({ tone: "success", text: t("wd.sent") });
@@ -105,13 +106,10 @@ export function WithdrawalsPanel({
             )}
           </span>
         </label>
-        <label className="block">
+        <div className="block">
           <span className="mb-1.5 block text-[12px] text-[#b8a6a1]">{t("wd.method")}</span>
-          <select value={method} onChange={(e) => setMethod(e.target.value as Method)} className="dash-input !pl-4">
-            <option value="WAVE">Wave</option>
-            <option value="ORANGE_MONEY">Orange Money</option>
-          </select>
-        </label>
+          <span className="dash-input !pl-4 flex items-center text-stone-200">Wave</span>
+        </div>
         <label className="block">
           <span className="mb-1.5 block text-[12px] text-[#b8a6a1]">{t("wd.phone")}</span>
           <input
@@ -157,10 +155,98 @@ export function WithdrawalsPanel({
                 {w.paymentReference ? ` · ${t("wd.reference", { ref: w.paymentReference })}` : ""}
               </p>
               {w.rejectionReason && <p className="mt-1 text-[11.5px] text-[#fca5a5]">{t("wd.reason", { reason: w.rejectionReason })}</p>}
+              {w.hasProof && (
+                <a
+                  href={`/api/v1/seller/withdrawals/${w.id}/proof`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1.5 inline-block text-[12px] text-[#ff8a5c] hover:underline"
+                >
+                  {t("wd.seeProof")}
+                </a>
+              )}
+              {w.status === "APPROVED" && <ReceiptButtons withdrawal={w} onDone={onDone} />}
             </li>
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+/** Après l'envoi : « Je l'ai reçu » clôt le retrait, « Pas reçu » alerte l'équipe. */
+function ReceiptButtons({ withdrawal, onDone }: { withdrawal: SellerWithdrawal; onDone: () => Promise<void> }) {
+  const t = useT();
+  const [disputing, setDisputing] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function answer(received: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      await request(`/api/v1/seller/withdrawals/${withdrawal.id}/receipt`, {
+        method: "POST",
+        body: JSON.stringify(received ? { received } : { received, note: note.trim() }),
+      });
+      setDisputing(false);
+      await onDone();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : t("wd.failed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2.5">
+      {withdrawal.sellerDisputedAt && <p className="mb-2 text-[11.5px] text-[#fbbf24]">{t("wd.disputed")}</p>}
+      {disputing ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void answer(false);
+          }}
+          className="space-y-2"
+        >
+          <textarea
+            required
+            minLength={5}
+            maxLength={500}
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t("wd.notReceivedPlaceholder")}
+            className="dash-input !h-auto !pl-4 py-2"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={busy || note.trim().length < 5} className="dash-btn dash-btn-primary">
+              {t("wd.sendDispute")}
+            </button>
+            <button type="button" onClick={() => setDisputing(false)} className="px-3 text-[12px] text-[#b8a6a1] hover:text-white">
+              {t("wd.cancel")}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => void answer(true)} className="dash-btn dash-btn-primary">
+            {busy ? t("wd.confirming") : t("wd.gotIt")}
+          </button>
+          {!withdrawal.sellerDisputedAt && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setDisputing(true)}
+              className="rounded-full border border-[rgba(239,68,68,0.4)] px-3.5 py-1.5 text-[12px] text-[#fca5a5] hover:bg-[rgba(239,68,68,0.08)]"
+            >
+              {t("wd.notReceived")}
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p className="mt-2 text-[11.5px] text-[#fca5a5]">{error}</p>}
+    </div>
   );
 }

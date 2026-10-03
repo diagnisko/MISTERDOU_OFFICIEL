@@ -1,6 +1,6 @@
 import { prisma } from "@misterdou/db";
 import type { PaymentStatus, PaymentType, Prisma, RoleName } from "@misterdou/db";
-import { badRequest, notFound } from "../../lib/errors.js";
+import { notFound } from "../../lib/errors.js";
 import { deliverOrderAfterSuccess } from "../../modules/orders/service.js";
 import { applyDownPayment, applyInstallmentPayment } from "../../modules/installments/service.js";
 import { activateFeatured } from "../../modules/promotions/service.js";
@@ -8,14 +8,8 @@ import { activateSeller } from "../../modules/seller/join.js";
 import { notifyUser } from "../../lib/notify.js";
 import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
-import { env } from "../../env.js";
-import {
-  CHECKOUT_METHOD_LABELS,
-  createProviderCheckout,
-  fetchProviderStatus,
-  isProviderConfigured,
-  type CheckoutMethod,
-} from "./paytech.js";
+import { getWaveMerchantLink, waveLinkWithAmount } from "../settings/service.js";
+import { latestProof } from "./proofs.js";
 
 export interface PaymentContext {
   actorId?: string;
@@ -28,17 +22,15 @@ type Tx = Prisma.TransactionClient;
 const TERMINAL_STATUSES: PaymentStatus[] = ["SUCCESS", "FAILED", "CANCELLED", "REFUNDED"];
 
 // ---------------------------------------------------------------------------
-// Création d'un paiement (jamais créé côté frontend — montant calculé Serveur)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// SETTLE — l'unique porte d'évolution de statut (webhook, poll, réconciliation,
-// stub dev). Atomique et idempotent : UPDATE … WHERE status ∈ (PENDING,
-// PROCESSING) — un second appel ne crédite JAMAIS deux fois (docs/06 §1.3).
+// SETTLE — l'unique porte d'évolution de statut. Atomique et idempotent :
+// UPDATE … WHERE status ∈ (PENDING, PROCESSING) — un second appel ne crédite
+// JAMAIS deux fois.
 // ---------------------------------------------------------------------------
 
 export type SettleOutcome = "SUCCESS" | "FAILED" | "CANCELLED";
-export type SettleSource = "WEBHOOK" | "RECONCILE" | "POLL" | "DEV";
+// MANUAL : preuve de paiement Wave validée par un membre de l'équipe.
+// ADMIN  : règlement enregistré depuis la console (échéance encaissée, solde).
+export type SettleSource = "MANUAL" | "ADMIN";
 
 export async function settlePayment(
   lookup: { id?: string; providerReference?: string; paymentNumber?: string },
@@ -80,7 +72,6 @@ export async function settlePayment(
               status: "SUCCESS",
               paidAt: now,
               verifiedAt: now,
-              ...(opts.source === "WEBHOOK" ? { webhookReceivedAt: now } : {}),
               ...(opts.providerReference ? { providerReference: opts.providerReference } : {}),
               failureReason: null,
             }
@@ -206,76 +197,8 @@ export async function settlePayment(
 }
 
 // ---------------------------------------------------------------------------
-// Checkout — PENDING → PROCESSING : appel fournisseur (mode réel) ou passage
-// en mode local hébergé (Wave / Orange Money affichés côté client).
-// ---------------------------------------------------------------------------
-
-export type CheckoutInit =
-  | { mode: "REDIRECT"; url: string; status: PaymentStatus }
-  | { mode: "LOCAL"; status: PaymentStatus }
-  | { mode: "POLL"; status: PaymentStatus }
-  | { mode: "DONE"; status: PaymentStatus };
-
-export async function initiateCheckout(
-  transactionToken: string,
-  method: CheckoutMethod,
-  ctx: PaymentContext,
-): Promise<CheckoutInit> {
-  const payment = await prisma.payment.findUnique({ where: { transactionToken } });
-  if (!payment) throw notFound("Transaction introuvable");
-  if (payment.userId !== ctx.actorId) throw notFound("Transaction introuvable");
-
-  if (payment.status === "SUCCESS" || payment.status === "REFUNDED") return { mode: "DONE", status: payment.status };
-  if (payment.status === "FAILED" || payment.status === "CANCELLED") {
-    throw badRequest("CONFLICT", "Ce paiement est déjà clôturé — relancez une nouvelle demande.");
-  }
-
-  if (payment.status === "PROCESSING") {
-    if (payment.providerReference?.startsWith("local-")) return { mode: "LOCAL", status: "PROCESSING" };
-    if (!isProviderConfigured()) return { mode: "POLL", status: "PROCESSING" };
-    return { mode: "POLL", status: "PROCESSING" };
-  }
-
-  // PENDING → PROCESSING
-  if (!isProviderConfigured()) {
-    const providerReference = `local-${method}-${payment.paymentNumber}`;
-    const res = await prisma.payment.updateMany({
-      where: { id: payment.id, status: "PENDING" },
-      data: { status: "PROCESSING", providerReference },
-    });
-    if (res.count === 0) {
-      const cur = await prisma.payment.findUnique({ where: { id: payment.id } });
-      return { mode: "POLL", status: cur?.status ?? "PROCESSING" };
-    }
-    return { mode: "LOCAL", status: "PROCESSING" };
-  }
-
-  const webOrigin = env.WEB_ORIGIN[0];
-  const callbackUrl = env.PAYTECH_CALLBACK_URL ?? `${webOrigin}/checkout/${payment.transactionToken}`;
-  const checkout = await createProviderCheckout({
-    reference: payment.paymentNumber,
-    amount: payment.amount,
-    currency: payment.currency,
-    method,
-    customerPhone: null,
-    callbackUrl,
-  });
-  const res = await prisma.payment.updateMany({
-    where: { id: payment.id, status: "PENDING" },
-    data: { status: "PROCESSING", providerReference: checkout.reference },
-  });
-  if (res.count === 0) {
-    const cur = await prisma.payment.findUnique({ where: { id: payment.id } });
-    return { mode: "POLL", status: cur?.status ?? "PROCESSING" };
-  }
-  logger.info({ paymentNumber: payment.paymentNumber, method: CHECKOUT_METHOD_LABELS[method] }, "[payments] checkout initié");
-  return { mode: "REDIRECT", url: checkout.url, status: "PROCESSING" };
-}
-
-// ---------------------------------------------------------------------------
-// État du checkout (poll) — applique la même vérification serveur que le
-// webhook : mode local (dev) confirme au poll ; mode réel interroge le
-// fournisseur (renfort docs/06 §1.4).
+// État d'un paiement (page de paiement) : montant, lien Wave avec le montant
+// déjà rempli et dernière preuve envoyée. Seule l'équipe confirme un paiement.
 // ---------------------------------------------------------------------------
 
 export type CheckoutState = {
@@ -287,35 +210,17 @@ export type CheckoutState = {
   paidAt: string | null;
   /** Commande concernée : le client y est renvoyé après paiement. */
   orderId: string | null;
+  /** Lien Wave Business avec le montant à payer (null : paiement Wave par lien désactivé). */
+  waveLink: string | null;
+  /** Dernière preuve de paiement envoyée (paiement par lien Wave). */
+  proof: Awaited<ReturnType<typeof latestProof>>;
 };
 
 export async function getCheckoutState(transactionToken: string): Promise<CheckoutState> {
-  let payment = await prisma.payment.findUnique({ where: { transactionToken } });
+  const payment = await prisma.payment.findUnique({ where: { transactionToken } });
   if (!payment) throw notFound("Transaction introuvable");
-
-  if (payment.status === "PROCESSING") {
-    if (payment.providerReference?.startsWith("local-")) {
-      if (env.NODE_ENV !== "production") {
-        await settlePayment(
-          { id: payment.id },
-          "SUCCESS",
-          { source: "POLL", providerReference: payment.providerReference },
-        );
-        payment = await prisma.payment.findUnique({ where: { transactionToken } });
-      }
-    } else if (isProviderConfigured() && payment.providerReference) {
-      const remote = await fetchProviderStatus(payment.providerReference);
-      if (remote) {
-        await settlePayment({ id: payment.id }, remote, {
-          source: "RECONCILE",
-          failureReason: remote === "SUCCESS" ? null : "Statut fournisseur : " + remote,
-        });
-        payment = await prisma.payment.findUnique({ where: { transactionToken } });
-      }
-    }
-  }
-
-  if (!payment) throw notFound("Transaction introuvable");
+  const payable = payment.status === "PENDING" || payment.status === "PROCESSING";
+  const [waveBase, proof] = await Promise.all([payable ? getWaveMerchantLink() : Promise.resolve(null), latestProof(payment.id)]);
   return {
     status: payment.status,
     amount: payment.amount,
@@ -324,58 +229,9 @@ export async function getCheckoutState(transactionToken: string): Promise<Checko
     paymentNumber: payment.paymentNumber,
     paidAt: payment.paidAt?.toISOString() ?? null,
     orderId: payment.orderId,
+    waveLink: waveBase ? waveLinkWithAmount(waveBase, payment.amount) : null,
+    proof,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Réconciliation périodique — payments PROCESSING trop vieilles (webhook perdu).
-// ---------------------------------------------------------------------------
-
-const RECONCILE_AGE_MS = 5 * 60_000;
-const RECONCILE_INTERVAL_MS = 60_000;
-
-export async function reconcileProcessingPayments(): Promise<number> {
-  const cutoff = new Date(Date.now() - RECONCILE_AGE_MS);
-  const stale = await prisma.payment.findMany({
-    where: { status: "PROCESSING", updatedAt: { lt: cutoff } },
-    take: 50,
-    select: { id: true, providerReference: true, paymentNumber: true, amount: true },
-  });
-  let settled = 0;
-  for (const p of stale) {
-    try {
-      if (p.providerReference?.startsWith("local-")) {
-        if (env.NODE_ENV !== "production") {
-          const r = await settlePayment({ id: p.id }, "SUCCESS", {
-            source: "RECONCILE",
-            providerReference: p.providerReference,
-          });
-          if (!r.already) settled++;
-        }
-        continue;
-      }
-      const remote = await fetchProviderStatus(p.providerReference ?? p.paymentNumber);
-      if (remote) {
-        const r = await settlePayment({ id: p.id }, remote, {
-          source: "RECONCILE",
-          failureReason: remote === "SUCCESS" ? null : "Statut fournisseur : " + remote,
-        });
-        if (!r.already) settled++;
-      }
-    } catch (err) {
-      logger.warn({ err, paymentId: p.id }, "[payments] réconciliation d'un paiement échouée");
-    }
-  }
-  if (settled > 0) logger.info({ settled }, "[payments] réconciliation a confirmé des paiements");
-  return settled;
-}
-
-export function startPaymentReconciliation(): NodeJS.Timeout {
-  const timer = setInterval(() => {
-    reconcileProcessingPayments().catch((err) => logger.error({ err }, "[payments] job de réconciliation échoué"));
-  }, RECONCILE_INTERVAL_MS);
-  timer.unref();
-  return timer;
 }
 
 // ---------------------------------------------------------------------------
@@ -411,8 +267,3 @@ export async function listMyPayments(userId: string) {
     paidAt: p.paidAt?.toISOString() ?? null,
   }));
 }
-
-// ---------------------------------------------------------------------------
-// Effets de bord TRANSACTIONNELS d'un SUCCESS
-// ---------------------------------------------------------------------------
-

@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
 import { cleanup, createProduct, createSeller, createUser, expectApiError, track, tracker } from "./helpers.js";
 import { requestSellerJoin, sellerJoinState } from "../src/modules/seller/join.js";
-import { initiateCheckout, settlePayment } from "../src/modules/payments/service.js";
+import { settlePayment } from "../src/modules/payments/service.js";
 import { createOrder, createOrderSchema } from "../src/modules/orders/service.js";
 
 const t = tracker();
@@ -48,8 +48,7 @@ describe("Devenir vendeur", () => {
   it("passe le compte vendeur dès le paiement confirmé", async () => {
     const client = await createUser(t, { kycVerified: true });
     const { payment } = await payJoin(client.id);
-    await initiateCheckout(payment.transactionToken!, "wave", { actorId: client.id });
-    await settlePayment({ id: payment.id }, "SUCCESS", { source: "POLL" });
+    await settlePayment({ id: payment.id }, "SUCCESS", { source: "MANUAL" });
 
     const seller = await prisma.seller.findUniqueOrThrow({
       where: { userId: client.id },
@@ -64,7 +63,7 @@ describe("Devenir vendeur", () => {
     expect(user.role.name).toBe("VENDOR");
 
     // Un second paiement confirmé ne change rien, et une nouvelle demande est refusée.
-    await settlePayment({ id: payment.id }, "SUCCESS", { source: "POLL" });
+    await settlePayment({ id: payment.id }, "SUCCESS", { source: "MANUAL" });
     const err = await expectApiError(() => requestSellerJoin({ actorId: client.id }));
     expect(err.code).toBe("SELLER_ALREADY_ACTIVE");
   });

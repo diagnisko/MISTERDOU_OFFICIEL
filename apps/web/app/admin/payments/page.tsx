@@ -19,6 +19,7 @@ import {
   TableLoading,
   formatCell,
 } from "../_lib/ui";
+import { PaymentProofsPanel } from "./payment-proofs";
 
 // ---------------------------------------------------------------------------
 // Paiements — port de la vue « payments » de la console + remboursement.
@@ -42,7 +43,7 @@ type PaymentRow = {
 
 const COLUMNS = [
   { key: "paymentNumber", label: "Transaction" },
-  { key: "providerReference", label: "Référence PayTech" },
+  { key: "providerReference", label: "Référence" },
   { key: "user", label: "Compte" },
   { key: "amount", label: "Montant" },
   { key: "type", label: "Type" },
@@ -88,7 +89,9 @@ export default function PaymentsPage() {
         }
       />
 
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+      <PaymentProofsPanel onReviewed={() => void list.refresh()} />
+
+      <div className="mt-10 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="lux-kicker">Trésorerie</p>
           <p className="mt-2 text-sm text-stone-400">
@@ -155,7 +158,7 @@ export default function PaymentsPage() {
         <FieldModal
           title="Rembourser ce paiement"
           label="Motif du remboursement"
-          hint="Minimum 5 caractères — le motif est journalisé avec l’opération."
+          hint="Envoyez d’abord le remboursement par Wave au numéro qui a payé. La part du vendeur lui est retirée et le client est prévenu. Motif : 5 caractères minimum, journalisé."
           minLength={5}
           maxLength={300}
           submitLabel="Rembourser"

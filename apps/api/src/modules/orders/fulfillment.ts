@@ -1,5 +1,7 @@
 import { prisma } from "@misterdou/db";
+import type { Prisma } from "@misterdou/db";
 import { logger } from "../../lib/logger.js";
+import { logAudit } from "../../lib/audit.js";
 import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
 import { getIntSetting } from "../settings/service.js";
 
@@ -12,6 +14,80 @@ import { getIntSetting } from "../settings/service.js";
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 const OPEN_REPORT = ["CREATED", "PENDING", "IN_PROGRESS"] as const;
+
+// Durée pendant laquelle un compte en cours de paiement reste réservé.
+export const RESERVATION_MINUTES = 20;
+
+/**
+ * Commande non réglée qui réserve encore le compte : passée il y a moins de
+ * RESERVATION_MINUTES, ou dont la preuve de paiement Wave attend l'équipe.
+ */
+export function holdsReservation(now = new Date()): Prisma.OrderWhereInput {
+  return {
+    status: "PENDING_PAYMENT",
+    OR: [
+      { createdAt: { gte: new Date(now.getTime() - RESERVATION_MINUTES * 60_000) } },
+      { payments: { some: { status: "PROCESSING" } } },
+    ],
+  };
+}
+
+/**
+ * Annule les commandes jamais réglées après le délai `unpaidOrderExpiryHours`
+ * (24 h par défaut). Une preuve Wave en vérification garde la commande ouverte.
+ * Sans cela, une commande abandonnée bloquait l'offre du vendeur pour toujours.
+ */
+export async function expireUnpaidOrders(now = new Date()): Promise<number> {
+  const hours = await getIntSetting("unpaidOrderExpiryHours", 24);
+  const cutoff = new Date(now.getTime() - Math.max(1, hours) * 3_600_000);
+  const stale = await prisma.order.findMany({
+    where: {
+      status: "PENDING_PAYMENT",
+      createdAt: { lt: cutoff },
+      payments: { none: { status: { in: ["PROCESSING", "SUCCESS"] } } },
+    },
+    select: { id: true, orderNumber: true, buyerId: true },
+    take: 200,
+  });
+  let expired = 0;
+  for (const order of stale) {
+    const done = await prisma.$transaction(async (tx) => {
+      const claim = await tx.order.updateMany({
+        where: { id: order.id, status: "PENDING_PAYMENT", payments: { none: { status: { in: ["PROCESSING", "SUCCESS"] } } } },
+        data: { status: "CANCELLED" },
+      });
+      if (claim.count === 0) return false;
+      await tx.payment.updateMany({
+        where: { orderId: order.id, status: "PENDING" },
+        data: { status: "CANCELLED", failureReason: "Commande non réglée dans les délais." },
+      });
+      const plan = await tx.installmentPlan.findUnique({ where: { orderId: order.id }, select: { id: true } });
+      if (plan) {
+        await tx.installmentPlan.update({ where: { id: plan.id }, data: { status: "CANCELLED" } });
+        await tx.installment.updateMany({
+          where: { planId: plan.id, status: { in: ["PENDING", "OVERDUE"] } },
+          data: { status: "CANCELLED" },
+        });
+      }
+      return true;
+    });
+    if (!done) continue;
+    expired++;
+    await logAudit({
+      action: "ORDER_EXPIRED",
+      resourceType: "Order",
+      resourceId: order.id,
+      metadata: { orderNumber: order.orderNumber, hours },
+    });
+    await notifyUser(order.buyerId, "SYSTEM", {
+      title: `Commande ${order.orderNumber} annulée`,
+      message: `Elle n’a pas été réglée dans les ${hours} heures : le compte est remis en vente. Vous pouvez repasser commande à tout moment.`,
+      actionUrl: "/offres",
+      priority: "NORMAL",
+    });
+  }
+  return expired;
+}
 
 /**
  * Retire de la vente les produits de la commande. Renvoie les produits qui
@@ -175,6 +251,12 @@ export function startSellerPayoutJobs(): NodeJS.Timeout {
       if (amount > 0) logger.info({ amount }, "[payouts] fonds vendeurs libérés (délai de sécurité)");
     } catch (err) {
       logger.error({ err }, "[payouts] échec de la libération des fonds");
+    }
+    try {
+      const expired = await expireUnpaidOrders();
+      if (expired > 0) logger.info({ expired }, "[orders] commandes non réglées annulées");
+    } catch (err) {
+      logger.error({ err }, "[orders] échec de l'annulation des commandes non réglées");
     }
   };
   void run();

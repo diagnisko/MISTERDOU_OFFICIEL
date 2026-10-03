@@ -4,21 +4,28 @@ import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
-import { badRequest, conflict, forbidden } from "../../lib/errors.js";
+import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
+import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
+import { getWithdrawalProofFile } from "../admin-ops/service.js";
 import { featuredDailyRate } from "../promotions/service.js";
 import { getIntSetting } from "../settings/service.js";
 import { requestSellerJoin, sellerJoinState } from "./join.js";
 
 const withdrawalBody = z.object({
   amount: z.number().int().positive(),
-  method: z.enum(["WAVE", "ORANGE_MONEY"]),
+  // Retraits envoyés uniquement par Wave.
+  method: z.literal("WAVE").default("WAVE"),
   phoneNumber: z.string().trim().regex(/^\+?[0-9 ]{8,16}$/, "Numéro invalide"),
 });
 
-const METHOD_LABEL = { WAVE: "Wave", ORANGE_MONEY: "Orange Money" } as const;
+const METHOD_LABEL = { WAVE: "Wave" } as const;
+
+const receiptBody = z.discriminatedUnion("received", [
+  z.object({ received: z.literal(true) }),
+  z.object({ received: z.literal(false), note: z.string().trim().min(5).max(500) }),
+]);
 
 // ---------------------------------------------------------------------------
 // Espace vendeur — lecture seule : profil, soldes, offres. Sert la page
@@ -165,13 +172,19 @@ export async function registerSellerRoutes(app: FastifyInstance) {
                   processedAt: true,
                   rejectionReason: true,
                   paymentReference: true,
+                  proofKey: true,
+                  sellerConfirmedAt: true,
+                  sellerDisputedAt: true,
                 },
               })
-            ).map((w) => ({
+            ).map(({ proofKey, ...w }) => ({
               ...w,
+              hasProof: Boolean(proofKey),
               requestedAt: w.requestedAt.toISOString(),
               processingStartedAt: w.processingStartedAt?.toISOString() ?? null,
               processedAt: w.processedAt?.toISOString() ?? null,
+              sellerConfirmedAt: w.sellerConfirmedAt?.toISOString() ?? null,
+              sellerDisputedAt: w.sellerDisputedAt?.toISOString() ?? null,
             }))
           : [],
       });
@@ -240,6 +253,70 @@ export async function registerSellerRoutes(app: FastifyInstance) {
         priority: "NORMAL",
       });
       return sendOk(reply, { ...withdrawal, requestedAt: withdrawal.requestedAt.toISOString() });
+    },
+  );
+
+  // --- Capture de l'envoi d'un retrait (vendeur concerné uniquement) ---
+  app.get("/seller/withdrawals/:id/proof", async (request, reply) => {
+    const auth = requireAuth(request);
+    const { id } = request.params as { id: string };
+    const file = await getWithdrawalProofFile(id, auth.user.id);
+    reply
+      .header("Content-Type", file.mime)
+      .header("Content-Length", file.size)
+      .header("Content-Disposition", "inline")
+      .header("Cache-Control", "private, no-store")
+      .header("X-Content-Type-Options", "nosniff");
+    return reply.send(file.buffer);
+  });
+
+  // --- Le vendeur confirme (ou conteste) la réception de son retrait ---
+  app.post(
+    "/seller/withdrawals/:id/receipt",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const auth = requireAuth(request);
+      const { id } = request.params as { id: string };
+      const input = receiptBody.safeParse(request.body);
+      if (!input.success) throw badRequest("VALIDATION_ERROR", "Expliquez en quelques mots ce qui ne va pas (5 caractères minimum).");
+
+      const withdrawal = await prisma.withdrawal.findFirst({
+        where: { id, seller: { userId: auth.user.id } },
+        select: { id: true, amount: true, status: true, sellerDisputedAt: true },
+      });
+      if (!withdrawal) throw notFound("Retrait introuvable.");
+      if (withdrawal.status !== "APPROVED") throw conflict("INVALID_STATE", "Ce retrait n’attend pas de confirmation.");
+
+      const now = new Date();
+      if (input.data.received) {
+        const res = await prisma.withdrawal.updateMany({
+          where: { id, status: "APPROVED" },
+          data: { status: "COMPLETED", sellerConfirmedAt: now },
+        });
+        if (res.count === 0) throw conflict("INVALID_STATE", "Ce retrait n’attend pas de confirmation.");
+      } else {
+        await prisma.withdrawal.update({ where: { id }, data: { sellerDisputedAt: now, sellerDisputeNote: input.data.note } });
+        await notifyTeam("WITHDRAWALS", "ADMIN_ALERT", {
+          title: "Retrait non reçu",
+          message: `Un vendeur signale ne pas avoir reçu son retrait de ${withdrawal.amount.toLocaleString("fr-FR")} FCFA : « ${input.data.note} »`,
+          actionUrl: "/admin/withdrawals",
+          priority: "CRITICAL",
+        });
+      }
+
+      await logAudit({
+        actorId: auth.user.id,
+        actorRole: auth.user.role?.name as RoleName | undefined,
+        sessionId: auth.id,
+        ip: request.ip,
+        userAgent: request.headers["user-agent"],
+        action: input.data.received ? "WITHDRAWAL_RECEIVED" : "WITHDRAWAL_NOT_RECEIVED",
+        resourceType: "Withdrawal",
+        resourceId: id,
+        metadata: { amount: withdrawal.amount, ...(input.data.received ? {} : { note: input.data.note }) },
+        severity: input.data.received ? "INFO" : "CRITICAL",
+      });
+      return sendOk(reply, { id, status: input.data.received ? "COMPLETED" : "APPROVED", received: input.data.received });
     },
   );
 }

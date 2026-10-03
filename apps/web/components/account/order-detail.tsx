@@ -100,9 +100,20 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         </Alert>
       )}
 
-      {order.status === "PENDING_PAYMENT" && (
+      {order.paymentUnderReview && (
+        <Alert tone="info" title={t("order.reviewTitle")}>
+          {t("order.reviewBody")}
+        </Alert>
+      )}
+
+      {order.status === "PENDING_PAYMENT" && !order.paymentUnderReview && (
         <Alert tone="info" title={t("order.pendingTitle")}>
           {t("order.pendingBody")}
+          {order.checkoutUrl && (
+            <Link href={order.checkoutUrl} className="mt-3 block font-semibold text-[#ff8a5c] hover:underline">
+              {t("order.payNow")}
+            </Link>
+          )}
         </Alert>
       )}
 
@@ -113,6 +124,22 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           <CredentialsCard orderId={order.id} />
           <VerificationCodeCard orderId={order.id} code={order.verificationCode} onChange={load} />
         </div>
+      )}
+
+      {order.canReveal && !closed && (
+        <section className="dash-card flex flex-wrap items-center justify-between gap-3 p-5">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold text-white">{t("order.helpTitle")}</h2>
+            <p className="mt-1 text-[13px] text-stone-400">{t("order.helpBody")}</p>
+          </div>
+          <Link
+            href="/messages"
+            className="lux-btn lux-btn-ghost !min-h-[42px] shrink-0 text-[12px] uppercase tracking-[0.14em]"
+            style={{ borderRadius: 16 }}
+          >
+            {t("order.helpCta")}
+          </Link>
+        </section>
       )}
 
       {order.canConfirmReceipt && <ReceiptCard order={order} onDone={load} />}

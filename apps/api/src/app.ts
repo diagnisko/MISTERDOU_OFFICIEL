@@ -56,14 +56,13 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     maxParamLength: 512, // tickets d'accès fichiers signés (longs) dans les segments de route
   });
 
-  // Corps JSON conservé en brut (request.rawBody) pour la vérification HMAC du
-  // webhook fournisseur — le parsing usual reste identique pour toutes les routes.
+  // Corps JSON : un corps vide est accepté (undefined) et une erreur de parsing
+  // ne recopie jamais le corps reçu.
   app.addContentTypeParser<string>(
     "application/json",
     { parseAs: "string" },
     (request, body, done) => {
       const raw = typeof body === "string" ? body : String(body);
-      (request as typeof request & { rawBody?: string }).rawBody = raw;
       if (raw.trim().length === 0) {
         done(null, undefined);
         return;

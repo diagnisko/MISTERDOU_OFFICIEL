@@ -18,7 +18,7 @@ Version : 1.0 — 2026-09-23
 | Frontend web | Next.js (App Router) + Tailwind CSS v4 + `motion` (léger) | 15.5 |
 | Backend API | Node.js + Fastify 5 + TypeScript | 5.x |
 | Auth | Sessions en base + cookies HttpOnly + scrypt (node:crypto, KDF natif) | — |
-| Paiements | PayTech (webhook signé, vérification serveur) | — |
+| Paiements | Lien Wave Business + preuve vérifiée par l'équipe (docs/06) | — |
 | Stockage privé | Dossier local chiffré (dev) → S3/R2 chiffré (swap-ready) | — |
 | Logs | pino (JSON structuré) | 10.x |
 | Tests | vitest + testcontainers (postgres) + Supertest | en Phase 13 |
@@ -31,8 +31,8 @@ Version : 1.0 — 2026-09-23
    dépendances de façon déterministe avec un cache global.
 2. **Sécurité et fiabilité transactionnelle** : validation des entrées par zod (couche
    partagée entre web et API), contrôle d'accès 100 % côté serveur, Prisma (types sûrs +
-   requêtes paramétrées = anti-SQLi), sessions en base révocables, webhooks PayTech signés
-   et idempotents, chiffrement AES-256-GCM des données sensibles, stockage privé à accès
+   requêtes paramétrées = anti-SQLi), sessions en base révocables, paiements Wave validés par
+   l'équipe et idempotents, chiffrement AES-256-GCM des données sensibles, stockage privé à accès
    signé temporaire.
 3. **Évolutivité & réutilisation mobile** : API REST versionnée `/api/v1`, sans dépendance
    du frontend ; iOS/Android consommeront exactement la même API. Le découpage en paquets
@@ -66,10 +66,10 @@ Version : 1.0 — 2026-09-23
         │                          │                   │
         ▼                          ▼                   ▼
 ┌──────────────────┐   ┌────────────────────┐   ┌─────────────────────┐
-│ POSTGRES (Prisma)│   │ STOCKAGE PRIVÉ     │   │ PAYTECH (paiements) │
-│ users, orders,   │   │ docs KYC, selfies, │   │ webhook signé       │
-│ payments, solde… │   │ captures produit,  │   │ + requête statut    │
-│           │      │   │ chiffré AES-GCM,   │   │ serveur             │
+│ POSTGRES (Prisma)│   │ STOCKAGE PRIVÉ     │   │ WAVE BUSINESS       │
+│ users, orders,   │   │ docs KYC, selfies, │   │ lien de paiement    │
+│ payments, solde… │   │ captures produit,  │   │ (montant rempli),   │
+│           │      │   │ chiffré AES-GCM,   │   │ preuve vérifiée     │
 │           ▼      │   │ accès par ticket   │   └─────────────────────┘
 │ JOBS (cron):     │   │ signé/expirable    │
 │ libération solde,│   └────────────────────┘
