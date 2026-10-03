@@ -31,16 +31,18 @@ ligne les deux Workers à chaque envoi sur `master`.
    - Sur `misterdou-media` : activer l'accès public (URL `r2.dev` ou domaine) et ajouter une
      règle CORS autorisant `PUT` et `GET` depuis l'adresse du site.
    - Créer un jeton R2 (R2 > Manage API tokens) en lecture et écriture sur ces deux buckets.
-4. **Worker de l'API, en premier** (le site dépend de lui) : Workers & Pages > Create >
-   Import a repository > dépôt `MISTERDOU_OFFICIEL`.
+4. **Worker de l'API, en premier** (le site dépend de lui). Les deux Workers existent déjà :
+   `misterdou-api` > Settings > Builds > **Connect** > GitLab > dépôt `misterdou/misterdou`.
 
    | Réglage | Valeur |
    |---|---|
-   | Project name | `misterdou-api` (doit être identique au `name` de `deploy/api/wrangler.jsonc`) |
-   | Production branch | `master` |
-   | Root directory (Path) | `deploy/api` |
-   | Build command | (vide : Cloudflare installe les dépendances lui-même) |
-   | Deploy command | `npx wrangler deploy` |
+   | Branch | `master` |
+   | Build command | `cd ../.. && pnpm install --frozen-lockfile --filter "@misterdou/deploy-api"` |
+   | Deploy command | `npx wrangler deploy` (construit l'image Docker chez Cloudflare) |
+   | Path (Root directory) | `deploy/api` |
+   | Build variables | `SKIP_DEPENDENCY_INSTALL` = `1`, `NODE_VERSION` = `22` |
+
+   Le nom du Worker doit rester identique au `name` de `deploy/api/wrangler.jsonc`.
 
 5. **Secrets de l'API** (`misterdou-api` > Settings > Variables and Secrets, type *Secret*) :
 
@@ -59,16 +61,18 @@ ligne les deux Workers à chaque envoi sur `master`.
    effacée à la mise en ligne suivante. Après l'ajout, relancer la construction
    (Deployments > Retry) pour que le serveur redémarre avec eux.
 
-6. **Worker du site** : Import a repository > même dépôt.
+6. **Worker du site** : `misterdou-officiel` > Settings > Builds > **Connect** > même dépôt.
 
    | Réglage | Valeur |
    |---|---|
-   | Project name | `misterdou-officiel` |
-   | Production branch | `master` |
-   | Root directory (Path) | `apps/web` |
-   | Build command | `pnpm run cf:build` |
+   | Branch | `master` |
+   | Build command | `cd ../.. && pnpm install --frozen-lockfile && cd apps/web && pnpm run cf:build` |
    | Deploy command | `pnpm run cf:deploy` |
-   | Build variable | `NEXT_PUBLIC_SITE_URL` = adresse du site (sitemap, robots.txt) |
+   | Path (Root directory) | `apps/web` |
+   | Build variables | `SKIP_DEPENDENCY_INSTALL` = `1`, `NODE_VERSION` = `22`, `NEXT_PUBLIC_SITE_URL` = adresse du site |
+
+   L'installation se fait à la racine du dépôt (espace de travail pnpm), d'où
+   `SKIP_DEPENDENCY_INSTALL` et le `cd ../..`.
 
 ## Mettre en ligne depuis un PC Windows
 
