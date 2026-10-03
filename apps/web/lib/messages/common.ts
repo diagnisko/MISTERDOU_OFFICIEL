@@ -57,7 +57,7 @@ export const fr = {
   "settings.language": "Langue",
   "settings.languageLead": "Langue de l’interface sur cet appareil.",
   "settings.languageNote":
-    "La traduction couvre la navigation, votre compte et la connexion ; certaines pages détaillées restent en français pour le moment.",
+    "Tout le site est traduit, sauf les notifications et les pages légales, qui restent en français.",
   "settings.changePassword": "Changer le mot de passe",
   "settings.createPassword": "Créer un mot de passe",
   "settings.changeLead": "Pour votre sécurité, vos autres appareils seront déconnectés après le changement.",
@@ -161,6 +161,7 @@ export const fr = {
   "reset.done": "Votre mot de passe est changé. Connectez-vous avec le nouveau.",
   "reset.noToken": "Ce lien est incomplet.",
   "reset.again": "Refaire une demande",
+  "auth.rememberDevice": "Se souvenir de cet appareil 30 jours",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -208,7 +209,7 @@ export const en: Translations<typeof fr> = {
   "settings.light": "Light",
   "settings.language": "Language",
   "settings.languageLead": "Interface language on this device.",
-  "settings.languageNote": "Navigation, your account and sign-in are translated; some detailed pages are still in French for now.",
+  "settings.languageNote": "The whole site is translated, except notifications and legal pages, which stay in French.",
   "settings.changePassword": "Change password",
   "settings.createPassword": "Create a password",
   "settings.changeLead": "For your security, your other devices will be signed out after the change.",
@@ -308,6 +309,7 @@ export const en: Translations<typeof fr> = {
   "reset.done": "Your password has been changed. Sign in with the new one.",
   "reset.noToken": "This link is incomplete.",
   "reset.again": "Request a new link",
+  "auth.rememberDevice": "Remember this device for 30 days",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -355,7 +357,7 @@ export const ar: Translations<typeof fr> = {
   "settings.light": "فاتح",
   "settings.language": "اللغة",
   "settings.languageLead": "لغة الواجهة على هذا الجهاز.",
-  "settings.languageNote": "تمت ترجمة التنقل وحسابك وتسجيل الدخول؛ بعض الصفحات التفصيلية ما زالت بالفرنسية حاليًا.",
+  "settings.languageNote": "الموقع مترجم بالكامل، باستثناء الإشعارات والصفحات القانونية التي تبقى بالفرنسية.",
   "settings.changePassword": "تغيير كلمة المرور",
   "settings.createPassword": "إنشاء كلمة مرور",
   "settings.changeLead": "حفاظًا على أمانك، سيتم تسجيل خروج أجهزتك الأخرى بعد التغيير.",
@@ -455,4 +457,5 @@ export const ar: Translations<typeof fr> = {
   "reset.done": "تم تغيير كلمة المرور. سجّل الدخول بالكلمة الجديدة.",
   "reset.noToken": "هذا الرابط غير مكتمل.",
   "reset.again": "طلب رابط جديد",
+  "auth.rememberDevice": "تذكّر هذا الجهاز لمدة 30 يومًا",
 };

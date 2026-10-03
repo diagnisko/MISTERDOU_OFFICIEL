@@ -195,6 +195,16 @@ export const fr = {
   "contact.urgentLink": "Écrivez-nous aussi sur WhatsApp",
   "msgIcon.label": "Messages",
   "msgIcon.unread": "Messages — {count} non lus",
+  "marquee.verified": "Identité vérifiée",
+  "marquee.secure": "Livraison sécurisée",
+  "apiError.WAVE_LINK_UNAVAILABLE": "Le paiement par Wave est momentanément indisponible.",
+  "apiError.PROOF_ALREADY_SENT": "Votre preuve est déjà en cours de vérification.",
+  "apiError.PROOF_REFERENCE_USED": "Cette référence de transaction Wave a déjà servi pour un autre paiement.",
+  "apiError.PROOF_ALREADY_REVIEWED": "Cette preuve a déjà été traitée.",
+  "msgIcon.recent": "Dernières discussions",
+  "msgIcon.empty": "Aucune discussion pour le moment.",
+  "msgIcon.seeAll": "Voir toutes les discussions",
+  "nav.back": "Retour",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -391,6 +401,16 @@ export const en: Translations<typeof fr> = {
   "contact.urgentLink": "Also write to us on WhatsApp",
   "msgIcon.label": "Messages",
   "msgIcon.unread": "Messages — {count} unread",
+  "marquee.verified": "Verified identity",
+  "marquee.secure": "Secure delivery",
+  "apiError.WAVE_LINK_UNAVAILABLE": "Wave payment is temporarily unavailable.",
+  "apiError.PROOF_ALREADY_SENT": "Your proof is already being checked.",
+  "apiError.PROOF_REFERENCE_USED": "This Wave transaction ID was already used for another payment.",
+  "apiError.PROOF_ALREADY_REVIEWED": "This proof has already been processed.",
+  "msgIcon.recent": "Recent conversations",
+  "msgIcon.empty": "No conversations yet.",
+  "msgIcon.seeAll": "See all conversations",
+  "nav.back": "Back",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -587,4 +607,14 @@ export const ar: Translations<typeof fr> = {
   "contact.urgentLink": "راسلنا أيضًا على واتساب",
   "msgIcon.label": "الرسائل",
   "msgIcon.unread": "الرسائل — {count} غير مقروءة",
+  "marquee.verified": "هوية موثقة",
+  "marquee.secure": "تسليم آمن",
+  "apiError.WAVE_LINK_UNAVAILABLE": "الدفع عبر Wave غير متاح مؤقتًا.",
+  "apiError.PROOF_ALREADY_SENT": "إثباتك قيد التحقق بالفعل.",
+  "apiError.PROOF_REFERENCE_USED": "رقم معاملة Wave هذا استُخدم لدفعة أخرى.",
+  "apiError.PROOF_ALREADY_REVIEWED": "تمت معالجة هذا الإثبات بالفعل.",
+  "msgIcon.recent": "آخر المحادثات",
+  "msgIcon.empty": "لا توجد محادثات حاليًا.",
+  "msgIcon.seeAll": "عرض كل المحادثات",
+  "nav.back": "رجوع",
 };

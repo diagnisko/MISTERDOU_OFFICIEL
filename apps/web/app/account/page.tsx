@@ -28,6 +28,18 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [verifyNote, setVerifyNote] = useState<string | null>(null);
+
+  async function resendVerification() {
+    setVerifyNote(null);
+    try {
+      const res = await request<{ sent: boolean; alreadyVerified: boolean }>("/api/v1/auth/email/resend", { method: "POST", body: "{}" });
+      setVerifyNote(res.alreadyVerified ? t("verify.already") : t("verify.resent"));
+      if (res.alreadyVerified) await refreshAccount();
+    } catch (err) {
+      setVerifyNote(err instanceof ApiClientError ? err.message : t("verify.failed"));
+    }
+  }
 
   useEffect(() => {
     if (account.status !== "member") return;
@@ -100,6 +112,15 @@ export default function ProfilePage() {
         </div>
         <h1 className="mt-4 text-[22px] font-semibold text-white">{displayName(user)}</h1>
         <p className="mt-1 truncate text-[13px] text-[#8f7d77]">{user.email}</p>
+        {!team && profile.emailVerified === false && (
+          <div className="mt-3 rounded-xl border border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.07)] px-3 py-2.5 text-left text-[12.5px] text-stone-200">
+            {t("verify.pending")}{" "}
+            <button type="button" onClick={() => void resendVerification()} className="font-semibold text-[#ff8a5c] hover:underline">
+              {t("verify.resend")}
+            </button>
+            {verifyNote && <span className="mt-1 block text-[12px] text-stone-400">{verifyNote}</span>}
+          </div>
+        )}
         {team ? (
           <span className="dash-pill dash-pill-paid mt-3">{user.role === "ADMIN" ? t("menu.roleAdmin") : t("menu.roleStaff")}</span>
         ) : (

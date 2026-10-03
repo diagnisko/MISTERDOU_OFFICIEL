@@ -13,6 +13,7 @@ const CSRF_EXEMPT = new Set<string>([
   "/api/v1/auth/admin/login",
   "/api/v1/auth/password/forgot",
   "/api/v1/auth/password/reset",
+  "/api/v1/auth/email/verify",
 ]);
 
 export function attachRequestHooks(app: FastifyInstance) {
@@ -28,6 +29,9 @@ export function attachRequestHooks(app: FastifyInstance) {
     if (!MUTATING_METHODS.has(request.method)) return;
     if (!url.includes("/api/v1")) return;
     if (CSRF_EXEMPT.has(url)) return;
+    // Sans session, il n'y a rien à protéger : la route répond elle-même 401
+    // si elle exige une connexion (V-09 : plus de 403 trompeur avant le 401).
+    if (!request.auth) return;
 
     const cookieToken = request.cookies[CSRF_COOKIE_NAME];
     const headerToken = request.headers["x-csrf-token"];

@@ -2,7 +2,8 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { PaymentProofStatus, PaymentType, Prisma } from "@misterdou/db";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
-import { getFile } from "../../lib/storage.js";
+import { deleteFile, getFile } from "../../lib/storage.js";
+import { logger } from "../../lib/logger.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { assertOwnedProof } from "../identity-verification/service.js";
@@ -39,9 +40,13 @@ const PAYMENT_LABELS: Record<PaymentType, string> = {
   SELLER_REGISTRATION_FEE: "Frais d’adhésion vendeur",
 };
 
-function describe(type: PaymentType, title: string | null | undefined): string {
-  return title ? `${PAYMENT_LABELS[type]} « ${title} »` : PAYMENT_LABELS[type];
+function describe(type: PaymentType, title: string | null | undefined, days?: number | null): string {
+  const base = title ? `${PAYMENT_LABELS[type]} « ${title} »` : PAYMENT_LABELS[type];
+  return days ? `${base}, ${days} jour${days > 1 ? "s" : ""}` : base;
 }
+
+// Mise en avant : l'offre concernée et la durée achetée.
+const FEATURED_SELECT = { take: 1, select: { days: true, product: { select: { title: true } } } } as const;
 
 const xof = (amount: number) => `${amount.toLocaleString("fr-FR")} FCFA`;
 
@@ -58,6 +63,7 @@ export async function submitPaymentProof(token: string, input: PaymentProofInput
       type: true,
       paymentNumber: true,
       order: { select: { items: { select: { title: true }, take: 1 } } },
+      featuredPurchases: FEATURED_SELECT,
     },
   });
   if (!payment || payment.userId !== ctx.actorId) throw notFound("Transaction introuvable");
@@ -125,7 +131,7 @@ export async function submitPaymentProof(token: string, input: PaymentProofInput
   });
   await notifyTeam("PAYMENTS", "ADMIN_ALERT", {
     title: "Paiement Wave à vérifier",
-    message: `${xof(payment.amount)} : ${describe(payment.type, payment.order?.items[0]?.title)}. Vérifiez la réception dans Wave Business, puis validez.`,
+    message: `${xof(payment.amount)} : ${describe(payment.type, payment.order?.items[0]?.title ?? payment.featuredPurchases[0]?.product.title, payment.featuredPurchases[0]?.days)}. Vérifiez la réception dans Wave Business, puis validez.`,
     actionUrl: "/admin/payments",
     priority: "CRITICAL",
   });
@@ -167,6 +173,7 @@ export async function listPaymentProofs(status: PaymentProofStatus) {
       amount: true,
       senderPhone: true,
       waveReference: true,
+      screenshotKey: true,
       createdAt: true,
       reviewedAt: true,
       rejectionReason: true,
@@ -185,6 +192,7 @@ export async function listPaymentProofs(status: PaymentProofStatus) {
               items: { take: 1, select: { title: true, product: { select: { status: true } } } },
             },
           },
+          featuredPurchases: FEATURED_SELECT,
         },
       },
     },
@@ -215,11 +223,12 @@ export async function listPaymentProofs(status: PaymentProofStatus) {
         amount: r.amount,
         senderPhone: r.senderPhone,
         waveReference: r.waveReference,
+        hasScreenshot: Boolean(r.screenshotKey),
         createdAt: r.createdAt.toISOString(),
         reviewedAt: r.reviewedAt?.toISOString() ?? null,
         rejectionReason: r.rejectionReason,
         client: r.user,
-        label: describe(r.payment.type, item?.title),
+        label: describe(r.payment.type, item?.title ?? r.payment.featuredPurchases[0]?.product.title, r.payment.featuredPurchases[0]?.days),
         payment: { id: r.payment.id, paymentNumber: r.payment.paymentNumber, type: r.payment.type, status: r.payment.status },
         orderNumber: r.payment.order?.orderNumber ?? null,
         warnings: {
@@ -236,7 +245,73 @@ export async function listPaymentProofs(status: PaymentProofStatus) {
 export async function getPaymentProofFile(id: string) {
   const proof = await prisma.paymentProof.findUnique({ where: { id }, select: { screenshotKey: true } });
   if (!proof) throw notFound("Preuve introuvable.");
+  if (!proof.screenshotKey) throw notFound("Capture supprimée après validation du paiement.");
   return getFile(proof.screenshotKey);
+}
+
+// ---------------------------------------------------------------------------
+// Place libérée : une capture ne sert plus une fois le paiement validé (ni une
+// capture d'envoi une fois que le vendeur a confirmé « Reçu »). Les preuves
+// refusées sont gardées 30 jours (en cas de litige), puis supprimées.
+// La ligne reste en base (montant, numéro, dates) ; seule l'image disparaît.
+// ---------------------------------------------------------------------------
+
+/** Clé vide = capture supprimée (la ligne de preuve, elle, est conservée). */
+export const PROOF_REMOVED = "";
+const REJECTED_KEEP_DAYS = 30;
+
+async function dropFile(key: string | null | undefined) {
+  if (!key) return;
+  await deleteFile(key).catch((err) => logger.warn({ err }, "[proofs] capture déjà absente du stockage"));
+}
+
+export async function removeProofScreenshot(proofId: string) {
+  const proof = await prisma.paymentProof.findUnique({ where: { id: proofId }, select: { screenshotKey: true } });
+  if (!proof?.screenshotKey) return;
+  await dropFile(proof.screenshotKey);
+  await prisma.paymentProof.update({ where: { id: proofId }, data: { screenshotKey: PROOF_REMOVED } });
+}
+
+/** Rattrapage périodique (captures validées, envois reçus, refus anciens). */
+export async function purgeProofScreenshots(now = new Date()): Promise<number> {
+  const rejectedBefore = new Date(now.getTime() - REJECTED_KEEP_DAYS * 86_400_000);
+  const proofs = await prisma.paymentProof.findMany({
+    where: {
+      screenshotKey: { not: PROOF_REMOVED },
+      OR: [{ status: "APPROVED" }, { status: "REJECTED", reviewedAt: { lt: rejectedBefore } }],
+    },
+    select: { id: true, screenshotKey: true },
+    take: 200,
+  });
+  for (const p of proofs) {
+    await dropFile(p.screenshotKey);
+    await prisma.paymentProof.update({ where: { id: p.id }, data: { screenshotKey: PROOF_REMOVED } });
+  }
+  const withdrawals = await prisma.withdrawal.findMany({
+    where: { status: "COMPLETED", proofKey: { not: null } },
+    select: { id: true, proofKey: true },
+    take: 200,
+  });
+  for (const w of withdrawals) {
+    await dropFile(w.proofKey);
+    await prisma.withdrawal.update({ where: { id: w.id }, data: { proofKey: null } });
+  }
+  return proofs.length + withdrawals.length;
+}
+
+export function startProofCleanupJob(): NodeJS.Timeout {
+  const run = async () => {
+    try {
+      const removed = await purgeProofScreenshots();
+      if (removed > 0) logger.info({ removed }, "[proofs] captures supprimées (place libérée)");
+    } catch (err) {
+      logger.error({ err }, "[proofs] échec du nettoyage des captures");
+    }
+  };
+  void run();
+  const timer = setInterval(() => void run(), 6 * 60 * 60 * 1000);
+  timer.unref();
+  return timer;
 }
 
 type ReviewActor = Required<Pick<PaymentContext, "actorId">> & PaymentContext;
@@ -272,6 +347,8 @@ export async function approvePaymentProof(id: string, actor: ReviewActor) {
     source: "MANUAL",
     ctx: { actorId: actor.actorId, actorRole: actor.actorRole, ip: actor.ip },
   });
+  // Paiement validé : la capture ne sert plus, on libère la place.
+  await removeProofScreenshot(id);
 
   await logAudit({
     actorId: actor.actorId,

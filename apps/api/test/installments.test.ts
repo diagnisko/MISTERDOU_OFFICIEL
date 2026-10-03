@@ -200,6 +200,9 @@ describe("Règlement de la prochaine échéance", () => {
   it("crée un paiement ciblé sur l'échéance, le journalise et notifie (puis réutilise)", async () => {
     const user = await createUser(t, { kycVerified: true });
     const order = await splitOrder(user.id);
+    // L'apport d'abord : les mois se paient ensuite (ou avec lui).
+    const down = await prisma.payment.findFirstOrThrow({ where: { orderId: order.orderId, type: "INITIAL_INSTALLMENT" } });
+    await settlePayment({ id: down.id }, "SUCCESS", { source: "MANUAL" });
 
     const first = await createNextInstallmentPayment(order.orderId, { actorId: user.id });
     expect(first.already).toBe(false);
@@ -368,6 +371,9 @@ describe("Routes échéanciers (inject)", () => {
     const user = await createUser(t, { kycVerified: true });
     const stranger = await createUser(t, { kycVerified: true });
     const order = await splitOrder(user.id);
+    // L'apport d'abord : les mois se paient ensuite (ou avec lui).
+    const down = await prisma.payment.findFirstOrThrow({ where: { orderId: order.orderId, type: "INITIAL_INSTALLMENT" } });
+    await settlePayment({ id: down.id }, "SUCCESS", { source: "MANUAL" });
 
     const opts = { auth: await authFor(user.id) };
     const app = await buildMiniApp(opts, async (instance) => {

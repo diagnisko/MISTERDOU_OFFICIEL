@@ -11,6 +11,7 @@ import {
   reportOrderProblem,
   requestVerificationCode,
   revealOrderCredentials,
+  submitOrderReview,
   type OrderDetail,
   type ReportReason,
   type RevealedCredentials,
@@ -149,6 +150,8 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           {t("order.receivedBody", { date: fmtDate(t.intl, order.receivedAt) })}
         </Alert>
       )}
+
+      {(order.canReview || order.review) && <ReviewCard order={order} onDone={load} />}
 
       {!closed && order.status !== "PENDING_PAYMENT" && <ReportCard order={order} onDone={load} />}
     </div>
@@ -410,17 +413,107 @@ function ReceiptCard({ order, onDone }: { order: OrderDetail; onDone: () => Prom
   );
 }
 
+// --- Avis après réception -----------------------------------------------------
+
+function ReviewCard({ order, onDone }: { order: OrderDetail; onDone: () => Promise<void> }) {
+  const t = useT();
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send(e: FormEvent) {
+    e.preventDefault();
+    if (rating < 1) return setError(t("review.pick"));
+    setBusy(true);
+    setError(null);
+    try {
+      await submitOrderReview(order.id, { rating, comment: comment.trim() || undefined });
+      await onDone();
+    } catch (err) {
+      setError(errorMessage(err, t("review.failed")));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (order.review) {
+    return (
+      <section className="dash-card p-5">
+        <h2 className="text-[15px] font-semibold text-white">{t("review.title")}</h2>
+        <p className="mt-2 text-[18px] text-[var(--lux-gold)]" aria-label={t("review.star", { n: order.review.rating })}>
+          {"★".repeat(order.review.rating)}
+          <span className="text-stone-600">{"★".repeat(5 - order.review.rating)}</span>
+        </p>
+        {order.review.comment && <p className="mt-2 text-[13.5px] text-stone-300">« {order.review.comment} »</p>}
+        <p className="mt-2 text-[12px] text-[#6ee7b7]">{t("review.thanks")}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="dash-card p-5">
+      <h2 className="text-[15px] font-semibold text-white">{t("review.title")}</h2>
+      <p className="mt-1 text-[13px] text-stone-400">{t("review.lead")}</p>
+      <form onSubmit={(e) => void send(e)} className="mt-4 space-y-3">
+        <div className="flex gap-1" role="radiogroup" aria-label={t("review.title")}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={rating === n}
+              aria-label={t("review.star", { n })}
+              onClick={() => setRating(n)}
+              className={`text-[28px] leading-none transition ${n <= rating ? "text-[var(--lux-gold)]" : "text-stone-600 hover:text-stone-400"}`}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+        <label className="block">
+          <span className="text-[12px] uppercase tracking-[0.14em] text-stone-500">{t("review.comment")}</span>
+          <textarea
+            maxLength={500}
+            rows={3}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder={t("review.placeholder")}
+            className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
+          />
+        </label>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <button
+          type="submit"
+          disabled={busy}
+          className="lux-btn lux-btn-gold !min-h-[42px] text-[12px] uppercase tracking-[0.14em] disabled:opacity-50"
+          style={{ borderRadius: 16 }}
+        >
+          {busy ? t("review.sending") : t("review.send")}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 // --- Mensualités ------------------------------------------------------------
 
 function InstallmentTimeline({ orderId, schedule }: { orderId: string; schedule: Schedule }) {
   const t = useT();
-  const open = schedule.installments.filter((l) => l.status !== "PAID" && l.status !== "WAIVED" && l.status !== "CANCELLED");
+  const reviewing = schedule.reviewing;
+  // Les mois en vérification ne se repaient pas : on ne propose que la suite.
+  const open = schedule.installments.filter(
+    (l) => l.status !== "PAID" && l.status !== "WAIVED" && l.status !== "CANCELLED" && !reviewing?.months.includes(l.index),
+  );
+  // Apport pas encore payé : il est toujours inclus, et le client peut y
+  // ajouter un ou plusieurs mois dans le même paiement.
+  const downDue = !schedule.downPaid && !reviewing?.downPayment;
   // Sélection contiguë : choisir un mois inclut tous les mois non payés avant lui.
-  const [months, setMonths] = useState(open.length > 0 ? 1 : 0);
+  const [months, setMonths] = useState(downDue ? 0 : open.length > 0 ? 1 : 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selected = open.slice(0, months);
-  const amount = selected.reduce((sum, l) => sum + (l.amountDue - l.amountPaid), 0);
+  const amount = (downDue ? schedule.downPaymentAmount : 0) + selected.reduce((sum, l) => sum + (l.amountDue - l.amountPaid), 0);
   const pct = schedule.totalAmount > 0 ? Math.min(100, Math.round((schedule.totalPaid / schedule.totalAmount) * 100)) : 0;
 
   async function pay() {
@@ -451,21 +544,32 @@ function InstallmentTimeline({ orderId, schedule }: { orderId: string; schedule:
       </div>
 
       <ol className="mt-5 space-y-2">
-        <li className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-[13px]">
+        <li
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[13px] ${
+            downDue ? "border-[rgba(255,106,50,0.55)] bg-[rgba(232,71,36,0.12)]" : "border-white/[0.06] bg-white/[0.02]"
+          }`}
+        >
           <span className="flex items-center gap-3">
-            <MonthDot state={schedule.downPaid ? "paid" : "due"} />
+            <MonthDot state={schedule.downPaid ? "paid" : reviewing?.downPayment ? "review" : "due"} selected={downDue} />
             <span className="text-stone-200">{t("plan.downPayment")}</span>
           </span>
           <span className="flex items-center gap-3">
             <span className="tabular-nums text-stone-100">{formatXof(schedule.downPaymentAmount)}</span>
-            <MonthTag state={schedule.downPaid ? "paid" : "due"} />
+            <MonthTag state={schedule.downPaid ? "paid" : reviewing?.downPayment ? "review" : "due"} />
           </span>
         </li>
         {schedule.installments.map((line) => {
           const openIndex = open.findIndex((o) => o.index === line.index);
           const isOpen = openIndex >= 0;
           const isSelected = isOpen && openIndex < months;
-          const state = line.status === "PAID" || line.status === "WAIVED" ? "paid" : line.status === "OVERDUE" ? "late" : "due";
+          const state: MonthState =
+            line.status === "PAID" || line.status === "WAIVED"
+              ? "paid"
+              : reviewing?.months.includes(line.index)
+                ? "review"
+                : line.status === "OVERDUE"
+                  ? "late"
+                  : "due";
           return (
             <li key={line.index}>
               <button
@@ -506,20 +610,43 @@ function InstallmentTimeline({ orderId, schedule }: { orderId: string; schedule:
         </div>
       )}
 
-      {open.length > 0 && schedule.downPaid && (
+      {reviewing && (
+        <p className="mt-4 rounded-xl border border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.07)] px-3 py-2.5 text-[12.5px] text-stone-200">
+          {t("plan.reviewing", { amount: formatXof(reviewing.amount) })}
+        </p>
+      )}
+
+      {(downDue || open.length > 0) && !reviewing && (
         <div className="mt-5 flex flex-col gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13px] text-stone-400">
-            {months === 0 ? t("plan.pick") : months > 1 ? t("plan.selectedMany", { n: months }) : t("plan.selectedOne")}
-            {months > 0 && <span className="font-semibold tabular-nums text-white">{formatXof(amount)}</span>}
+            {downDue
+              ? months === 0
+                ? t("plan.downOnly")
+                : t("plan.downPlus", { n: months })
+              : months === 0
+                ? t("plan.pick")
+                : months > 1
+                  ? t("plan.selectedMany", { n: months })
+                  : t("plan.selectedOne")}
+            {amount > 0 && <span className="font-semibold tabular-nums text-white">{formatXof(amount)}</span>}
+            {downDue && open.length > 0 && <span className="mt-1 block text-[12px] text-stone-500">{t("plan.addMonths")}</span>}
           </p>
           <button
             type="button"
             onClick={() => void pay()}
-            disabled={busy || months === 0}
+            disabled={busy || amount === 0}
             className="lux-btn lux-btn-gold !min-h-[44px] text-[12px] uppercase tracking-[0.14em] disabled:opacity-50 sm:w-auto"
             style={{ borderRadius: 16 }}
           >
-            {busy ? t("plan.opening") : months > 1 ? t("plan.payMany", { n: months }) : t("plan.payOne")}
+            {busy
+              ? t("plan.opening")
+              : downDue
+                ? months === 0
+                  ? t("plan.payDown")
+                  : t("plan.payDownPlus", { n: months })
+                : months > 1
+                  ? t("plan.payMany", { n: months })
+                  : t("plan.payOne")}
           </button>
         </div>
       )}
@@ -528,13 +655,15 @@ function InstallmentTimeline({ orderId, schedule }: { orderId: string; schedule:
   );
 }
 
-type MonthState = "paid" | "due" | "late";
+type MonthState = "paid" | "due" | "late" | "review";
 
 function MonthDot({ state, selected = false }: { state: MonthState; selected?: boolean }) {
   const cls =
     state === "paid"
       ? "border-[#10b981] bg-[#10b981]"
-      : selected
+      : state === "review"
+        ? "border-[#fbbf24] bg-[#fbbf24]/40"
+        : selected
         ? "border-[#ff6a32] bg-[#ff6a32]"
         : state === "late"
           ? "border-[#ef4444] bg-transparent"
@@ -548,6 +677,7 @@ function MonthTag({ state }: { state: MonthState }) {
     paid: { label: "plan.tagPaid" as MessageKey, cls: "text-[#6ee7b7]" },
     due: { label: "plan.tagDue" as MessageKey, cls: "text-stone-400" },
     late: { label: "plan.tagLate" as MessageKey, cls: "text-[#fca5a5]" },
+    review: { label: "plan.tagReview" as MessageKey, cls: "text-[#fbbf24]" },
   } as const;
   return <span className={`w-16 text-right text-[11px] font-semibold uppercase tracking-[0.08em] ${map[state].cls}`}>{t(map[state].label)}</span>;
 }

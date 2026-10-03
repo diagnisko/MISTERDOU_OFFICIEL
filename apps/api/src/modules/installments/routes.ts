@@ -22,7 +22,8 @@ function authGuard(req: FastifyRequest, _reply: unknown, done: (err?: Error) => 
 }
 
 const paramsSchema = z.object({ id: z.string().uuid() });
-const payBody = z.object({ months: z.number().int().min(1).max(24).default(1) });
+// 0 mois = l'apport seul (tant qu'il n'est pas payé).
+const payBody = z.object({ months: z.number().int().min(0).max(24).default(1) });
 
 export async function registerInstallmentRoutes(app: FastifyInstance) {
   // --- Échéancier d'une commande (le client, propriétaire de la commande) ---

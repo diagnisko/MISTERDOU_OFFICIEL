@@ -104,11 +104,17 @@ export async function settlePayment(
             break;
           }
           if (payment.installmentPlanId) {
-            await applyDownPayment(tx, payment);
+            // L'apport peut inclure des mois ; s'il solde tout, le compte est livré.
+            const { settled } = await applyDownPayment(tx, payment);
+            if (settled) {
+              await deliverOrderAfterSuccess(tx, payment, {
+                ctx: { actorId: opts.ctx?.actorId ?? payment.userId, actorRole: opts.ctx?.actorRole, ip: opts.ctx?.ip },
+              });
+            }
           } else {
             logger.warn({ paymentId: payment.id }, "[payments] apport sans installmentPlanId");
+            await tx.order.update({ where: { id: payment.orderId }, data: { status: "PARTIALLY_PAID" } });
           }
-          await tx.order.update({ where: { id: payment.orderId }, data: { status: "PARTIALLY_PAID" } });
           break;
         case "INSTALLMENT":
           // Mensualité : on ne livre que si l'échéancier devient soldé.

@@ -11,10 +11,20 @@ import {
   useTransform,
   useVelocity,
 } from "motion/react";
-import { useT } from "@/lib/i18n";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { IconStar } from "./lux-icons";
 
-const WORDS = ["Division 1", "Legend", "Ikon", "Epic", "Division 2", "Élite", "Identité vérifiée", "Livraison sécurisée"];
+// Divisions du jeu (noms propres, non traduits) et promesses du site (traduites).
+const WORDS: Array<{ text: string } | { key: MessageKey }> = [
+  { text: "Division 1" },
+  { text: "Legend" },
+  { text: "Ikon" },
+  { text: "Epic" },
+  { text: "Division 2" },
+  { key: "marquee.elite" },
+  { key: "marquee.verified" },
+  { key: "marquee.secure" },
+];
 const BASE_SPEED = 2.2; // % de la piste par seconde
 
 function wrap(min: number, max: number, v: number) {
@@ -27,8 +37,8 @@ function Row() {
   return (
     <span className="flex shrink-0 items-center">
       {WORDS.map((w) => (
-        <span key={w} className="flex items-center">
-          <span className="lux-marquee-item whitespace-nowrap px-8">{w === "Élite" ? t("marquee.elite") : w === "Certifié" ? t("marquee.certified") : w}</span>
+        <span key={"key" in w ? w.key : w.text} className="flex items-center">
+          <span className="lux-marquee-item whitespace-nowrap px-8">{"key" in w ? t(w.key) : w.text}</span>
           <IconStar filled className="lux-marquee-star" aria-hidden />
         </span>
       ))}

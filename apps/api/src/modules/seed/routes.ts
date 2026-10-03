@@ -58,7 +58,18 @@ export async function registerSeedRoutes(app: FastifyInstance) {
     },
     handler: async (request, reply) => {
       const now = new Date();
-      const [inStock, soldAgg, ratingAgg, pricing, products, activePromo] =
+      const homeSelect = {
+        ...HOME_SELECT,
+        featuredUntil: true,
+        ...promoRelationSelect(now),
+        images: {
+          where: { mimeType: { startsWith: "image/" } },
+          orderBy: [{ isPrimary: "desc" as const }, { position: "asc" as const }],
+          take: 1,
+          select: { objectKey: true },
+        },
+      };
+      const [inStock, soldAgg, ratingAgg, pricing, latest, boosted, activePromo] =
         await Promise.all([
           prisma.product.count({ where: { status: "ACTIVE", deletedAt: null } }),
           prisma.orderItem.aggregate({
@@ -71,17 +82,14 @@ export async function registerSeedRoutes(app: FastifyInstance) {
             where: { status: "ACTIVE", deletedAt: null },
             orderBy: { createdAt: "desc" },
             take: 6,
-            select: {
-              ...HOME_SELECT,
-              featuredUntil: true,
-              ...promoRelationSelect(now),
-              images: {
-                where: { mimeType: { startsWith: "image/" } },
-                orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
-                take: 1,
-                select: { objectKey: true },
-              },
-            },
+            select: homeSelect,
+          }),
+          // Offres dont le vendeur a payé une mise en avant encore valide.
+          prisma.product.findMany({
+            where: { status: "ACTIVE", deletedAt: null, featuredUntil: { gt: now } },
+            orderBy: { createdAt: "desc" },
+            take: 6,
+            select: homeSelect,
           }),
           // Bannière promo de la landing : la promotion en cours qui se termine
           // le plus tôt (compte à rebours côté client, invalide à expiration).
@@ -109,6 +117,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         paymentMode: "ONE_TIME" | "INSTALLMENTS";
         installmentMonths: number | null;
         installmentDownPayment: number | null;
+        featuredUntil: Date | null;
         promotions: ReadonlyArray<{ id: string; promoPrice: number | null; discountPercent: number | null }>;
         images: ReadonlyArray<{ objectKey: string }>;
       }) => ({
@@ -124,9 +133,13 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         installmentMonths: p.installmentMonths,
         installmentDownPayment: p.installmentDownPayment,
         canSplit: p.installmentMonths !== null,
+        isFeatured: p.featuredUntil !== null && p.featuredUntil > now,
         coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
       });
 
+      // Les offres mises en avant passent en tête de l'accueil, puis les plus récentes.
+      const seen = new Set<string>();
+      const products = [...boosted, ...latest].filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true))).slice(0, 6);
       const home = products.map(toItem);
 
       const first = home[0];

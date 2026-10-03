@@ -67,7 +67,10 @@ export function SupportContactChoices({ onMessage }: { onMessage: () => void }) 
         </button>
         {contacts?.whatsapp && (
           <a href={whatsappUrl(contacts.whatsapp, t("contact.whatsappText"))} target="_blank" rel="noopener noreferrer" className={CHOICE}>
-            <span className="dash-icon !h-9 !w-9 shrink-0"><IconWhatsapp size={17} /></span>
+            {/* Couleurs officielles de WhatsApp : cercle vert, icône blanche. */}
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#25D366] text-white shadow-[0_6px_18px_-6px_rgba(37,211,102,0.7)]">
+              <IconWhatsapp size={19} />
+            </span>
             <span>
               <span className="block text-[14px] font-medium text-stone-100">WhatsApp</span>
               <span className="mt-0.5 block text-[12px] leading-relaxed text-stone-400">{t("contact.whatsappHint")}</span>
@@ -95,7 +98,9 @@ export function WhatsappUrgentLine({ orderNumber }: { orderNumber: string }) {
   if (!contacts?.whatsapp) return null;
   return (
     <p className="mt-3 flex items-center gap-2 text-[12px] text-stone-400">
-      <IconWhatsapp size={14} />
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#25D366] text-white">
+        <IconWhatsapp size={12} />
+      </span>
       {t("contact.urgent")}{" "}
       <a
         href={whatsappUrl(contacts.whatsapp, t("contact.whatsappOrderText", { order: orderNumber }))}

@@ -7,6 +7,7 @@ import { startInstallmentJobs } from "./modules/installments/service.js";
 import { startPromotionJobs } from "./modules/promotions/service.js";
 import { startSellerPayoutJobs } from "./modules/orders/fulfillment.js";
 import { ensureDefaultSettings } from "./modules/settings/service.js";
+import { startProofCleanupJob } from "./modules/payments/proofs.js";
 
 async function main() {
   await ensureDefaultSettings();
@@ -25,6 +26,9 @@ async function main() {
   // Fonds vendeurs : libération automatique après le délai de sécurité ;
   // commandes jamais réglées annulées après le délai configuré.
   startSellerPayoutJobs();
+
+  // Captures de paiement et d'envoi : supprimées une fois devenues inutiles.
+  startProofCleanupJob();
 
   // Réglages manquants qui rendent une fonction inopérante en production.
   if (env.NODE_ENV === "production") {

@@ -227,7 +227,7 @@ export default function SupportPage() {
                       : "border-white/10 text-stone-400 hover:bg-white/[0.06] hover:text-stone-100"
                   }`}
                 >
-                  {t(`supcat.${option.value}` as MessageKey)}
+                  {option.label}
                 </button>
               );
             })}

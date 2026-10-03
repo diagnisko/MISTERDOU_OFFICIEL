@@ -5,7 +5,7 @@ import type { RoleName } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
-import { encryptString } from "../../lib/storage.js";
+import { deleteFile, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
 import { getWithdrawalProofFile } from "../admin-ops/service.js";
@@ -294,6 +294,12 @@ export async function registerSellerRoutes(app: FastifyInstance) {
           data: { status: "COMPLETED", sellerConfirmedAt: now },
         });
         if (res.count === 0) throw conflict("INVALID_STATE", "Ce retrait n’attend pas de confirmation.");
+        // Reçu confirmé : la capture de l'envoi ne sert plus, on libère la place.
+        const done = await prisma.withdrawal.findUnique({ where: { id }, select: { proofKey: true } });
+        if (done?.proofKey) {
+          await deleteFile(done.proofKey).catch(() => undefined);
+          await prisma.withdrawal.update({ where: { id }, data: { proofKey: null } });
+        }
       } else {
         await prisma.withdrawal.update({ where: { id }, data: { sellerDisputedAt: now, sellerDisputeNote: input.data.note } });
         await notifyTeam("WITHDRAWALS", "ADMIN_ALERT", {

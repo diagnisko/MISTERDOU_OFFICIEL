@@ -11,7 +11,7 @@
 
 import type { LuxCardData, LuxPaymentMode, LuxSchedule } from "./lux";
 
-export type CatalogueSort = "newest" | "priceAsc" | "priceDesc" | "power";
+export type CatalogueSort = "newest" | "priceAsc" | "priceDesc" | "power" | "powerAsc";
 
 export interface CatalogueMeta {
   page: number;
@@ -19,6 +19,7 @@ export interface CatalogueMeta {
   total: number;
   totalPages: number;
   sort: CatalogueSort;
+  q: string | null;
   division: string | null;
   paymentMode: LuxPaymentMode | null;
   divisions: string[];
@@ -48,6 +49,10 @@ const cache = new Map<string, { at: number; data: CatalogueData }>();
 export interface CatalogueParams {
   division?: string;
   sort?: CatalogueSort;
+  /** Recherche : nom de l'offre, ou un nombre = puissance minimale. */
+  q?: string;
+  /** Offres d'un seul vendeur (page profil). */
+  seller?: string;
   page?: number;
   perPage?: number;
   /** ONE_TIME = tout le catalogue, INSTALLMENTS = « prêt ou prestation » seul. */
@@ -57,6 +62,8 @@ export interface CatalogueParams {
 
 function buildQuery(params: CatalogueParams = {}): string {
   const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.seller) qs.set("seller", params.seller);
   if (params.division) qs.set("division", params.division);
   if (params.sort) qs.set("sort", params.sort);
   if (params.page && params.page > 1) qs.set("page", String(params.page));
@@ -122,6 +129,11 @@ export async function fetchCatalogueServer(
 // Fiche produit détaillée.
 // ---------------------------------------------------------------
 
+/** Qui vend : MISTERDOU, ou un vendeur partenaire (code public, jamais son nom). */
+export type CatalogueSeller =
+  | { kind: "MISTERDOU"; sales: number }
+  | { kind: "SELLER"; id: string; code: string; sales: number; since: string | null };
+
 export interface CatalogueDetail {
   id: string;
   slug: string;
@@ -141,8 +153,10 @@ export interface CatalogueDetail {
   publishedAt: string | null;
   description: string;
   extraInfo: string | null;
+  /** Note du vendeur (ou de MISTERDOU pour ses propres offres). */
   avgRating: number | null;
   reviewCount: number;
+  seller?: CatalogueSeller;
   /** Captures et vidéos publiques (bucket public), couverture en premier. */
   media?: Array<{ id: string; url: string; kind: "image" | "video"; mimeType: string }>;
 }

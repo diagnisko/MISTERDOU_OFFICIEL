@@ -22,6 +22,8 @@ type Proof = {
   amount: number;
   senderPhone: string;
   waveReference: string | null;
+  /** false : capture supprimée après validation (place libérée). */
+  hasScreenshot: boolean;
   createdAt: string;
   reviewedAt: string | null;
   rejectionReason: string | null;
@@ -130,15 +132,21 @@ export function PaymentProofsPanel({ onReviewed }: { onReviewed: () => void }) {
         <ul className="mt-5 grid gap-4 lg:grid-cols-2">
           {data.items.map((proof) => (
             <li key={proof.id} className="dash-card flex gap-4 p-4">
-              <button
-                type="button"
-                onClick={() => setZoom(proof)}
-                className="h-36 w-28 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/30"
-                aria-label="Agrandir la capture"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/v1/admin/payment-proofs/${proof.id}/file`} alt="Capture du reçu Wave" className="h-full w-full object-cover" />
-              </button>
+              {proof.hasScreenshot ? (
+                <button
+                  type="button"
+                  onClick={() => setZoom(proof)}
+                  className="h-36 w-28 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                  aria-label="Agrandir la capture"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/v1/admin/payment-proofs/${proof.id}/file`} alt="Capture du reçu Wave" className="h-full w-full object-cover" />
+                </button>
+              ) : (
+                <span className="grid h-36 w-28 shrink-0 place-items-center rounded-xl border border-dashed border-white/10 px-2 text-center text-[11px] leading-snug text-stone-500">
+                  Capture supprimée après validation
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-[22px] font-semibold tabular-nums text-white">{formatXof(proof.amount)}</p>
                 <p className="mt-0.5 truncate text-[13px] text-stone-300">{proof.label}</p>

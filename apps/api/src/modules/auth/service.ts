@@ -6,6 +6,7 @@ import { conflict, badRequest } from "../../lib/errors.js";
 import { notifyActiveAdmins } from "../../lib/notify.js";
 import { env } from "../../env.js";
 import type { RegisterInput, LoginInput, MeDto, RoleName } from "@misterdou/shared";
+import { sendVerificationEmail } from "./email-verification.js";
 
 export function toMeDto(user: {
   id: string;
@@ -82,6 +83,8 @@ export async function register(input: RegisterInput, ctx: { ip?: string; userAge
     actionUrl: "/admin/clients",
     priority: "NORMAL",
   });
+  // Lien de confirmation de l'adresse (non bloquant).
+  await sendVerificationEmail(user).catch(() => undefined);
 
   return { user: toMeDto(user), sid };
 }

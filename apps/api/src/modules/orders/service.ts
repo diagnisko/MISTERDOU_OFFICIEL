@@ -13,6 +13,7 @@ import { alertDoubleSale, holdsReservation, markProductsSold, recordSellerSale, 
 import { latestCodeForOrder } from "../verification-codes/service.js";
 import { getSchedule } from "../installments/service.js";
 import { getIntSetting } from "../settings/service.js";
+import { reviewForOrder } from "../reviews/service.js";
 
 /** Statuts où le compte est entre les mains du client (livré, puis réception confirmée). */
 const ACCESS_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
@@ -391,10 +392,11 @@ export async function getMyOrder(orderId: string, userId: string) {
   });
   if (!order) throw notFound("Commande introuvable");
   const hasAccess = ACCESS_STATUSES.has(order.status);
-  const [schedule, verificationCode, holdDays] = await Promise.all([
+  const [schedule, verificationCode, holdDays, review] = await Promise.all([
     order.paymentMode === "INSTALLMENTS" ? getSchedule(order.id) : Promise.resolve(null),
     hasAccess ? latestCodeForOrder(order.id) : Promise.resolve(null),
     getIntSetting("payoutHoldDays", 3),
+    order.status === "COMPLETED" ? reviewForOrder(order.id, userId) : Promise.resolve(null),
   ]);
   const { supportTicket, items, payments, ...rest } = order;
   // Règlement encore ouvert : lien pour le reprendre, ou preuve Wave en vérification.
@@ -418,6 +420,9 @@ export async function getMyOrder(orderId: string, userId: string) {
       order.deliveredAt && !order.receivedAt ? new Date(order.deliveredAt.getTime() + holdDays * 86_400_000).toISOString() : null,
     canReveal: hasAccess,
     canConfirmReceipt: order.status === "DELIVERED" && !order.receivedAt,
+    // Avis possible une fois la réception confirmée, une seule fois.
+    review,
+    canReview: order.status === "COMPLETED" && Boolean(order.receivedAt) && !review,
     verificationCode,
     schedule,
     reports: supportTicket.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),

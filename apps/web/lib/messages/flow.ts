@@ -3,7 +3,7 @@ import type { Translations } from "./types";
 
 export const fr = {
   "pay.typeORDER_PAYMENT": "Paiement de commande",
-  "pay.typeINITIAL_INSTALLMENT": "Première mensualité",
+  "pay.typeINITIAL_INSTALLMENT": "Apport initial",
   "pay.typeINSTALLMENT": "Mensualité",
   "pay.typeREFUND": "Remboursement",
   "pay.notFound": "Transaction introuvable ou expirée.",
@@ -100,7 +100,7 @@ export const fr = {
 
 export const en: Translations<typeof fr> = {
   "pay.typeORDER_PAYMENT": "Order payment",
-  "pay.typeINITIAL_INSTALLMENT": "First instalment",
+  "pay.typeINITIAL_INSTALLMENT": "Down payment",
   "pay.typeINSTALLMENT": "Instalment",
   "pay.typeREFUND": "Refund",
   "pay.notFound": "Transaction not found or expired.",
@@ -197,7 +197,7 @@ export const en: Translations<typeof fr> = {
 
 export const ar: Translations<typeof fr> = {
   "pay.typeORDER_PAYMENT": "دفع الطلب",
-  "pay.typeINITIAL_INSTALLMENT": "القسط الأول",
+  "pay.typeINITIAL_INSTALLMENT": "الدفعة الأولى",
   "pay.typeINSTALLMENT": "قسط شهري",
   "pay.typeREFUND": "استرداد",
   "pay.notFound": "المعاملة غير موجودة أو منتهية الصلاحية.",

@@ -24,6 +24,11 @@ export type Schedule = {
   nextAmount: number | null;
   fullyPaid: boolean;
   installments: ScheduleLine[];
+  /**
+   * Paiement par Wave en cours de vérification par l'équipe : l'apport, ou les
+   * mensualités concernées (numéros). Ces mois ne peuvent pas être repayés.
+   */
+  reviewing: { downPayment: boolean; months: number[]; amount: number; since: string } | null;
 };
 
 /** Règle la prochaine mensualité, ou plusieurs d'avance (`months`). */

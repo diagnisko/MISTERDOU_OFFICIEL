@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { badRequest, forbidden, notFound } from "../../lib/errors.js";
@@ -25,7 +26,40 @@ async function getTotpSecret(userId: string): Promise<string | null> {
   }
 }
 
-export async function loginAdmin(input: { email: string; password: string; totpCode?: string }, ctx: { ip?: string; userAgent?: string }) {
+// ---------------------------------------------------------------------------
+// « Se souvenir de cet appareil 30 jours » : après un code à 6 chiffres
+// valide, un jeton signé est posé dans un cookie protégé. Le mot de passe reste
+// toujours demandé ; seul le code est épargné. Le jeton meurt si le mot de passe
+// ou le secret d'authentification change, ou après 30 jours.
+// ---------------------------------------------------------------------------
+
+export const TRUSTED_DEVICE_COOKIE = "md_trusted_device";
+export const TRUSTED_DEVICE_DAYS = 30;
+const TRUSTED_KEY = createHmac("sha256", env.COOKIE_SECRET).update("admin-trusted-device/v1").digest();
+
+function trustedSignature(userId: string, exp: number, passwordHash: string, totpSecret: string): string {
+  return createHmac("sha256", TRUSTED_KEY).update(`${userId}|${exp}|${passwordHash}|${totpSecret}`).digest("base64url");
+}
+
+function createTrustedToken(userId: string, passwordHash: string, totpSecret: string): string {
+  const exp = Math.floor(Date.now() / 1000) + TRUSTED_DEVICE_DAYS * 86_400;
+  return `${userId}.${exp}.${trustedSignature(userId, exp, passwordHash, totpSecret)}`;
+}
+
+function isTrustedToken(token: string | undefined, userId: string, passwordHash: string, totpSecret: string): boolean {
+  if (!token) return false;
+  const [id, expRaw, sig] = token.split(".");
+  const exp = Number(expRaw);
+  if (id !== userId || !sig || !Number.isInteger(exp) || exp < Math.floor(Date.now() / 1000)) return false;
+  const expected = Buffer.from(trustedSignature(userId, exp, passwordHash, totpSecret));
+  const received = Buffer.from(sig);
+  return expected.length === received.length && timingSafeEqual(expected, received);
+}
+
+export async function loginAdmin(
+  input: { email: string; password: string; totpCode?: string; rememberDevice?: boolean; trustedToken?: string },
+  ctx: { ip?: string; userAgent?: string },
+) {
   const email = input.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email }, include: { role: { select: { name: true } } } });
   if (!user?.passwordHash || (user.role.name !== "ADMIN" && user.role.name !== "STAFF") || user.status !== "ACTIVE") throw badRequest("INVALID_CREDENTIALS", INVALID_LOGIN);
@@ -40,22 +74,38 @@ export async function loginAdmin(input: { email: string; password: string; totpC
   }
 
   const setupRequired = !user.twoFactorEnabled;
+  let trustToken: string | null = null;
+  let trustedDevice = false;
   if (!setupRequired) {
-    // Mot de passe juste : on dit clairement ce qui manque (le code), au lieu
-    // d'un « identifiants invalides » qui faisait croire à un mauvais mot de passe.
-    if (!input.totpCode) throw badRequest("ACTION_REQUIRES_2FA", "Entrez le code à 6 chiffres de votre application d’authentification.");
     const secret = await getTotpSecret(user.id);
-    if (!secret || !verifyTotp(secret, input.totpCode)) {
-      await logAudit({ actorId: user.id, actorRole: "ADMIN", ip: ctx.ip, userAgent: ctx.userAgent, action: "ADMIN_TOTP_FAILED", resourceType: "User", resourceId: user.id, severity: "WARNING" });
-      throw badRequest("OTP_INVALID", "Code d’authentification incorrect ou expiré. Utilisez le code affiché en ce moment dans l’application.");
+    trustedDevice = Boolean(secret) && !input.totpCode && isTrustedToken(input.trustedToken, user.id, user.passwordHash, secret!);
+    if (!trustedDevice) {
+      // Mot de passe juste : on dit clairement ce qui manque (le code), au lieu
+      // d'un « identifiants invalides » qui faisait croire à un mauvais mot de passe.
+      if (!input.totpCode) throw badRequest("ACTION_REQUIRES_2FA", "Entrez le code à 6 chiffres de votre application d’authentification.");
+      if (!secret || !verifyTotp(secret, input.totpCode)) {
+        await logAudit({ actorId: user.id, actorRole: "ADMIN", ip: ctx.ip, userAgent: ctx.userAgent, action: "ADMIN_TOTP_FAILED", resourceType: "User", resourceId: user.id, severity: "WARNING" });
+        throw badRequest("OTP_INVALID", "Code d’authentification incorrect ou expiré. Utilisez le code affiché en ce moment dans l’application.");
+      }
+      if (input.rememberDevice) trustToken = createTrustedToken(user.id, user.passwordHash, secret);
     }
   }
 
   const ttlSeconds = setupRequired ? env.ADMIN_SETUP_SESSION_TTL_SECONDS : env.ADMIN_SESSION_TTL_SECONDS;
   const sid = await createSession({ userId: user.id, kind: "COOKIE", ip: ctx.ip, userAgent: ctx.userAgent, ttlSeconds, isAdminSession: !setupRequired });
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined } });
-  await logAudit({ actorId: user.id, actorRole: "ADMIN", ip: ctx.ip, userAgent: ctx.userAgent, action: setupRequired ? "ADMIN_LOGIN_TOTP_SETUP_REQUIRED" : "ADMIN_LOGIN", resourceType: "User", resourceId: user.id, severity: "WARNING" });
-  return { sid, setupRequired, role: "ADMIN" as const, user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email } };
+  await logAudit({
+    actorId: user.id,
+    actorRole: "ADMIN",
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    action: setupRequired ? "ADMIN_LOGIN_TOTP_SETUP_REQUIRED" : trustedDevice ? "ADMIN_LOGIN_TRUSTED_DEVICE" : "ADMIN_LOGIN",
+    resourceType: "User",
+    resourceId: user.id,
+    metadata: trustToken ? { deviceRemembered: true } : undefined,
+    severity: "WARNING",
+  });
+  return { sid, setupRequired, trustToken, role: "ADMIN" as const, user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email } };
 }
 
 export async function startAdminTotpSetup(actor: { id: string; email: string | null; role?: { name: RoleName } | null }) {

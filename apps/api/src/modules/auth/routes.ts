@@ -14,8 +14,9 @@ import { revokeSession } from "../../lib/sessions.js";
 import { logAudit, randomCsrfToken } from "../../lib/audit.js";
 import { env } from "../../env.js";
 import { publicUrl } from "../../lib/media.js";
-import { confirmAdminTotp, loginAdmin, startAdminTotpSetup } from "../admin-console/auth.js";
+import { TRUSTED_DEVICE_COOKIE, TRUSTED_DEVICE_DAYS, confirmAdminTotp, loginAdmin, startAdminTotpSetup } from "../admin-console/auth.js";
 import { forgotPasswordSchema, requestPasswordReset, resetPassword, resetPasswordSchema } from "./password-reset.js";
+import { resendVerificationEmail, verifyEmail, verifyEmailSchema } from "./email-verification.js";
 import { badRequest } from "../../lib/errors.js";
 
 function csrf(reply: FastifyReply) {
@@ -41,6 +42,18 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return sendOk(reply, {
       user: result.user,
     });
+  });
+
+  // --- Confirmation de l'adresse e-mail (lien reçu à l'inscription) ---
+  app.post("/auth/email/verify", { schema: { tags: ["Auth"], summary: "Confirmer son adresse e-mail" }, config: rate(10) }, async (request, reply) => {
+    const input = verifyEmailSchema.safeParse(request.body);
+    if (!input.success) throw badRequest("VALIDATION_ERROR", "Lien de confirmation invalide.");
+    return sendOk(reply, await verifyEmail(input.data.token, { ip: request.ip }));
+  });
+
+  app.post("/auth/email/resend", { schema: { tags: ["Auth"], summary: "Renvoyer le lien de confirmation de l'e-mail" }, config: rate(3) }, async (request, reply) => {
+    const auth = requireAuth(request);
+    return sendOk(reply, await resendVerificationEmail(auth.user.id));
   });
 
   // --- Mot de passe oublié : lien par e-mail, puis nouveau mot de passe ---
@@ -95,8 +108,23 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   });
 
   app.post("/auth/admin/login", { schema: { tags: ["Auth"], summary: "Connexion administrateur avec MFA" }, config: rate(5) }, async (request, reply) => {
-    const input = z.object({ email: z.email(), password: z.string().min(1).max(72), totpCode: z.string().regex(/^\d{6}$/).optional() }).parse(request.body);
-    const result = await loginAdmin(input, { ip: request.ip, userAgent: request.headers["user-agent"] });
+    const input = z
+      .object({ email: z.email(), password: z.string().min(1).max(72), totpCode: z.string().regex(/^\d{6}$/).optional(), rememberDevice: z.boolean().optional() })
+      .parse(request.body);
+    const result = await loginAdmin(
+      { ...input, trustedToken: request.cookies[TRUSTED_DEVICE_COOKIE] },
+      { ip: request.ip, userAgent: request.headers["user-agent"] },
+    );
+    if ("trustToken" in result && result.trustToken) {
+      // Appareil de confiance : cookie protégé, lu uniquement par la connexion admin.
+      reply.setCookie(TRUSTED_DEVICE_COOKIE, result.trustToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/api/v1/auth/admin",
+        maxAge: TRUSTED_DEVICE_DAYS * 86_400,
+      });
+    }
     const ttl = result.role === "STAFF" ? env.SESSION_TTL_SECONDS : result.setupRequired ? env.ADMIN_SETUP_SESSION_TTL_SECONDS : env.ADMIN_SESSION_TTL_SECONDS;
     setSessionCookie(reply, result.sid, ttl, result.role !== "STAFF" && !result.setupRequired);
     csrf(reply);
@@ -142,6 +170,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       profile: {
         avatarUrl: auth.user.avatarKey ? publicUrl(auth.user.avatarKey) : null,
         hasPassword: Boolean(auth.user.passwordHash),
+        emailVerified: Boolean(auth.user.emailVerifiedAt),
         googleLinked: Boolean(auth.user.googleSub),
         country: auth.user.country,
         city: auth.user.city,

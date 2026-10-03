@@ -20,6 +20,8 @@ export type AccountUser = {
 export type AccountProfile = {
   avatarUrl: string | null;
   hasPassword: boolean;
+  /** Adresse e-mail confirmée par le lien reçu à l'inscription. */
+  emailVerified?: boolean;
   googleLinked: boolean;
   country: string | null;
   city: string | null;

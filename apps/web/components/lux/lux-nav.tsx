@@ -8,6 +8,7 @@ import { cx } from "./lux-fx";
 import { IconMenu, IconX } from "./lux-icons";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { MessagesButton } from "@/components/chat/messages-button";
+import { BackButton } from "@/components/back-button";
 import { AccountMenu } from "@/components/account/account-menu";
 import { useAccount } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
@@ -24,6 +25,9 @@ const NAV_LINKS: Array<{ href: string; label: MessageKey; guestOnly?: boolean }>
 ];
 
 // Lien de l'en-tête correspondant à la page ouverte (fiche d'une offre → « Offres »).
+// Pages d'accueil (visiteur, membre) : pas de flèche de retour.
+const HOME_PATHS = ["/", "/offres"];
+
 function activeHref(pathname: string): string | null {
   if (pathname.startsWith("/catalogue")) return "/offres";
   return NAV_LINKS.find((l) => pathname === l.href || pathname.startsWith(`${l.href}/`))?.href ?? null;
@@ -37,6 +41,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
   const t = useT();
   const reduce = useReducedMotion();
   const pathname = usePathname();
+  const withBack = !HOME_PATHS.includes(pathname);
   // Au clic, le marqueur glisse tout de suite vers le lien choisi, sans
   // attendre le chargement de la page suivante.
   const [pending, setPending] = useState<string | null>(null);
@@ -56,9 +61,16 @@ export function LuxNav({ root = false }: { root?: boolean }) {
       )}
     >
       <nav aria-label={t("nav.main")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:h-[72px] md:px-8">
-        <a href={account.status === "member" ? "/offres" : root ? "/" : "#top"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
-          MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
-        </a>
+        <div className="flex min-w-0 items-center gap-3">
+          {/* Pas de flèche sur les pages d'accueil (visiteur et membre). */}
+          <BackButton hideOn={HOME_PATHS} />
+          <a href={account.status === "member" ? "/offres" : root ? "/" : "#top"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
+            {/* Téléphone + flèche de retour : logo court, pour ne pas chevaucher les icônes. */}
+            <span className={withBack ? "hidden sm:inline" : undefined}>MISTERDOU</span>
+            {withBack && <span className="sm:hidden" aria-hidden>M</span>}
+            <span className="text-[var(--lux-gold)]">.</span>
+          </a>
+        </div>
 
         <ul className="hidden items-center gap-1 lg:flex">
           {links.map((l) => {

@@ -26,10 +26,11 @@ const SORTS: { value: CatalogueSort; label: MessageKey }[] = [
   { value: "priceAsc", label: "cat.sortPriceAsc" },
   { value: "priceDesc", label: "cat.sortPriceDesc" },
   { value: "power", label: "cat.sortPower" },
+  { value: "powerAsc", label: "cat.sortPowerAsc" },
 ];
 
 export interface CatalogueViewProps {
-  searchParams: Promise<{ division?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; division?: string; sort?: string; page?: string }>;
   /** Racine des liens de filtre : la page doit rester elle-même. */
   basePath: string;
   /** ONE_TIME = tout le catalogue, INSTALLMENTS = offres à mensualités. */
@@ -48,8 +49,10 @@ function href(
   division: string | null,
   sort: CatalogueSort,
   page: number,
+  search: string | null = null,
 ): string {
   const p = new URLSearchParams();
+  if (search) p.set("q", search);
   const d = base.division !== undefined ? base.division : division;
   if (d) p.set("division", d);
   const s = base.sort ?? sort;
@@ -102,6 +105,8 @@ async function CatalogueBody({
   const sort: CatalogueSort =
     sp.sort && SORTS.some((s) => s.value === sp.sort) ? (sp.sort as CatalogueSort) : "newest";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const search = sp.q?.trim().slice(0, 60) || null;
+  const minPower = search && /^\d[\d\s.]*$/.test(search) ? search.replace(/\D/g, "") : null;
 
   let data: Awaited<ReturnType<typeof fetchCatalogueServer>> | null = null;
   let error: string | null = null;
@@ -109,6 +114,7 @@ async function CatalogueBody({
     data = await fetchCatalogueServer(serverApiFetch, {
       division: division ?? undefined,
       sort,
+      q: search ?? undefined,
       page,
       perPage: 12,
       paymentMode,
@@ -139,10 +145,39 @@ async function CatalogueBody({
 
           {aside}
 
-          <div className="mt-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* Recherche : formulaire classique, fonctionne même sans JavaScript. */}
+          <form action={basePath} method="get" role="search" className="mt-10 flex max-w-xl gap-2">
+            {division && <input type="hidden" name="division" value={division} />}
+            {sort !== "newest" && <input type="hidden" name="sort" value={sort} />}
+            <label className="sr-only" htmlFor="catalogue-search">
+              {t("cat.searchLabel")}
+            </label>
+            <input
+              id="catalogue-search"
+              type="search"
+              name="q"
+              defaultValue={search ?? ""}
+              maxLength={60}
+              placeholder={t("cat.searchPlaceholder")}
+              className="lux-glass min-w-0 flex-1 rounded-full border border-white/10 bg-transparent px-5 py-3 text-[14px] text-stone-100 outline-none placeholder:text-stone-500 focus:border-[rgba(255,106,50,0.6)]"
+            />
+            <button type="submit" className="lux-btn lux-btn-gold !min-h-[46px] shrink-0 px-6">
+              {t("cat.searchButton")}
+            </button>
+          </form>
+          {search && (
+            <p className="mt-3 text-[13px] text-stone-400">
+              {minPower ? t("cat.searchPower", { power: formatInt(Number(minPower)) }) : t("cat.searchName", { q: search })}{" "}
+              <Link href={href(basePath, { page: 1 }, division, sort, 1)} className="text-[var(--lux-gold-light)] hover:underline">
+                {t("cat.searchClear")}
+              </Link>
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap gap-2" role="group" aria-label={t("cat.filterDivision")}>
               <Link
-                href={href(basePath, { division: null }, division, sort, 1)}
+                href={href(basePath, { division: null }, division, sort, 1, search)}
                 aria-current={division === null ? "page" : undefined}
                 className={
                   division === null
@@ -155,7 +190,7 @@ async function CatalogueBody({
               {divisions.map((d) => (
                 <Link
                   key={d}
-                  href={href(basePath, { division: d }, division, sort, 1)}
+                  href={href(basePath, { division: d }, division, sort, 1, search)}
                   aria-current={division === d ? "page" : undefined}
                   className={
                     division === d
@@ -172,7 +207,7 @@ async function CatalogueBody({
               {SORTS.map((s) => (
                 <Link
                   key={s.value}
-                  href={href(basePath, { sort: s.value }, division, sort, 1)}
+                  href={href(basePath, { sort: s.value }, division, sort, 1, search)}
                   aria-current={sort === s.value ? "page" : undefined}
                   className={
                     sort === s.value
@@ -204,7 +239,7 @@ async function CatalogueBody({
               {meta && meta.totalPages > 1 && (
                 <nav aria-label={t("cat.pagination")} className="mt-12 flex items-center justify-center gap-4">
                   <Link
-                    href={href(basePath, { page: page - 1 }, division, sort, page)}
+                    href={href(basePath, { page: page - 1 }, division, sort, page, search)}
                     aria-disabled={page <= 1}
                     className={
                       page <= 1
@@ -219,7 +254,7 @@ async function CatalogueBody({
                     {t("cat.page", { page: meta.page, total: meta.totalPages })}
                   </span>
                   <Link
-                    href={href(basePath, { page: page + 1 }, division, sort, page)}
+                    href={href(basePath, { page: page + 1 }, division, sort, page, search)}
                     aria-disabled={page >= meta.totalPages}
                     className={
                       page >= meta.totalPages

@@ -9,6 +9,7 @@ import { registerSettingsRoutes } from "./modules/settings/routes.js";
 import { registerSeedRoutes } from "./modules/seed/routes.js";
 import { registerCatalogueRoutes } from "./modules/catalogue/routes.js";
 import { registerPaymentRoutes } from "./modules/payments/routes.js";
+import { registerReviewRoutes } from "./modules/reviews/routes.js";
 import { registerOrderRoutes } from "./modules/orders/routes.js";
 import { registerInstallmentRoutes } from "./modules/installments/routes.js";
 import { registerIdentityVerificationRoutes } from "./modules/identity-verification/routes.js";
@@ -153,6 +154,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       await registerAccountRoutes(api);
       await registerVerificationCodeRoutes(api);
       await registerProductChatRoutes(api);
+      await registerReviewRoutes(api);
     },
     { prefix: API_PREFIX },
   );

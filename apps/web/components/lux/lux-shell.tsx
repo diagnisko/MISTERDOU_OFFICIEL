@@ -3,11 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { LuxProvider } from "./lux-data";
-import { NotificationBell } from "@/components/notifications/notification-bell";
-import { MessagesButton } from "@/components/chat/messages-button";
-import { AccountMenu } from "@/components/account/account-menu";
-import { useAccount } from "@/lib/account";
-import { useT } from "@/lib/i18n";
+import { LuxNav } from "./lux-nav";
 
 // ---------------------------------------------------------------------------
 // Coquille des espaces applicatifs (admin, vendeur, KYC, checkout).
@@ -68,37 +64,19 @@ export function LuxBack({ href, label }: { href: string; label: string }) {
 // même grammaire que l'espace membre, afin qu'aucun écran ne « change de design ».
 export function LuxTopBar({
   label,
-  links = [],
 }: {
   label: string;
+  /** Conservé pour compatibilité : la navigation du site contient déjà ces liens. */
   links?: { href: string; label: string }[];
 }) {
-  const t = useT();
-  const account = useAccount();
+  // Même en-tête que tout le site (logo, liens, messages, cloche, compte) : une
+  // seule barre, pour ne jamais casser l'ambiance d'une page à l'autre.
   return (
-    <header className="sticky top-0 z-50 border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/82 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-4 px-5 md:px-8">
-        <Link href={account.status === "member" ? "/offres" : "/"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
-          MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
-        </Link>
-        <nav aria-label={t("shell.nav")} className="flex items-center gap-1 sm:gap-2">
-          <MessagesButton />
-          <NotificationBell />
-          {links.map((l) => (
-            <Link
-              key={l.href + l.label}
-              href={l.href}
-              className="rounded-2xl px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-400 transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-stone-100 sm:px-3.5"
-            >
-              {l.label}
-            </Link>
-          ))}
-          <span className="sr-only">{label}</span>
-          <span className="ml-1">
-            <AccountMenu compact />
-          </span>
-        </nav>
-      </div>
-    </header>
+    <>
+      <LuxNav />
+      <span className="sr-only">{label}</span>
+      {/* La barre est fixe : cet espace évite qu'elle recouvre le haut de la page. */}
+      <div className="h-16 md:h-[72px]" aria-hidden />
+    </>
   );
 }

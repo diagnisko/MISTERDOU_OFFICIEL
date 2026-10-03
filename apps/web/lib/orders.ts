@@ -44,6 +44,9 @@ export type OrderDetail = {
   checkoutUrl: string | null;
   /** Preuve de paiement Wave en cours de vérification par l'équipe. */
   paymentUnderReview: boolean;
+  /** Avis laissé après « Reçu » (un seul par commande). */
+  review: OrderReview | null;
+  canReview: boolean;
   verificationCode: VerificationCode | null;
   schedule: Schedule | null;
   reports: OrderReport[];
@@ -105,6 +108,12 @@ export async function requestVerificationCode(id: string): Promise<VerificationC
 
 export async function confirmOrderReceipt(id: string): Promise<{ id: string; receivedAt: string }> {
   return request(`/api/v1/orders/${id}/confirm-receipt`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export type OrderReview = { rating: number; comment: string | null; createdAt: string };
+
+export async function submitOrderReview(id: string, input: { rating: number; comment?: string }): Promise<OrderReview> {
+  return request(`/api/v1/orders/${id}/review`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export type ReportReason = "SELLER_REPORT" | "DELIVERY" | "VERIFICATION_CODE" | "OTHER";

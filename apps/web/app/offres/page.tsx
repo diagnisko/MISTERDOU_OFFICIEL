@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function OffresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ division?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; division?: string; sort?: string; page?: string }>;
 }) {
   const t = await getServerT();
   return (

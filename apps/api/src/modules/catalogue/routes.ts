@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
+import type { Prisma } from "@misterdou/db";
 import { sendError, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
 
 import { buildSchedule } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { mediaKind, publicUrl } from "../../lib/media.js";
+import { PLATFORM_KEY, reputations, sellerCode } from "../reviews/service.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -15,7 +17,8 @@ import { mediaKind, publicUrl } from "../../lib/media.js";
 
 const MAX_PAGES = 300;
 const DEFAULT_PER_PAGE = 12;
-const VALID_SORTS = ["newest", "priceAsc", "priceDesc", "power"] as const;
+// « power » = puissance décroissante (valeur historique), « powerAsc » = croissante.
+const VALID_SORTS = ["newest", "priceAsc", "priceDesc", "power", "powerAsc"] as const;
 type SortKey = (typeof VALID_SORTS)[number];
 
 const SELECT_PUBLIC = {
@@ -32,6 +35,8 @@ const SELECT_PUBLIC = {
   installmentDownPayment: true,
   publishedAt: true,
   createdAt: true,
+  // Sert à la réputation affichée ; jamais renvoyé tel quel au public.
+  sellerId: true,
 } as const;
 
 /** Projection publique + mise en avant + promotion active à l'instant T. */
@@ -51,6 +56,8 @@ function publicSelect(now: Date) {
 }
 
 interface CatalogueQuery {
+  q?: string;
+  seller?: string;
   division?: string;
   sort?: string;
   page?: string;
@@ -117,6 +124,8 @@ function sortCatalogue<T extends SortableProduct>(rows: T[], sort: SortKey, now:
         return resolvePrice(b).price - resolvePrice(a).price;
       case "power":
         return b.teamPower - a.teamPower;
+      case "powerAsc":
+        return a.teamPower - b.teamPower;
       case "newest":
       default:
         return b.createdAt.getTime() - a.createdAt.getTime();
@@ -130,10 +139,12 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
     url: "/catalogue",
     schema: {
       tags: ["Public"],
-      summary: "Catalogue paginé avec filtres par division et tris",
+      summary: "Catalogue paginé : recherche (nom ou puissance), division, tris",
       querystring: {
         type: "object",
         properties: {
+          q: { type: "string", maxLength: 60 },
+          seller: { type: "string", maxLength: 36 },
           division: { type: "string" },
           sort: { type: "string", enum: [...VALID_SORTS] },
           page: { type: "string" },
@@ -155,11 +166,29 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const paymentMode: "ONE_TIME" | "INSTALLMENTS" | undefined =
         q.paymentMode === "ONE_TIME" || q.paymentMode === "INSTALLMENTS" ? q.paymentMode : undefined;
 
-      const where = {
+      // Recherche : un nombre = puissance minimale (« 3200 » → 3 200 et plus),
+      // sinon le nom de l'offre ou sa division.
+      const search = q.q?.trim().slice(0, 60) || undefined;
+      const minPower = search && /^\d[\d\s.]*$/.test(search) ? Number(search.replace(/\D/g, "")) : null;
+
+      const sellerId = q.seller && /^[0-9a-f-]{36}$/i.test(q.seller) ? q.seller : undefined;
+
+      const where: Prisma.ProductWhereInput = {
         status: "ACTIVE" as const,
         deletedAt: null,
+        ...(sellerId ? { sellerId } : {}),
         ...(division ? { division } : {}),
         ...(paymentMode ? { paymentMode } : {}),
+        ...(search
+          ? minPower !== null
+            ? { teamPower: { gte: minPower } }
+            : {
+                OR: [
+                  { title: { contains: search, mode: "insensitive" as const } },
+                  { division: { contains: search, mode: "insensitive" as const } },
+                ],
+              }
+          : {}),
       };
 
       const now = new Date();
@@ -176,15 +205,10 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const ordered = sortCatalogue(rows, sort, now);
       const pageRows = ordered.slice((page - 1) * perPage, page * perPage);
 
-      // Notes moyennes : UNE seule requête groupée, restreinte aux ids de la
-      // page réellement renvoyée (le groupBy portait auparavant sur les
-      // `perPage` premières lignes — toute page > 1 affichait avgRating null).
-      const rated = await prisma.productReview.groupBy({
-        by: ["productId"],
-        where: { productId: { in: pageRows.map((p) => p.id) } },
-        _avg: { rating: true },
-      });
-      const ratingById = new Map(rated.map((r) => [r.productId, r._avg.rating ?? 0]));
+      // Note affichée : réputation du vendeur (un compte n'est vendu qu'une
+      // fois, il n'a jamais d'avis propre avant sa vente). Requêtes groupées
+      // restreintes aux vendeurs de la page renvoyée.
+      const rep = await reputations(pageRows.map((p) => p.sellerId));
 
       const items = pageRows.map((p) => {
         const { price, promoPrice } = resolvePrice(p);
@@ -204,7 +228,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
           canSplit: p.installmentMonths !== null,
           isFeatured: isFeatured(p, now),
           schedule: scheduleFor(p, price),
-          avgRating: ratingById.get(p.id) ?? null,
+          avgRating: rep.get(p.sellerId ?? PLATFORM_KEY)?.rating ?? null,
           coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
         };
       });
@@ -216,6 +240,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         total,
         totalPages,
         sort,
+        q: search ?? null,
         division: division ?? null,
         paymentMode: paymentMode ?? null,
         divisions: divisions.map((d) => d.division).sort((a, b) => a.localeCompare(b, "fr")),
@@ -255,11 +280,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
         select: { id: true, objectKey: true, mimeType: true },
       });
-      const ratingAgg = await prisma.productReview.aggregate({
-        where: { productId: p.id },
-        _avg: { rating: true },
-        _count: true,
-      });
+      const rep = (await reputations([p.sellerId])).get(p.sellerId ?? PLATFORM_KEY);
       const { price, promoPrice } = resolvePrice(p);
 
       const data = {
@@ -281,8 +302,12 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         publishedAt: p.publishedAt?.toISOString() ?? null,
         description: p.description,
         extraInfo: p.extraInfo ?? null,
-        avgRating: ratingAgg._avg.rating !== null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
-        reviewCount: ratingAgg._count,
+        avgRating: rep?.rating ?? null,
+        reviewCount: rep?.reviewCount ?? 0,
+        // Vendeur : MISTERDOU ou « Vendeur partenaire » avec sa réputation (jamais son nom).
+        seller: p.sellerId
+          ? { kind: "SELLER" as const, id: p.sellerId, code: sellerCode(p.sellerId), sales: rep?.sales ?? 0, since: rep?.since ?? null }
+          : { kind: "MISTERDOU" as const, sales: rep?.sales ?? 0 },
         media: media.map((m) => ({
           id: m.id,
           url: publicUrl(m.objectKey),

@@ -53,6 +53,11 @@ export type Schedule = {
   nextAmount: number | null;
   fullyPaid: boolean;
   installments: ScheduleLine[];
+  /**
+   * Paiement par Wave en cours de vérification par l'équipe : l'apport, ou les
+   * mensualités concernées (numéros). Ces mois ne peuvent pas être repayés.
+   */
+  reviewing: { downPayment: boolean; months: number[]; amount: number; since: string } | null;
 };
 
 /** Découpe un total en « apport + N mensualités » sans jamais perdre 1 FCFA. */
@@ -155,6 +160,31 @@ export async function getSchedule(orderId: string): Promise<Schedule | null> {
   const remainingAmount = Math.max(0, plan.totalAmount - totalPaid);
   const next = plan.installments.find((i) => i.status !== "PAID" && i.status !== "WAIVED") ?? null;
 
+  // Preuve Wave en vérification : quels mois elle couvre (à partir du premier
+  // mois visé, jusqu'à atteindre le montant payé).
+  const pending = await prisma.payment.findFirst({
+    where: { installmentPlanId: plan.id, status: "PROCESSING" },
+    orderBy: { createdAt: "desc" },
+    select: { type: true, amount: true, installmentId: true, updatedAt: true },
+  });
+  let reviewing: Schedule["reviewing"] = null;
+  if (pending) {
+    const months: number[] = [];
+    // Part du paiement qui va aux mois (tout, ou ce qui dépasse l'apport).
+    const forMonths = pending.type === "INSTALLMENT" ? pending.amount : pending.amount - plan.downPaymentAmount;
+    if (forMonths > 0 && pending.installmentId) {
+      const start = plan.installments.findIndex((i) => i.id === pending.installmentId);
+      let covered = 0;
+      for (const line of plan.installments.slice(Math.max(0, start))) {
+        if (covered >= forMonths) break;
+        if (line.status === "PAID" || line.status === "WAIVED" || line.status === "CANCELLED") continue;
+        months.push(line.index);
+        covered += line.amountDue - line.amountPaid;
+      }
+    }
+    reviewing = { downPayment: pending.type === "INITIAL_INSTALLMENT", months, amount: pending.amount, since: pending.updatedAt.toISOString() };
+  }
+
   return {
     totalAmount: plan.totalAmount,
     downPaymentAmount: plan.downPaymentAmount,
@@ -177,6 +207,7 @@ export async function getSchedule(orderId: string): Promise<Schedule | null> {
       status: i.status,
       paidAt: i.paidAt ? i.paidAt.toISOString() : null,
     })),
+    reviewing,
   };
 }
 
@@ -185,24 +216,38 @@ export async function getSchedule(orderId: string): Promise<Schedule | null> {
  * L'apport initial n'ouvre aucun accès ; c'est la solde totale qui déclenche la
  * livraison. Idempotent : une échéance déjà SOLDEE est ignorée.
  */
-export async function applyDownPayment(tx: Tx, payment: Payment): Promise<boolean> {
+export async function applyDownPayment(tx: Tx, payment: Payment): Promise<{ counted: boolean; settled: boolean }> {
+  // Verrou sur le plan (V-10) : deux apports validés en même temps pour le
+  // même échéancier sont traités l'un après l'autre, jamais comptés deux fois.
+  if (payment.installmentPlanId) {
+    await tx.$queryRaw`SELECT id FROM "InstallmentPlan" WHERE id = ${payment.installmentPlanId} FOR UPDATE`;
+  }
   const plan = await tx.installmentPlan.findUnique({
     where: { id: payment.installmentPlanId ?? "" },
   });
-  if (!plan || !payment.orderId) return false;
+  if (!plan || !payment.orderId) return { counted: false, settled: false };
 
   const alreadyCounted = plan.totalPaid >= plan.downPaymentAmount;
   const totalPaid = alreadyCounted ? plan.totalPaid : plan.totalPaid + payment.amount;
 
   // L'apport initial n'est PAS une Installment : il ne porte aucun index et
-  // n'apparaît donc pas dans le tableau des mensualités. On ne touche qu'au
-  // cumul payé du plan.
+  // n'apparaît donc pas dans le tableau des mensualités. Le client peut payer
+  // des mois en même temps que l'apport : le surplus est versé sur les
+  // mensualités, dans l'ordre, à partir du mois ciblé.
+  const surplus = alreadyCounted ? 0 : Math.max(0, payment.amount - plan.downPaymentAmount);
+  if (surplus > 0 && payment.installmentId) {
+    const start = await tx.installment.findUnique({ where: { id: payment.installmentId } });
+    if (start) await payInstallmentsFrom(tx, start, surplus, payment.id);
+  }
+
+  const settled = totalPaid >= plan.totalAmount;
   await tx.installmentPlan.update({
     where: { id: plan.id },
-    data: { totalPaid, status: "ACTIVE" },
+    data: { totalPaid, status: settled ? "COMPLETED" : "ACTIVE" },
   });
 
-  await tx.order.update({ where: { id: payment.orderId }, data: { status: "PARTIALLY_PAID" } });
+  // Soldé d'un coup : la livraison (statut DELIVERED) est faite par settlePayment.
+  if (!settled) await tx.order.update({ where: { id: payment.orderId }, data: { status: "PARTIALLY_PAID" } });
 
   // Échéancier ouvert : le compte est retiré de la boutique pendant le paiement.
   if (!alreadyCounted) {
@@ -213,8 +258,41 @@ export async function applyDownPayment(tx: Tx, payment: Payment): Promise<boolea
     }
   }
 
-  logger.info({ planId: plan.id, orderId: payment.orderId, totalPaid }, "[installments] apport enregistré");
-  return !alreadyCounted;
+  logger.info({ planId: plan.id, orderId: payment.orderId, totalPaid, months: surplus > 0 }, "[installments] apport enregistré");
+  return { counted: !alreadyCounted, settled };
+}
+
+/**
+ * Verse un montant sur les mensualités non soldées, dans l'ordre, à partir de
+ * `start`. Seule l'échéance ciblée porte le paiement (paymentId est unique).
+ */
+async function payInstallmentsFrom(
+  tx: Tx,
+  start: { id: string; planId: string; index: number },
+  amount: number,
+  paymentId: string,
+) {
+  const queue = await tx.installment.findMany({
+    where: { planId: start.planId, index: { gte: start.index }, status: { notIn: ["PAID", "WAIVED", "CANCELLED"] } },
+    orderBy: { index: "asc" },
+  });
+  let remaining = amount;
+  for (const line of queue) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, line.amountDue - line.amountPaid);
+    remaining -= take;
+    const amountPaid = line.amountPaid + take;
+    const paid = amountPaid >= line.amountDue;
+    await tx.installment.update({
+      where: { id: line.id },
+      data: {
+        amountPaid,
+        status: paid ? "PAID" : "PENDING",
+        paidAt: paid ? new Date() : null,
+        paymentId: paid && line.id === start.id ? paymentId : null,
+      },
+    });
+  }
 }
 
 /** Enregistre le paiement d'une mensualité. Retourne `true` si l'échéancier est soldé. */
@@ -230,28 +308,7 @@ export async function applyInstallmentPayment(tx: Tx, payment: Payment): Promise
 
   // Un paiement peut couvrir plusieurs mois : le montant est versé sur
   // l'échéance ciblée puis sur les suivantes, dans l'ordre.
-  const queue = await tx.installment.findMany({
-    where: { planId: installment.planId, index: { gte: installment.index }, status: { notIn: ["PAID", "WAIVED", "CANCELLED"] } },
-    orderBy: { index: "asc" },
-  });
-  let remaining = payment.amount;
-  for (const line of queue) {
-    if (remaining <= 0) break;
-    const take = Math.min(remaining, line.amountDue - line.amountPaid);
-    remaining -= take;
-    const amountPaid = line.amountPaid + take;
-    const paid = amountPaid >= line.amountDue;
-    await tx.installment.update({
-      where: { id: line.id },
-      data: {
-        amountPaid,
-        status: paid ? "PAID" : "PENDING",
-        paidAt: paid ? new Date() : null,
-        // paymentId est unique : seule l'échéance ciblée porte le paiement.
-        paymentId: paid && line.id === installment.id ? payment.id : null,
-      },
-    });
-  }
+  await payInstallmentsFrom(tx, installment, payment.amount, payment.id);
 
   const plan = await tx.installmentPlan.findUnique({
     where: { id: payment.installmentPlanId },
@@ -313,6 +370,59 @@ export async function createNextInstallmentPayment(orderId: string, actor: Insta
   }
 
   const open = plan.installments.filter((i) => i.status !== "PAID" && i.status !== "WAIVED" && i.status !== "CANCELLED");
+  const inReview = await prisma.payment.findFirst({
+    where: { installmentPlanId: plan.id, status: "PROCESSING" },
+    select: { id: true },
+  });
+  if (inReview) {
+    throw conflict("PROOF_ALREADY_SENT", "Votre dernier paiement est en cours de vérification : attendez sa validation avant de payer d’autres mois.");
+  }
+
+  // Apport pas encore payé : un seul paiement couvre l'apport et, si le client
+  // le souhaite, un ou plusieurs mois (0 mois = l'apport seul).
+  const downPaid = plan.totalPaid >= plan.downPaymentAmount;
+  if (!downPaid) {
+    if (!Number.isInteger(months) || months < 0 || months > open.length) {
+      throw badRequest("VALIDATION_ERROR", `Choisissez entre 0 et ${open.length} mensualité${open.length > 1 ? "s" : ""} avec l’apport.`);
+    }
+    const withDown = open.slice(0, months);
+    const amount = plan.downPaymentAmount + withDown.reduce((sum, i) => sum + (i.amountDue - i.amountPaid), 0);
+    const target = withDown[0]?.id ?? null;
+    const initial = await prisma.payment.findFirst({
+      where: { installmentPlanId: plan.id, type: "INITIAL_INSTALLMENT", status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, transactionToken: true },
+    });
+    const payment = initial
+      ? await prisma.payment.update({ where: { id: initial.id }, data: { amount, installmentId: target }, select: { id: true, transactionToken: true } })
+      : await prisma.payment.create({
+          data: {
+            userId: order.buyerId,
+            orderId: order.id,
+            installmentPlanId: plan.id,
+            installmentId: target,
+            paymentNumber: `PAY-${order.orderNumber}-A${months > 0 ? `M${months}` : ""}-${randomInt(100, 999)}`,
+            type: "INITIAL_INSTALLMENT",
+            amount,
+            currency: "XOF",
+            provider: "WAVE_LINK",
+            status: "PENDING",
+            transactionToken: `mdpay_${randomBytes(18).toString("base64url")}`,
+          },
+          select: { id: true, transactionToken: true },
+        });
+    await logAudit({
+      actorId: actor.actorId,
+      actorRole: actor.actorRole,
+      ip: actor.ip,
+      action: "INSTALLMENT_PAYMENT_CREATED",
+      resourceType: "InstallmentPlan",
+      resourceId: plan.id,
+      metadata: { orderNumber: order.orderNumber, downPayment: plan.downPaymentAmount, months, amount },
+    });
+    return { paymentId: payment.id, orderId: order.id, orderNumber: order.orderNumber, amount, token: payment.transactionToken, already: Boolean(initial) };
+  }
+
   const next = open[0];
   if (!next) throw conflict("PLAN_ALREADY_PAID", "Toutes vos mensualités sont réglées.");
   if (!Number.isInteger(months) || months < 1 || months > open.length) {

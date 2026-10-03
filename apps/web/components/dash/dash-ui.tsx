@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { IconClose, IconLogout, IconMenu, IconSearch } from "./dash-icons";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { MessagesButton } from "@/components/chat/messages-button";
+import { BackButton } from "@/components/back-button";
 import { AccountMenu } from "@/components/account/account-menu";
 import { useT } from "@/lib/i18n";
 
@@ -170,6 +171,7 @@ export function DashShell({
             <button type="button" onClick={() => setDrawer(true)} aria-label={t("dash.openMenu")} className="dash-btn dash-btn-ghost dash-btn-round lg:hidden">
               <IconMenu size={18} />
             </button>
+            <BackButton hideOn={["/admin", "/seller"]} />
             <QuickJump items={nav} />
             <div className="ml-auto flex items-center gap-3">
               {badge}

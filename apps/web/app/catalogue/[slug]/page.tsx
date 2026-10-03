@@ -23,6 +23,7 @@ import { ApiClientError, request } from "@/lib/api";
 import { useAccount } from "@/lib/account";
 import { createOrder } from "@/lib/orders";
 import { SellerChatBox } from "@/components/chat/seller-chat-box";
+import { SellerBadge } from "@/components/lux/lux-seller-badge";
 import { useT, type MessageKey } from "@/lib/i18n";
 
 // Un vendeur qui ouvre sa propre offre : pas d'achat ni de discussion avec lui-même.
@@ -396,6 +397,8 @@ function DetailHub() {
             )}
 
             <p className="text-[14px] leading-relaxed text-stone-400">{item.description || t("product.noDescription")}</p>
+
+            {item.seller && <SellerBadge seller={item.seller} rating={item.avgRating} reviewCount={item.reviewCount} />}
 
             {team ? <TeamNotice /> : own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
             {!own && canSplit && !split && (

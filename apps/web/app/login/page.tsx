@@ -29,6 +29,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   // Compte d'administration : code à 6 chiffres demandé sur la même page.
   const [adminCode, setAdminCode] = useState<string | null>(null);
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   // Retour OAuth Google : échange de l'id_token (fragment #) contre la session.
   useEffect(() => {
@@ -81,7 +82,7 @@ export default function LoginPage() {
   async function adminLogin(code?: string) {
     const res = await request<{ setupRequired: boolean; role?: "ADMIN" | "STAFF" }>("/api/v1/auth/admin/login", {
       method: "POST",
-      body: JSON.stringify({ email, password, ...(code ? { totpCode: code } : {}) }),
+      body: JSON.stringify({ email, password, ...(code ? { totpCode: code, rememberDevice } : {}) }),
     });
     router.replace(res.role !== "STAFF" && res.setupRequired ? "/console/sign-in/setup" : "/admin");
   }
@@ -222,6 +223,15 @@ export default function LoginPage() {
                 className={inputClass}
                 placeholder="123456"
               />
+              <span className="mt-2.5 flex items-center gap-2 text-[13px] text-[var(--lux-muted)]">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  className="h-4 w-4 accent-[#ff6a32]"
+                />
+                {t("auth.rememberDevice")}
+              </span>
             </label>
           )}
 

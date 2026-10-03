@@ -1,51 +1,168 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { request } from "@/lib/api";
 import { useAccount } from "@/lib/account";
+import { formatDateTime } from "@/lib/format";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { useT } from "@/lib/i18n";
 
-// Icône « messages » de l'en-tête, à côté de la cloche : même style, pastille
-// des messages non lus (achats et ventes), ouvre la bonne boîte de réception.
+// ---------------------------------------------------------------------------
+// Icône « messages » de l'en-tête, à côté de la cloche et sur le même modèle :
+// pastille des non-lus, et un clic ouvre une petite fenêtre avec les dernières
+// discussions (comptes achetés ou vendus, support). Un clic sur une discussion
+// ouvre directement cette discussion.
+// ---------------------------------------------------------------------------
 
-type Unread = { total: number; href: string };
+type RecentItem = {
+  key: string;
+  kind: "product" | "support";
+  title: string;
+  counterpart: string;
+  preview: string | null;
+  at: string;
+  unread: number;
+  href: string;
+  imageUrl: string | null;
+};
+type Recent = { total: number; href: string; items: RecentItem[] };
 
 export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
   const account = useAccount();
   const t = useT();
-  const [unread, setUnread] = useState<Unread>({ total: 0, href: "/account/messages" });
+  const router = useRouter();
+  const [data, setData] = useState<Recent>({ total: 0, href: "/account/messages", items: [] });
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const team = account.status === "member" && (account.user.role === "ADMIN" || account.user.role === "STAFF");
   // Boutique : clients et vendeurs. Console : l'équipe (discussions à traiter).
   const member = account.status === "member" && (inConsole || !team);
 
   const load = useCallback(async () => {
     try {
-      setUnread(await request<Unread>("/api/v1/threads/unread"));
+      setData(await request<Recent>("/api/v1/threads/recent"));
     } catch {
       /* sans conséquence : l'icône reste accessible */
     }
   }, []);
   useVisiblePoll(load, 30_000, { enabled: member, immediate: true });
 
+  // Fermeture : clic extérieur + Échap (focus rendu au bouton).
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   if (!member) return null;
-  const badge = unread.total > 9 ? "9+" : String(unread.total);
+  const badge = data.total > 9 ? "9+" : String(data.total);
 
   return (
-    <Link
-      href={unread.href}
-      aria-label={unread.total > 0 ? t("msgIcon.unread", { count: unread.total }) : t("msgIcon.label")}
-      className="relative grid h-10 w-10 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M20 12.5a7.5 7.5 0 0 1-11.1 6.6L4 20l1-4.3A7.5 7.5 0 1 1 20 12.5Z" />
-      </svg>
-      {unread.total > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 grid min-w-[18px] place-items-center rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-1 text-[10px] font-bold leading-[18px] text-[#1a0503]">
-          {badge}
-        </span>
+    <div ref={wrapRef} className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={data.total > 0 ? t("msgIcon.unread", { count: data.total }) : t("msgIcon.label")}
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((value) => !value);
+          if (!open) void load();
+        }}
+        className="relative grid h-10 w-10 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M20 12.5a7.5 7.5 0 0 1-11.1 6.6L4 20l1-4.3A7.5 7.5 0 1 1 20 12.5Z" />
+        </svg>
+        {data.total > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 grid min-w-[18px] place-items-center rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-1 text-[10px] font-bold leading-[18px] text-[#1a0503]">
+            {badge}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label={t("msgIcon.recent")}
+          className="absolute right-0 z-[70] mt-2 w-[min(92vw,360px)] overflow-hidden rounded-[18px] border border-white/10 bg-[#050303]/97 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+        >
+          <div className="border-b border-white/[0.08] px-4 py-3">
+            <p className="lux-kicker">{t("msgIcon.label")}</p>
+          </div>
+
+          <div className="max-h-[52vh] overflow-y-auto">
+            {data.items.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-stone-400">{t("msgIcon.empty")}</p>
+            ) : (
+              <ul>
+                {data.items.map((item) => (
+                  <li key={item.key}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        router.push(item.href);
+                      }}
+                      className="flex w-full items-start gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.04]"
+                    >
+                      <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-[12px] font-semibold text-stone-300">
+                        {item.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          (item.kind === "support" ? "M" : item.counterpart.slice(0, 1)).toUpperCase()
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className={`truncate text-[13px] ${item.unread > 0 ? "font-semibold text-stone-50" : "text-stone-300"}`}>
+                            {item.counterpart}
+                          </span>
+                          {item.unread > 0 && (
+                            <span className="shrink-0 rounded-full bg-[var(--lux-gold)] px-1.5 text-[10px] font-bold leading-[16px] text-[#1a0503]">
+                              {item.unread > 9 ? "9+" : item.unread}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block truncate text-[11.5px] text-stone-500">{item.title}</span>
+                        {item.preview && <span className="mt-0.5 block truncate text-[12px] text-stone-400">{item.preview}</span>}
+                        <span className="mt-1 block text-[10px] uppercase tracking-[0.14em] text-stone-500">{formatDateTime(item.at)}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="border-t border-white/[0.08] px-4 py-3 text-center">
+            <Link
+              href={data.href}
+              onClick={() => setOpen(false)}
+              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--lux-gold-light)] hover:underline"
+            >
+              {t("msgIcon.seeAll")}
+            </Link>
+          </div>
+        </div>
       )}
-    </Link>
+    </div>
   );
 }
