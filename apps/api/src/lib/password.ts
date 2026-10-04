@@ -32,8 +32,25 @@ export async function hashPasswordWith(
   )}$h=${derived.toString("base64url")}`;
 }
 
+// Comptes repris de l'ancien site (Supabase Auth) : empreintes bcrypt ($2a$/$2b$/$2y$).
+// Acceptées à la connexion, puis remplacées par scrypt (voir needsRehash).
+const BCRYPT_RE = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+export function isBcryptHash(stored: string | null | undefined): boolean {
+  return typeof stored === "string" && BCRYPT_RE.test(stored);
+}
+
+/** L'empreinte n'est pas au format scrypt courant : à refaire après une connexion réussie. */
+export function needsRehash(stored: string): boolean {
+  return !stored.startsWith(`$scrypt$N=${DEFAULT_COST.N},r=${DEFAULT_COST.r},p=${DEFAULT_COST.p}$`);
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   try {
+    if (BCRYPT_RE.test(stored)) {
+      const { default: bcrypt } = await import("bcryptjs");
+      return await bcrypt.compare(password, stored);
+    }
     const match =
       /^\$scrypt\$N=(\d+),r=(\d+),p=(\d+)\$n=([A-Za-z0-9_-]+)\$h=([A-Za-z0-9_-]+)$/.exec(
         stored,

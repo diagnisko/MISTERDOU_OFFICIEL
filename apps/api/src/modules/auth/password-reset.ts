@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
@@ -10,11 +10,12 @@ import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 
 // ---------------------------------------------------------------------------
-// Mot de passe oublié — lien signé, valable 30 minutes, à usage unique : la
-// signature inclut l'empreinte du mot de passe actuel, donc le lien meurt dès
-// que le mot de passe change. Aucune table supplémentaire.
-// Sans SMTP configuré, l'administrateur peut créer le lien depuis la console
-// et l'envoyer lui-même au client (WhatsApp, e-mail).
+// Mot de passe oublié, deux chemins :
+// - le client demande un code à 6 chiffres reçu par e-mail (15 minutes,
+//   5 essais, un seul code valable à la fois) ;
+// - l'administrateur crée un lien signé (30 minutes, usage unique : la
+//   signature inclut l'empreinte du mot de passe actuel) et l'envoie lui-même
+//   au client (WhatsApp…), utile tant que l'e-mail n'est pas configuré.
 // ---------------------------------------------------------------------------
 
 const RESET_TTL_MINUTES = 30;
@@ -41,26 +42,120 @@ function resetLink(token: string): string {
   return `${env.WEB_ORIGIN[0]}/mot-de-passe-oublie/nouveau?token=${encodeURIComponent(token)}`;
 }
 
-/** Envoie le lien si le compte existe ; la réponse ne dit jamais s'il existe. */
+// --- Code à 6 chiffres par e-mail (parcours public) ------------------------
+
+const CODE_TTL_MINUTES = 15;
+const CODE_MAX_ATTEMPTS = 5;
+const CODE_COOLDOWN_SECONDS = 60;
+const CODE_MAX_PER_HOUR = 5;
+const CODE_KEY = createHmac("sha256", env.COOKIE_SECRET).update("password-reset-code/v1").digest();
+
+export const resetWithCodeSchema = z.object({
+  email: z.email("E-mail invalide"),
+  code: z.string().trim().regex(/^\d{6}$/, "Le code contient 6 chiffres."),
+  password: z.string().min(8, "Mot de passe : 8 caractères minimum").max(72, "Mot de passe trop long"),
+});
+
+function codeHash(userId: string, code: string): string {
+  return createHmac("sha256", CODE_KEY).update(`${userId}|${code}`).digest("base64url");
+}
+
+/** Envoie un code si le compte existe ; la réponse ne dit jamais s'il existe. */
 export async function requestPasswordReset(email: string, ctx: ResetActor): Promise<{ sent: true }> {
   const user = await prisma.user.findFirst({
-    where: { email: email.trim().toLowerCase(), deletedAt: null, status: "ACTIVE" },
-    select: { id: true, email: true, firstName: true, passwordHash: true },
+    where: { email: email.trim().toLowerCase(), deletedAt: null, status: "ACTIVE", role: { name: { not: "ADMIN" } } },
+    select: { id: true, email: true, firstName: true },
   });
   if (!user?.email) return { sent: true };
 
-  const link = resetLink(createToken(user));
+  // Anti-abus : un code par minute, cinq par heure (sans le dire au demandeur).
+  const now = Date.now();
+  const recent = await prisma.passwordResetCode.findMany({
+    where: { userId: user.id, createdAt: { gt: new Date(now - 3_600_000) } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (recent.length >= CODE_MAX_PER_HOUR) return { sent: true };
+  if (recent[0] && now - recent[0].createdAt.getTime() < CODE_COOLDOWN_SECONDS * 1000) return { sent: true };
+
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  // Un seul code valable à la fois : les précédents meurent.
+  await prisma.passwordResetCode.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date(now) } });
+  await prisma.passwordResetCode.create({
+    data: { userId: user.id, codeHash: codeHash(user.id, code), expiresAt: new Date(now + CODE_TTL_MINUTES * 60_000) },
+  });
   await sendEmail({
     to: user.email,
-    subject: "Réinitialisation de votre mot de passe MISTERDOU",
+    subject: "Votre code MISTERDOU pour changer de mot de passe",
     text:
       `Bonjour${user.firstName ? ` ${user.firstName}` : ""},\n\n` +
-      `Pour choisir un nouveau mot de passe, ouvrez ce lien (valable ${RESET_TTL_MINUTES} minutes) :\n${link}\n\n` +
-      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail : votre mot de passe reste inchangé.",
+      `Votre code : ${code}\n\n` +
+      `Saisissez-le sur la page « Mot de passe oublié » (valable ${CODE_TTL_MINUTES} minutes) pour choisir un nouveau mot de passe.\n\n` +
+      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail : votre mot de passe reste inchangé. " +
+      "MISTERDOU ne vous demandera jamais ce code par téléphone ou par message.",
     template: "SECURITY_ALERT",
   });
   await logAudit({ actorId: user.id, ip: ctx.ip, action: "PASSWORD_RESET_REQUESTED", resourceType: "User", resourceId: user.id });
   return { sent: true };
+}
+
+/** Nouveau mot de passe avec le code reçu. Toute erreur a le même message (aucune fuite). */
+export async function resetPasswordWithCode(
+  input: { email: string; code: string; password: string },
+  ctx: ResetActor,
+): Promise<{ reset: true }> {
+  const invalid = () => badRequest("VALIDATION_ERROR", "Code incorrect ou expiré : vérifiez-le ou demandez-en un nouveau.");
+  const user = await prisma.user.findFirst({
+    where: { email: input.email.trim().toLowerCase(), deletedAt: null, status: "ACTIVE", role: { name: { not: "ADMIN" } } },
+    select: { id: true, emailVerifiedAt: true },
+  });
+  if (!user) throw invalid();
+  const current = await prisma.passwordResetCode.findFirst({
+    where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: CODE_MAX_ATTEMPTS } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!current) throw invalid();
+
+  const expected = Buffer.from(current.codeHash);
+  const received = Buffer.from(codeHash(user.id, input.code.trim()));
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) {
+    await prisma.passwordResetCode.update({ where: { id: current.id }, data: { attempts: { increment: 1 } } });
+    throw invalid();
+  }
+  // Usage unique, même si deux demandes arrivent en même temps.
+  const claim = await prisma.passwordResetCode.updateMany({
+    where: { id: current.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  if (claim.count === 0) throw invalid();
+
+  await prisma.user.update({
+    where: { id: user.id },
+    // Le code reçu prouve que l'adresse lui appartient.
+    data: { passwordHash: await hashPassword(input.password), ...(user.emailVerifiedAt ? {} : { emailVerifiedAt: new Date() }) },
+  });
+  await finishReset(user.id, ctx);
+  return { reset: true };
+}
+
+/** Après tout changement par oubli : sessions fermées, trace, alerte au titulaire. */
+async function finishReset(userId: string, ctx: ResetActor) {
+  const revoked = await prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+  await logAudit({
+    actorId: userId,
+    ip: ctx.ip,
+    action: "PASSWORD_RESET",
+    resourceType: "User",
+    resourceId: userId,
+    metadata: { sessionsClosed: revoked.count },
+    severity: "WARNING",
+  });
+  await notifyUser(userId, "SECURITY_ALERT", {
+    title: "Mot de passe réinitialisé",
+    message: "Votre mot de passe vient d’être réinitialisé et vos autres connexions ont été fermées. Si ce n’était pas vous, contactez le support immédiatement.",
+    actionUrl: "/account/settings",
+    priority: "CRITICAL",
+  });
 }
 
 /** Lien créé par un administrateur (aucun e-mail envoyé : il le transmet lui-même). */
@@ -105,22 +200,6 @@ export async function resetPassword(token: string, password: string, ctx: ResetA
     data: { passwordHash: await hashPassword(password) },
   });
   if (claim.count === 0) throw invalid();
-  const revoked = await prisma.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
-
-  await logAudit({
-    actorId: user.id,
-    ip: ctx.ip,
-    action: "PASSWORD_RESET",
-    resourceType: "User",
-    resourceId: user.id,
-    metadata: { sessionsClosed: revoked.count },
-    severity: "WARNING",
-  });
-  await notifyUser(user.id, "SECURITY_ALERT", {
-    title: "Mot de passe réinitialisé",
-    message: "Votre mot de passe vient d’être réinitialisé et vos autres connexions ont été fermées. Si ce n’était pas vous, contactez le support immédiatement.",
-    actionUrl: "/account/settings",
-    priority: "CRITICAL",
-  });
+  await finishReset(user.id, ctx);
   return { reset: true };
 }

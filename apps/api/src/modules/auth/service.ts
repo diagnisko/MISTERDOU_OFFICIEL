@@ -1,6 +1,6 @@
 import { prisma } from "@misterdou/db";
 import type { UserStatus } from "@misterdou/db";
-import { hashPassword, verifyPassword } from "../../lib/password.js";
+import { hashPassword, needsRehash, verifyPassword } from "../../lib/password.js";
 import { createSession } from "../../lib/sessions.js";
 import { conflict, badRequest } from "../../lib/errors.js";
 import { notifyActiveAdmins } from "../../lib/notify.js";
@@ -119,6 +119,14 @@ export async function login(
     where: { id: user.id },
     data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined },
   });
+  // Ancienne empreinte (bcrypt de l'ancien site) : remplacée par scrypt, sauf si
+  // le mot de passe a changé entre-temps.
+  if (needsRehash(user.passwordHash)) {
+    await prisma.user.updateMany({
+      where: { id: user.id, passwordHash: user.passwordHash },
+      data: { passwordHash: await hashPassword(input.password) },
+    });
+  }
 
   const sid = await createSession({
     userId: user.id,

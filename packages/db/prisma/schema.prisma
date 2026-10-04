@@ -67,6 +67,7 @@ model User {
   payments                                           Payment[]
   paymentProofs                                      PaymentProof[]
   phoneVerifications                                 PhoneVerification[]
+  passwordResetCodes                                 PasswordResetCode[]
   productReviews                                     ProductReview[]
   pushToken                                          PushToken[]
   seller                                             Seller?
@@ -463,6 +464,37 @@ model PushToken {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Mot de passe oublié : code à 6 chiffres envoyé par e-mail (empreinte HMAC,
+// 15 minutes, 5 essais). Le lien signé reste réservé à la console admin.
+model PasswordResetCode {
+  id        String    @id @default(uuid())
+  userId    String
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Reprise des données de l'ancien site : à quelle ligne du nouveau site
+// correspond chaque ligne d'origine. Rend le transfert relançable sans doublon
+// (essai, puis transfert final le jour du basculement).
+model LegacyRef {
+  id         String   @id @default(uuid())
+  source     String
+  entity     String
+  legacyId   String
+  newId      String
+  importedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([source, entity, legacyId])
+  @@index([entity, newId])
 }
 
 model Session {

@@ -33,7 +33,14 @@ export async function sendEmail(input: EmailInput): Promise<{ queued: boolean }>
   const client = getTransporter();
   if (!client) {
     logger.info(
-      { outbox: true, to: input.to, subject: input.subject, template: input.template },
+      {
+        outbox: true,
+        to: input.to,
+        subject: input.subject,
+        template: input.template,
+        // Hors production seulement : le texte (codes, liens) sert aux essais locaux.
+        ...(env.NODE_ENV === "production" ? {} : { text: input.text }),
+      },
       "[email] SMTP non configuré — message journalisé uniquement",
     );
     return { queued: false };

@@ -15,7 +15,14 @@ import { logAudit, randomCsrfToken } from "../../lib/audit.js";
 import { env } from "../../env.js";
 import { publicUrl } from "../../lib/media.js";
 import { TRUSTED_DEVICE_COOKIE, TRUSTED_DEVICE_DAYS, confirmAdminTotp, loginAdmin, startAdminTotpSetup } from "../admin-console/auth.js";
-import { forgotPasswordSchema, requestPasswordReset, resetPassword, resetPasswordSchema } from "./password-reset.js";
+import {
+  forgotPasswordSchema,
+  requestPasswordReset,
+  resetPassword,
+  resetPasswordSchema,
+  resetPasswordWithCode,
+  resetWithCodeSchema,
+} from "./password-reset.js";
 import { resendVerificationEmail, verifyEmail, verifyEmailSchema } from "./email-verification.js";
 import { badRequest } from "../../lib/errors.js";
 
@@ -56,14 +63,22 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return sendOk(reply, await resendVerificationEmail(auth.user.id));
   });
 
-  // --- Mot de passe oublié : lien par e-mail, puis nouveau mot de passe ---
-  app.post("/auth/password/forgot", { schema: { tags: ["Auth"], summary: "Recevoir un lien de réinitialisation du mot de passe" }, config: rate(3) }, async (request, reply) => {
+  // --- Mot de passe oublié : code à 6 chiffres par e-mail, puis nouveau mot de passe ---
+  app.post("/auth/password/forgot", { schema: { tags: ["Auth"], summary: "Recevoir un code de réinitialisation par e-mail" }, config: rate(3) }, async (request, reply) => {
     const input = forgotPasswordSchema.safeParse(request.body);
     if (!input.success) throw badRequest("VALIDATION_ERROR", "E-mail invalide.");
     return sendOk(reply, await requestPasswordReset(input.data.email, { ip: request.ip }));
   });
 
-  app.post("/auth/password/reset", { schema: { tags: ["Auth"], summary: "Choisir un nouveau mot de passe avec le lien reçu" }, config: rate(5) }, async (request, reply) => {
+  app.post("/auth/password/reset-code", { schema: { tags: ["Auth"], summary: "Choisir un nouveau mot de passe avec le code reçu" }, config: rate(5) }, async (request, reply) => {
+    const input = resetWithCodeSchema.safeParse(request.body);
+    if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Code ou mot de passe invalide.");
+    return sendOk(reply, await resetPasswordWithCode(input.data, { ip: request.ip }));
+  });
+
+  // Lien créé par l'administrateur (console) : même étape finale.
+
+  app.post("/auth/password/reset", { schema: { tags: ["Auth"], summary: "Choisir un nouveau mot de passe avec le lien de la console" }, config: rate(5) }, async (request, reply) => {
     const input = resetPasswordSchema.safeParse(request.body);
     if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Lien ou mot de passe invalide.");
     return sendOk(reply, await resetPassword(input.data.token, input.data.password, { ip: request.ip }));
