@@ -9,7 +9,7 @@ import { IconMenu, IconX } from "./lux-icons";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { MessagesButton } from "@/components/chat/messages-button";
 import { BackButton } from "@/components/back-button";
-import { AccountMenu } from "@/components/account/account-menu";
+import { AccountMenu, MobileAccountPanel } from "@/components/account/account-menu";
 import { useAccount } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
 
@@ -41,7 +41,6 @@ export function LuxNav({ root = false }: { root?: boolean }) {
   const t = useT();
   const reduce = useReducedMotion();
   const pathname = usePathname();
-  const withBack = !HOME_PATHS.includes(pathname);
   // Au clic, le marqueur glisse tout de suite vers le lien choisi, sans
   // attendre le chargement de la page suivante.
   const [pending, setPending] = useState<string | null>(null);
@@ -64,11 +63,11 @@ export function LuxNav({ root = false }: { root?: boolean }) {
         <div className="flex min-w-0 items-center gap-3">
           {/* Pas de flèche sur les pages d'accueil (visiteur et membre). */}
           <BackButton hideOn={HOME_PATHS} />
-          <a href={account.status === "member" ? "/offres" : root ? "/" : "#top"} className="lux-serif text-[22px] font-bold tracking-[0.02em] text-stone-50">
-            {/* Téléphone + flèche de retour : logo court, pour ne pas chevaucher les icônes. */}
-            <span className={withBack ? "hidden sm:inline" : undefined}>MISTERDOU</span>
-            {withBack && <span className="sm:hidden" aria-hidden>M</span>}
-            <span className="text-[var(--lux-gold)]">.</span>
+          <a
+            href={account.status === "member" ? "/offres" : root ? "/" : "#top"}
+            className="lux-serif whitespace-nowrap text-[19px] font-bold tracking-[0.02em] text-stone-50 sm:text-[22px]"
+          >
+            MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
           </a>
         </div>
 
@@ -101,14 +100,12 @@ export function LuxNav({ root = false }: { root?: boolean }) {
           })}
         </ul>
 
-        <div className="flex items-center gap-2 lg:gap-3">
+        <div className="flex shrink-0 items-center gap-2 lg:gap-3">
           <MessagesButton />
           <NotificationBell />
+          {/* Téléphone : le compte est dans le menu ☰ (pas la place pour un 4e rond). */}
           <div className="hidden lg:block">
             <AccountMenu />
-          </div>
-          <div className="lg:hidden">
-            <AccountMenu compact />
           </div>
 
           <button
@@ -116,7 +113,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             aria-label={open ? t("nav.closeMenu") : t("nav.openMenu")}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-stone-200 lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-stone-200 lg:hidden"
           >
             {open ? <IconX size={20} /> : <IconMenu size={20} />}
           </button>
@@ -127,10 +124,13 @@ export function LuxNav({ root = false }: { root?: boolean }) {
       <div
         className={cx(
           "overflow-hidden border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/92 backdrop-blur-2xl transition-[max-height,opacity] duration-500 lg:hidden",
-          open ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0",
+          open ? "max-h-[calc(100svh-64px)] overflow-y-auto opacity-100" : "max-h-0 opacity-0",
         )}
       >
-        <ul className="flex flex-col gap-1 px-6 py-6">
+        <div className="px-6 pt-5">
+          <MobileAccountPanel onNavigate={() => setOpen(false)} />
+        </div>
+        <ul className="flex flex-col gap-1 px-6 pb-6 pt-1">
           {links.map((l) => (
             <li key={l.href}>
               <Link

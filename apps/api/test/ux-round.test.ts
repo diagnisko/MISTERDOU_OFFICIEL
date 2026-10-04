@@ -6,6 +6,7 @@ import { prisma } from "@misterdou/db";
 import { authFor, buildMiniApp, cleanup, createAdmin, createProduct, createSeller, createUser, expectApiError, putStorageFile, tracker, track } from "./helpers.js";
 import { registerProductChatRoutes } from "../src/modules/product-chat/routes.js";
 import { registerMessagingRoutes } from "../src/modules/messaging/routes.js";
+import { registerAdminConsoleRoutes } from "../src/modules/admin-console/routes.js";
 import { createOrder } from "../src/modules/orders/service.js";
 import { settlePayment } from "../src/modules/payments/service.js";
 import { createNextInstallmentPayment, getSchedule } from "../src/modules/installments/service.js";
@@ -33,6 +34,20 @@ async function proofFor(userId: string, token: string) {
   const key = await putStorageFile(t, `proofs/${userId}/payment_proof/${randomUUID()}`);
   return submitPaymentProof(token, { proofKey: key, senderPhone: "771234567" }, { actorId: userId });
 }
+
+describe("Tableau de bord de l'équipe", () => {
+  it("affiche les 6 derniers paiements (petites pages acceptées)", async () => {
+    const { session } = await createAdmin(t);
+    const app = await buildMiniApp({ auth: session }, async (a) => {
+      await a.register(registerAdminConsoleRoutes, { prefix: "/api/v1" });
+    });
+    // Le tableau de bord demande perPage=6 : refusé avant (« Données invalides »).
+    const res = await app.inject({ method: "GET", url: "/api/v1/admin/payments?page=1&perPage=6" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().meta.perPage).toBe(6);
+    await app.close();
+  });
+});
 
 describe("Fenêtre des messages", () => {
   it("liste les dernières discussions avec un lien direct vers chacune", async () => {

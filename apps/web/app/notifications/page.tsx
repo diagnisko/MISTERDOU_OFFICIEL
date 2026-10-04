@@ -234,20 +234,37 @@ export default function NotificationsPage() {
             }
             action={
               <>
-                <Button variant="outline" loading={loading} onClick={reload}>
-                  {t("notif.refresh")}
-                </Button>
-                <Button
-                  variant="outline"
-                  loading={markingAll}
-                  disabled={unread === 0}
-                  onClick={() => void markAll()}
+                {unread > 0 && (
+                  <Button variant="outline" loading={markingAll} onClick={() => void markAll()}>
+                    {t("notif.markAll")}
+                  </Button>
+                )}
+                {/* Actions secondaires en icônes : une seule ligne, même sur téléphone. */}
+                <button
+                  type="button"
+                  onClick={reload}
+                  disabled={loading}
+                  aria-label={t("notif.refresh")}
+                  title={t("notif.refresh")}
+                  className="grid h-[42px] w-[42px] place-items-center rounded-full border border-white/10 text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.5)] hover:text-white disabled:opacity-50"
                 >
-                  {t("notif.markAll")}
-                </Button>
-                <Button variant="ghost" onClick={() => void togglePrefs()} aria-expanded={prefsOpen}>
-                  {t("notif.prefs")}
-                </Button>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={loading ? "animate-spin" : undefined}>
+                    <path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void togglePrefs()}
+                  aria-expanded={prefsOpen}
+                  aria-label={t("notif.prefs")}
+                  title={t("notif.prefs")}
+                  className={`grid h-[42px] w-[42px] place-items-center rounded-full border text-stone-300 transition-colors hover:border-[rgba(255,106,50,0.5)] hover:text-white ${prefsOpen ? "border-[rgba(255,106,50,0.6)] text-white" : "border-white/10"}`}
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />
+                  </svg>
+                </button>
               </>
             }
           />

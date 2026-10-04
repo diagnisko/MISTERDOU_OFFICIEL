@@ -23,7 +23,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const pageQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  perPage: z.coerce.number().int().min(10).max(100).default(25),
+  perPage: z.coerce.number().int().min(1).max(100).default(25),
 });
 
 const createConversationSchema = z.object({

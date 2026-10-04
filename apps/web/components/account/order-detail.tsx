@@ -78,9 +78,11 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
               {t("order.boughtOn", { date: fmtDate(t.intl, order.createdAt), seller: item?.soldBy === "Vendeur partenaire" ? t("chat.seller") : (item?.soldBy ?? "MISTERDOU") })}
             </p>
           </div>
-          <div className="text-right">
-            <OrderStatusPill status={order.status} />
-            <p className="mt-2 text-[20px] font-semibold tabular-nums text-white">{formatXof(order.totalAmount)}</p>
+          <div className="flex w-full items-center justify-between gap-3 sm:block sm:w-auto sm:text-right">
+            <span className="shrink-0 whitespace-nowrap">
+              <OrderStatusPill status={order.status} />
+            </span>
+            <p className="whitespace-nowrap text-[20px] font-semibold tabular-nums text-white sm:mt-2">{formatXof(order.totalAmount)}</p>
           </div>
         </div>
         {item && (

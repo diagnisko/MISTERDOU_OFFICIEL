@@ -31,7 +31,7 @@ const TAG = "Admin — Opérations";
 
 const pageQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  perPage: z.coerce.number().int().min(10).max(100).default(25),
+  perPage: z.coerce.number().int().min(1).max(100).default(25),
   q: z.string().trim().max(120).optional(),
 });
 

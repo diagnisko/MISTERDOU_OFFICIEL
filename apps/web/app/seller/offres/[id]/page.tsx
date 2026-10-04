@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiClientError, request } from "@/lib/api";
 import { Alert, Spinner } from "@/components/ui";
@@ -43,11 +42,6 @@ export default function EditSellerOfferPage() {
       <DashHeading
         greeting={t("seller.area")}
         title={t("offer.editTitle")}
-        actions={
-          <Link href="/seller" className="dash-btn dash-btn-ghost">
-            {t("offer.back")}
-          </Link>
-        }
       />
       <div className="mt-6 max-w-3xl space-y-5">
         {error && <Alert tone="danger">{error}</Alert>}

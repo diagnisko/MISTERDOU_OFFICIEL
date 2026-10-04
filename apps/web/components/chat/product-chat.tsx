@@ -232,6 +232,25 @@ export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "i
 
   const open = (id: string | null) => router.replace(id ? `${basePath}?thread=${id}` : basePath, { scroll: false });
 
+  // Aucune discussion : une carte d'accueil, pas un grand cadre vide.
+  if (items?.length === 0 && !selected) {
+    return (
+      <div className="rounded-[22px] border border-white/[0.08] bg-white/[0.02] px-6 py-10 text-center">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-[rgba(255,106,50,0.35)] text-[var(--lux-gold-light)]">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z" />
+          </svg>
+        </span>
+        <p className="mx-auto mt-4 max-w-sm text-[13.5px] leading-relaxed text-stone-400">{emptyText}</p>
+        {source === "mine" && (
+          <Link href="/offres" className="lux-btn lux-btn-ghost mt-6 inline-flex" style={{ borderRadius: 16 }}>
+            {t("chat.browseOffers")}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="grid h-[calc(100dvh-220px)] min-h-[480px] overflow-hidden rounded-[22px] border border-white/[0.08] bg-white/[0.02] md:grid-cols-[320px_1fr]">
       <aside className={`min-h-0 overflow-y-auto border-white/[0.06] md:border-r ${selected ? "hidden md:block" : "block"}`}>

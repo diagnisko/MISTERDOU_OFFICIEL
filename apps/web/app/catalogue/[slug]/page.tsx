@@ -263,8 +263,8 @@ function DetailHub() {
             <p className="mt-4 text-[14px] text-stone-400">
               {t("product.notFoundBody")}
             </p>
-            <div className="mt-8 flex justify-center gap-4">
-              <Link href="/catalogue" className="lux-btn lux-btn-gold px-6" style={{ borderRadius: 16 }}>
+            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+              <Link href="/catalogue" className="lux-btn lux-btn-gold whitespace-nowrap px-6" style={{ borderRadius: 16 }}>
                 {t("product.backToCatalogue")}
               </Link>
               <button type="button" onClick={() => setAttempt((a) => a + 1)} className="lux-btn lux-btn-ghost" style={{ borderRadius: 16 }}>

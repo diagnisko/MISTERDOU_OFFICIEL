@@ -215,7 +215,7 @@ export default function AdminOverviewPage() {
       <ErrorAlert error={financeError} />
       {notice && <p className="mt-4 text-[13px] text-[#86efac]" role="status">{notice}</p>}
 
-      <section aria-label="Indicateurs financiers" className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Indicateurs financiers" className="mt-7 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KpiCard
           hero
           icon={IconCoins}
@@ -382,7 +382,7 @@ export default function AdminOverviewPage() {
 
         <ErrorAlert error={recvError} />
 
-        <div className="-mx-5 mt-4 overflow-x-auto">
+        <div className="dash-scroll -mx-5 mt-4 overflow-x-auto">
           <table className="dash-table w-full min-w-[900px] border-collapse">
             <thead>
               <tr>
@@ -503,7 +503,7 @@ export default function AdminOverviewPage() {
           </Link>
         </div>
         <ErrorAlert error={payments.error} />
-        <div className="-mx-5 mt-3 overflow-x-auto">
+        <div className="dash-scroll -mx-5 mt-3 overflow-x-auto">
           <table className="dash-table w-full min-w-[640px] border-collapse">
             <thead>
               <tr>

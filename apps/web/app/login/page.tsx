@@ -84,6 +84,7 @@ export default function LoginPage() {
       method: "POST",
       body: JSON.stringify({ email, password, ...(code ? { totpCode: code, rememberDevice } : {}) }),
     });
+    await refreshAccount();
     router.replace(res.role !== "STAFF" && res.setupRequired ? "/console/sign-in/setup" : "/admin");
   }
 

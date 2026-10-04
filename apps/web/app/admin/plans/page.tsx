@@ -231,7 +231,7 @@ export default function PlansPage() {
                         <p className="text-[10px] uppercase tracking-[0.14em] text-stone-500">
                           Échéancier — {plan.order.orderNumber} · {plan.order.paymentMode}
                         </p>
-                        <div className="mt-3 overflow-x-auto">
+                        <div className="dash-scroll mt-3 overflow-x-auto">
                           <table className="w-full min-w-[640px] border-collapse text-left text-xs">
                             <thead className="text-[9px] uppercase tracking-[0.14em] text-stone-500">
                               <tr>

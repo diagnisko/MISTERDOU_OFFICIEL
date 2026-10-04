@@ -161,3 +161,25 @@ export function IconStar({ className, size, filled }: IconProps & { filled?: boo
   );
 }
 
+
+export function IconSliders({ className, size }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M4 7h10" />
+      <path d="M18 7h2" />
+      <circle cx="16" cy="7" r="2" />
+      <path d="M4 17h2" />
+      <path d="M10 17h10" />
+      <circle cx="8" cy="17" r="2" />
+    </svg>
+  );
+}
+
+export function IconSearch({ className, size }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M20 20l-4.2-4.2" />
+    </svg>
+  );
+}

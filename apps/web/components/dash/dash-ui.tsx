@@ -22,7 +22,7 @@ export type DashNavItem = {
 };
 
 /** Recherche rapide : filtre la navigation, Entrée ouvre le premier résultat. */
-function QuickJump({ items }: { items: DashNavItem[] }) {
+function QuickJump({ items, autoFocus = false, onDone }: { items: DashNavItem[]; autoFocus?: boolean; onDone?: () => void }) {
   const t = useT();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -36,12 +36,13 @@ function QuickJump({ items }: { items: DashNavItem[] }) {
   function go(href: string) {
     setQuery("");
     setOpen(false);
+    onDone?.();
     router.push(href);
   }
 
   return (
-    <div className="relative w-full max-w-sm">
-      <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a7771]" size={16} />
+    <div className="relative w-full md:max-w-sm">
+      <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 text-[#8a7771]" size={16} />
       <input
         value={query}
         onChange={(event) => {
@@ -52,8 +53,12 @@ function QuickJump({ items }: { items: DashNavItem[] }) {
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && matches[0]) go(matches[0].href);
-          if (event.key === "Escape") setOpen(false);
+          if (event.key === "Escape") {
+            setOpen(false);
+            onDone?.();
+          }
         }}
+        autoFocus={autoFocus}
         placeholder={t("dash.search")}
         aria-label={t("dash.searchLabel")}
         className="dash-input"
@@ -99,8 +104,13 @@ export function DashShell({
   const t = useT();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
+  // Téléphone : la recherche s'ouvre sur toute la largeur, sous la barre.
+  const [searching, setSearching] = useState(false);
 
-  useEffect(() => setDrawer(false), [pathname]);
+  useEffect(() => {
+    setDrawer(false);
+    setSearching(false);
+  }, [pathname]);
 
   const isActive = (href: string) => {
     const root = nav[0]?.href;
@@ -167,18 +177,37 @@ export function DashShell({
         )}
 
         <div className="min-w-0">
-          <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-[rgba(255,236,229,0.06)] bg-[#050303]/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-            <button type="button" onClick={() => setDrawer(true)} aria-label={t("dash.openMenu")} className="dash-btn dash-btn-ghost dash-btn-round lg:hidden">
-              <IconMenu size={18} />
-            </button>
-            <BackButton hideOn={["/admin", "/seller"]} />
-            <QuickJump items={nav} />
-            <div className="ml-auto flex items-center gap-3">
-              {badge}
-              <MessagesButton inConsole />
-              <NotificationBell />
-              <AccountMenu />
+          <header className="sticky top-0 z-40 border-b border-[rgba(255,236,229,0.06)] bg-[#050303]/80 backdrop-blur-xl">
+            <div className="flex items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
+              <button type="button" onClick={() => setDrawer(true)} aria-label={t("dash.openMenu")} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] lg:hidden">
+                <IconMenu size={18} />
+              </button>
+              <BackButton hideOn={["/admin", "/seller"]} />
+              <div className="hidden min-w-0 flex-1 md:block">
+                <QuickJump items={nav} />
+              </div>
+              <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+                {badge}
+                <button
+                  type="button"
+                  onClick={() => setSearching((v) => !v)}
+                  aria-expanded={searching}
+                  aria-label={t("dash.searchLabel")}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] md:hidden"
+                >
+                  {searching ? <IconClose size={16} /> : <IconSearch size={17} />}
+                </button>
+                <MessagesButton inConsole />
+                <NotificationBell />
+                {/* Jamais « Connexion / Créer un compte » dans un espace connecté. */}
+                <AccountMenu compact />
+              </div>
             </div>
+            {searching && (
+              <div className="px-4 pb-3 md:hidden">
+                <QuickJump items={nav} autoFocus onDone={() => setSearching(false)} />
+              </div>
+            )}
           </header>
 
           <main className="px-4 pb-14 pt-7 sm:px-6 lg:px-8">{children}</main>
@@ -221,15 +250,16 @@ export function KpiCard({
 }) {
   const body = (
     <>
-      <span className="dash-icon">
+      {/* Téléphone : cartes compactes (2 par ligne), l'icône décorative disparaît. */}
+      <span className="dash-icon !hidden sm:!inline-grid">
         <Icon size={18} />
       </span>
-      <p className={`mt-6 text-[13px] ${hero ? "text-white/85" : "text-[#b8a6a1]"}`}>{label}</p>
+      <p className={`text-[12px] leading-snug sm:mt-6 sm:text-[13px] ${hero ? "text-white/85" : "text-[#b8a6a1]"}`}>{label}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
         {loading ? (
           <span className="lux-skeleton inline-block h-8 w-32" style={{ borderRadius: 8 }} aria-label="Chargement" />
         ) : (
-          <span className="text-[26px] font-semibold tabular-nums tracking-[-0.01em] text-white">{value}</span>
+          <span className="text-[19px] font-semibold tabular-nums tracking-[-0.01em] text-white sm:text-[26px]">{value}</span>
         )}
         {delta && !loading && (
           <span className={`dash-delta ${hero ? "border-white/40 text-white" : delta.positive ? "text-[#86efac]" : "text-[#fca5a5]"}`}>
@@ -237,10 +267,10 @@ export function KpiCard({
           </span>
         )}
       </div>
-      {hint && <p className={`mt-2 text-[12px] ${hero ? "text-white/70" : "text-[#8f7d77]"}`}>{hint}</p>}
+      {hint && <p className={`mt-1.5 text-[11px] leading-snug sm:mt-2 sm:text-[12px] ${hero ? "text-white/70" : "text-[#8f7d77]"}`}>{hint}</p>}
     </>
   );
-  const cls = `dash-card ${hero ? "dash-card-hero" : ""} block p-5`;
+  const cls = `dash-card ${hero ? "dash-card-hero" : ""} block p-4 sm:p-5`;
   return href ? (
     <Link href={href} className={cls}>
       {body}
@@ -262,7 +292,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`dash-card p-5 ${className}`}>
+    <section className={`dash-card min-w-0 p-5 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold text-stone-100">{title}</h2>
         {action}

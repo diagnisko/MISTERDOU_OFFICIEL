@@ -205,6 +205,8 @@ export const fr = {
   "msgIcon.empty": "Aucune discussion pour le moment.",
   "msgIcon.seeAll": "Voir toutes les discussions",
   "nav.back": "Retour",
+  "sup.guestTitle": "Suivre vos demandes",
+  "sup.guestBody": "Connectez-vous pour écrire à l’équipe depuis le site et retrouver toutes vos demandes au même endroit. Sans compte, WhatsApp et l’e-mail ci-dessus restent à votre disposition.",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -411,6 +413,8 @@ export const en: Translations<typeof fr> = {
   "msgIcon.empty": "No conversations yet.",
   "msgIcon.seeAll": "See all conversations",
   "nav.back": "Back",
+  "sup.guestTitle": "Track your requests",
+  "sup.guestBody": "Sign in to message the team from the site and keep all your requests in one place. Without an account, WhatsApp and email above are still available.",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -617,4 +621,6 @@ export const ar: Translations<typeof fr> = {
   "msgIcon.empty": "لا توجد محادثات حاليًا.",
   "msgIcon.seeAll": "عرض كل المحادثات",
   "nav.back": "رجوع",
+  "sup.guestTitle": "متابعة طلباتك",
+  "sup.guestBody": "سجّل الدخول لمراسلة الفريق من الموقع ومتابعة كل طلباتك في مكان واحد. بدون حساب، يبقى واتساب والبريد الإلكتروني أعلاه متاحين.",
 };

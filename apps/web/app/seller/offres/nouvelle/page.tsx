@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DashHeading } from "@/components/dash/dash-ui";
 import { OfferForm } from "@/components/offers/offer-form";
@@ -16,11 +15,6 @@ export default function NewSellerOfferPage() {
       <DashHeading
         greeting={t("seller.area")}
         title={t("offer.newTitle")}
-        actions={
-          <Link href="/seller" className="dash-btn dash-btn-ghost">
-            {t("offer.back")}
-          </Link>
-        }
       />
       <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[#b8a6a1]">{t("offer.newLead")}</p>
       <div className="mt-6 max-w-3xl">

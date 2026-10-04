@@ -182,7 +182,7 @@ export function NotificationBell() {
         <div
           role="dialog"
           aria-label={t("bell.recent")}
-          className="absolute right-0 z-[70] mt-2 w-[min(92vw,360px)] overflow-hidden rounded-[18px] border border-white/10 bg-[#050303]/97 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+          className="fixed inset-x-3 top-[68px] z-[70] overflow-hidden sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[360px] rounded-[18px] border border-white/10 bg-[#050303]/97 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
         >
           <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
             <p className="lux-kicker">{t("bell.title")}</p>

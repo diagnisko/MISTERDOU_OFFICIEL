@@ -65,15 +65,30 @@ export function SearchBar({
         event.preventDefault();
         onSearch(draft.trim());
       }}
-      className="flex w-full gap-2 sm:w-auto"
+      role="search"
+      className="relative w-full sm:w-72"
     >
+      <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 text-[#8a7771]">
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="M20 20l-4.2-4.2" />
+      </svg>
       <TextInput
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         placeholder={placeholder ?? "Rechercher"}
-        className="min-w-0 sm:w-64"
+        aria-label={placeholder ?? "Rechercher"}
+        enterKeyHint="search"
+        className="w-full !pl-10 !pr-12"
       />
-      <button type="submit" className="dash-btn dash-btn-ghost">Rechercher</button>
+      <button
+        type="submit"
+        aria-label="Rechercher"
+        className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-[linear-gradient(120deg,#c83a24,#8e2014)] text-white"
+      >
+        <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
     </form>
   );
 }
@@ -128,15 +143,20 @@ export function Pagination({
   const from = meta.total === 0 ? 0 : (meta.page - 1) * perPage + 1;
   const to = Math.min(meta.total, meta.page * perPage);
   const btn =
-    "rounded-full border border-[rgba(255,236,229,0.1)] px-3.5 py-1.5 text-[12px] font-medium text-[#e9dad3] transition hover:border-[rgba(255,106,50,0.4)] hover:text-white disabled:opacity-40";
+    "grid h-8 w-8 place-items-center rounded-full border border-[rgba(255,236,229,0.1)] text-[#e9dad3] transition hover:border-[rgba(255,106,50,0.4)] hover:text-white disabled:opacity-35";
+  const arrow = (d: string) => (
+    <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rtl:rotate-180">
+      <path d={d} />
+    </svg>
+  );
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-400">
+    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-stone-400">
       <span className="tabular-nums">
         {from}–{to} sur {meta.total.toLocaleString("fr-FR")}
       </span>
-      <div className="flex flex-wrap items-center gap-2">
-        {onPerPage && (
-          <label className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        {onPerPage && meta.total > 10 && (
+          <label className="hidden items-center gap-2 sm:flex">
             <span className="text-[10px] uppercase tracking-[0.12em] text-stone-500">Par page</span>
             <select
               value={perPage}
@@ -151,20 +171,19 @@ export function Pagination({
             </select>
           </label>
         )}
-        <button type="button" className={btn} disabled={meta.page <= 1} onClick={() => onPage(meta.page - 1)}>
-          Précédent
-        </button>
-        <span className="tabular-nums">
-          Page {meta.page} / {totalPages}
-        </span>
-        <button
-          type="button"
-          className={btn}
-          disabled={meta.page >= totalPages}
-          onClick={() => onPage(meta.page + 1)}
-        >
-          Suivant
-        </button>
+        {totalPages > 1 && (
+          <>
+            <button type="button" className={btn} aria-label="Page précédente" disabled={meta.page <= 1} onClick={() => onPage(meta.page - 1)}>
+              {arrow("M15 18l-6-6 6-6")}
+            </button>
+            <span className="tabular-nums">
+              {meta.page} / {totalPages}
+            </span>
+            <button type="button" className={btn} aria-label="Page suivante" disabled={meta.page >= totalPages} onClick={() => onPage(meta.page + 1)}>
+              {arrow("M9 18l6-6-6-6")}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -192,7 +211,7 @@ export function DataTable({
   children: ReactNode;
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="dash-scroll overflow-x-auto">
       <table
         className="dash-table w-full border-collapse text-left"
         style={{ minWidth: `${minWidth}px` }}

@@ -85,11 +85,11 @@ export default async function SellerProfilePage({ params }: { params: Promise<{ 
             <h1 className="lux-h2 mt-5 text-stone-100">{t("sellerp.partner", { code: profile.code })}</h1>
             <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-stone-400">{t("sellerp.lead")}</p>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {stats.map((s) => (
-                <div key={s.label} className="lux-glass rounded-[20px] px-5 py-5">
+                <div key={s.label} className="lux-glass rounded-[20px] px-4 py-4 sm:px-5 sm:py-5">
                   <span className="text-[9px] uppercase tracking-[0.26em] text-stone-400">{s.label}</span>
-                  <span className="lux-serif mt-2 block text-[24px] font-bold capitalize text-stone-100 tabular-nums">{s.value}</span>
+                  <span className="lux-serif mt-1.5 block text-[20px] font-bold capitalize sm:mt-2 sm:text-[24px] text-stone-100 tabular-nums">{s.value}</span>
                 </div>
               ))}
             </div>

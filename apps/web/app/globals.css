@@ -1011,6 +1011,9 @@ body {
 .dash-root {
   position: relative;
   min-height: 100vh;
+  /* Barres de défilement fines aux couleurs du site (héritées par tout l'espace). */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 106, 50, 0.28) transparent;
   background: #050303;
   color: var(--lux-text);
   font-family: var(--font-lux-sans), ui-sans-serif, system-ui, sans-serif;
@@ -1217,6 +1220,19 @@ button.dash-card:hover {
   color: #ff7a45;
 }
 
+/* Tableaux qui défilent dans leur cadre : un libellé caché (sr-only, en position
+   absolue) prend le tableau comme repère, sinon il s'échappe du cadre défilant et
+   élargit toute la page sur téléphone. */
+table {
+  position: relative;
+}
+/* Téléphone : les colonnes coupées s'estompent à droite, signe que le tableau défile. */
+@media (max-width: 767px) {
+  .dash-scroll {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+}
 .dash-table th {
   padding: 0.75rem 1rem;
   font-size: 11px;
@@ -1347,6 +1363,11 @@ button.dash-card:hover {
    sur fond clair. Les zones marquées data-surface="dark" (visuel du hero)
    gardent la palette sombre.
    ============================================================ */
+
+/* Thème sombre : barres de défilement natives sombres (pas le blanc de Windows). */
+html:not([data-theme="light"]) {
+  color-scheme: dark;
+}
 
 html[data-theme="light"] {
   color-scheme: light;

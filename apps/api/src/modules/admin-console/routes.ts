@@ -7,7 +7,7 @@ import { adminPasswordResetLink } from "../auth/password-reset.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 
-const pageQuery = z.object({ page: z.coerce.number().int().min(1).default(1), perPage: z.coerce.number().int().min(10).max(100).default(25), q: z.string().trim().max(120).optional() });
+const pageQuery = z.object({ page: z.coerce.number().int().min(1).default(1), perPage: z.coerce.number().int().min(1).max(100).default(25), q: z.string().trim().max(120).optional() });
 const userStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]), reason: z.string().trim().min(5).max(300) });
 const sellerStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "REVOKED"]), reason: z.string().trim().min(5).max(300) });
 const productStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "ARCHIVED"]), reason: z.string().trim().min(5).max(300) });

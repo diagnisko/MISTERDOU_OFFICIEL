@@ -7,7 +7,8 @@ import { SectionLabel } from "@/components/lux/lux-fx";
 import { fetchCatalogueServer, type CatalogueSort } from "@/lib/lux-catalogue";
 import { serverApiFetch } from "@/lib/server-api";
 import { formatInt, type LuxPaymentMode } from "@/lib/lux";
-import { IconArrowLeft, IconArrowRight } from "@/components/lux/lux-icons";
+import { IconArrowLeft, IconArrowRight, IconSearch, IconX } from "@/components/lux/lux-icons";
+import { CatalogueTools } from "@/components/lux/lux-catalogue-tools";
 import { getServerT } from "@/lib/i18n-server";
 import type { MessageKey } from "@/lib/i18n-core";
 
@@ -39,9 +40,15 @@ export interface CatalogueViewProps {
   title: React.ReactNode;
   intro: React.ReactNode;
   emptyText: string;
-  /** Bloc d'explication propre à la page (échéancier, garantie…). */
+  /** Bloc d'explication propre à la page, affiché sous la liste (pas avant les comptes). */
   aside?: React.ReactNode;
 }
+
+// Les deux pages du catalogue, présentées comme deux onglets d'une même boutique.
+const MODES: { mode: LuxPaymentMode; href: string; label: MessageKey }[] = [
+  { mode: "ONE_TIME", href: "/offres", label: "cat.modeCash" },
+  { mode: "INSTALLMENTS", href: "/pret-ou-prestation", label: "cat.modeMonthly" },
+];
 
 function href(
   basePath: string,
@@ -61,6 +68,19 @@ function href(
   if (pg > 1) p.set("page", String(pg));
   const q = p.toString();
   return q ? `${basePath}?${q}` : basePath;
+}
+
+function ActiveFilter({ label, href: to, removeLabel }: { label: string; href: string; removeLabel: string }) {
+  return (
+    <Link
+      href={to}
+      aria-label={`${removeLabel} : ${label}`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,106,50,0.35)] bg-[rgba(232,71,36,0.1)] py-1.5 pl-3 pr-2 text-stone-200 hover:border-[rgba(255,106,50,0.7)]"
+    >
+      {label}
+      <IconX className="h-3.5 w-3.5 text-stone-400" aria-hidden />
+    </Link>
+  );
 }
 
 export function CatalogueView({
@@ -141,85 +161,99 @@ async function CatalogueBody({
               </span>
             )}
           </div>
-          <div className="mt-4 max-w-2xl text-[14px] leading-relaxed text-stone-400">{intro}</div>
-
-          {aside}
-
-          {/* Recherche : formulaire classique, fonctionne même sans JavaScript. */}
-          <form action={basePath} method="get" role="search" className="mt-10 flex max-w-xl gap-2">
-            {division && <input type="hidden" name="division" value={division} />}
-            {sort !== "newest" && <input type="hidden" name="sort" value={sort} />}
-            <label className="sr-only" htmlFor="catalogue-search">
-              {t("cat.searchLabel")}
-            </label>
-            <input
-              id="catalogue-search"
-              type="search"
-              name="q"
-              defaultValue={search ?? ""}
-              maxLength={60}
-              placeholder={t("cat.searchPlaceholder")}
-              className="lux-glass min-w-0 flex-1 rounded-full border border-white/10 bg-transparent px-5 py-3 text-[14px] text-stone-100 outline-none placeholder:text-stone-500 focus:border-[rgba(255,106,50,0.6)]"
-            />
-            <button type="submit" className="lux-btn lux-btn-gold !min-h-[46px] shrink-0 px-6">
-              {t("cat.searchButton")}
-            </button>
-          </form>
-          {search && (
-            <p className="mt-3 text-[13px] text-stone-400">
-              {minPower ? t("cat.searchPower", { power: formatInt(Number(minPower)) }) : t("cat.searchName", { q: search })}{" "}
-              <Link href={href(basePath, { page: 1 }, division, sort, 1)} className="text-[var(--lux-gold-light)] hover:underline">
-                {t("cat.searchClear")}
-              </Link>
-            </p>
-          )}
-
-          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t("cat.filterDivision")}>
-              <Link
-                href={href(basePath, { division: null }, division, sort, 1, search)}
-                aria-current={division === null ? "page" : undefined}
-                className={
-                  division === null
-                    ? "lux-glass-chip lux-chip-active"
-                    : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
-                }
-              >
-                {t("cat.all")}
-              </Link>
-              {divisions.map((d) => (
-                <Link
-                  key={d}
-                  href={href(basePath, { division: d }, division, sort, 1, search)}
-                  aria-current={division === d ? "page" : undefined}
-                  className={
-                    division === d
-                      ? "lux-glass-chip lux-chip-active"
-                      : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
-                  }
-                >
-                  {d}
-                </Link>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t("cat.sortLabel")}>
-              {SORTS.map((s) => (
-                <Link
-                  key={s.value}
-                  href={href(basePath, { sort: s.value }, division, sort, 1, search)}
-                  aria-current={sort === s.value ? "page" : undefined}
-                  className={
-                    sort === s.value
-                      ? "lux-glass-chip lux-chip-active"
-                      : "lux-glass-chip hover:border-[rgba(255,106,50,0.5)]"
-                  }
-                >
-                  {t(s.label)}
-                </Link>
-              ))}
-            </div>
+          <div className="mt-4 max-w-2xl text-[14px] leading-relaxed text-stone-400">
+            {intro}
+            <Link href="/comment-ca-marche" className="mt-2 inline-block text-[13px] text-[var(--lux-gold-light)] hover:underline">
+              {t("cat.howLink")}
+            </Link>
           </div>
+
+          {/* Comptant / Mensualités : deux onglets d'une même boutique. */}
+          <nav aria-label={t("cat.modeLabel")} className="mt-7 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+            {MODES.map((m) => (
+              <Link
+                key={m.mode}
+                href={m.href}
+                aria-current={m.mode === paymentMode ? "page" : undefined}
+                className={`rounded-full px-5 py-2 text-[13px] font-medium transition-colors ${
+                  m.mode === paymentMode
+                    ? "bg-[linear-gradient(135deg,#ff8a5c,#e84724)] text-[#1a0a06] shadow-[0_6px_20px_-8px_rgba(232,71,36,0.8)]"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                {t(m.label)}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Recherche + « Trier et filtrer » sur une seule ligne. La recherche
+              est un formulaire classique : elle marche même sans JavaScript. */}
+          <div className="mt-5 flex max-w-2xl items-center gap-2">
+            <form action={basePath} method="get" role="search" className="relative min-w-0 flex-1">
+              {division && <input type="hidden" name="division" value={division} />}
+              {sort !== "newest" && <input type="hidden" name="sort" value={sort} />}
+              <label className="sr-only" htmlFor="catalogue-search">
+                {t("cat.searchLabel")}
+              </label>
+              <IconSearch className="pointer-events-none absolute left-4 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-stone-500" aria-hidden />
+              <input
+                id="catalogue-search"
+                type="search"
+                name="q"
+                defaultValue={search ?? ""}
+                maxLength={60}
+                enterKeyHint="search"
+                placeholder={t("cat.searchPlaceholder")}
+                className="lux-glass h-[48px] w-full rounded-full border border-white/10 bg-transparent pl-11 pr-12 text-[14px] text-stone-100 outline-none placeholder:text-stone-500 focus:border-[rgba(255,106,50,0.6)]"
+              />
+              <button
+                type="submit"
+                aria-label={t("cat.searchButton")}
+                className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-[linear-gradient(135deg,#ff8a5c,#e84724)] text-[#1a0a06]"
+              >
+                <IconArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            </form>
+            <CatalogueTools
+              label={t("cat.tools")}
+              sortTitle={t("cat.sortBy")}
+              divisionTitle={t("cat.divisionTitle")}
+              closeLabel={t("chat.close")}
+              changed={sort !== "newest" || division !== null}
+              sorts={SORTS.map((s) => ({
+                label: t(s.label),
+                href: href(basePath, { sort: s.value }, division, sort, 1, search),
+                active: sort === s.value,
+              }))}
+              divisions={[
+                { label: t("cat.all"), href: href(basePath, { division: null }, division, sort, 1, search), active: division === null },
+                ...divisions.map((d) => ({ label: d, href: href(basePath, { division: d }, division, sort, 1, search), active: division === d })),
+              ]}
+            />
+          </div>
+
+          {/* Filtres actifs : visibles et retirables d'un geste. */}
+          {(search || division || sort !== "newest") && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px]">
+              {search && (
+                <ActiveFilter
+                  label={minPower ? t("cat.searchPower", { power: formatInt(Number(minPower)) }) : t("cat.searchName", { q: search })}
+                  href={href(basePath, { page: 1 }, division, sort, 1)}
+                  removeLabel={t("cat.searchClear")}
+                />
+              )}
+              {division && (
+                <ActiveFilter label={division} href={href(basePath, { division: null }, division, sort, 1, search)} removeLabel={t("cat.removeFilter")} />
+              )}
+              {sort !== "newest" && (
+                <ActiveFilter
+                  label={t(SORTS.find((s) => s.value === sort)!.label)}
+                  href={href(basePath, { sort: "newest" }, division, sort, 1, search)}
+                  removeLabel={t("cat.removeFilter")}
+                />
+              )}
+            </div>
+          )}
 
           {error ? (
             <div className="mt-10 rounded-[24px] border border-white/10 bg-[rgba(23,20,18,0.7)] p-10 text-center">
@@ -276,6 +310,8 @@ async function CatalogueBody({
               </Link>
             </div>
           )}
+
+          {aside}
         </div>
       </main>
       <div className="mt-8">

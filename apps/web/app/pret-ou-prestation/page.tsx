@@ -34,14 +34,24 @@ export default async function PretOuPrestationPage({
       intro={<p>{t("monthly.intro")}</p>}
       emptyText={t("monthly.empty")}
       aside={
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {steps.map((step) => (
-            <div key={step.title} className="lux-glass rounded-[20px] p-6">
-              <p className="lux-kicker">{step.title}</p>
-              <p className="mt-3 text-[13px] leading-relaxed text-stone-400">{step.body}</p>
-            </div>
-          ))}
-        </div>
+        <section aria-labelledby="monthly-how" className="lux-glass mt-14 rounded-[24px] p-5 sm:p-7">
+          <h2 id="monthly-how" className="text-[15px] font-semibold text-stone-100">
+            {t("monthly.howTitle")}
+          </h2>
+          <ol className="mt-5 grid gap-5 md:grid-cols-3 md:gap-6">
+            {steps.map((step, i) => (
+              <li key={step.title} className="flex gap-3.5">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.45)] text-[12px] font-semibold text-[var(--lux-gold-light)]">
+                  {i + 1}
+                </span>
+                <div>
+                  <p className="text-[14px] font-medium text-stone-100">{step.title.replace(/^\d+\s*[—-]\s*/, "")}</p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-stone-400">{step.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
       }
     />
   );

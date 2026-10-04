@@ -89,10 +89,6 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   }
 
   const { user, profile } = account;
-  const verified = user.kycStatus === "VERIFIED";
-  const isActiveSeller = profile.isSeller && profile.sellerStatus === "ACTIVE";
-  const team = user.role === "ADMIN" || user.role === "STAFF";
-  const items = team ? TEAM_ITEMS : ITEMS.filter((i) => i.seller === undefined || i.seller === isActiveSeller);
 
   async function logout() {
     setLeaving(true);
@@ -127,59 +123,109 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="dash-card absolute end-0 top-[calc(100%+10px)] z-[90] w-72 origin-top-right p-2 text-start"
           >
-            <div className="flex items-center gap-3 px-3 py-3">
-              <Avatar user={user} url={profile.avatarUrl} size={44} />
-              <div className="min-w-0">
-                <p className="truncate text-[14px] font-semibold text-white">{displayName(user)}</p>
-                <p className="truncate text-[12px] text-[#8f7d77]">{user.email}</p>
-                {team ? (
-                  <span className="dash-pill dash-pill-paid mt-1.5">{user.role === "ADMIN" ? t("menu.roleAdmin") : t("menu.roleStaff")}</span>
-                ) : (
-                  <span className={`dash-pill mt-1.5 ${verified ? "dash-pill-paid" : "dash-pill-due"}`}>
-                    {verified ? t("menu.verified") : t("menu.unverified")}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />
-            {items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                role="menuitem"
-                aria-current={pathname === item.href ? "page" : undefined}
-                onClick={() => setOpen(false)}
-                className="dash-nav-link outline-none focus-visible:bg-white/[0.06]"
-              >
-                <item.icon size={17} />
-                {t(item.label)}
-              </Link>
-            ))}
-            {!verified && !team && (
-              <Link
-                href="/identity-verification"
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="dash-nav-link text-[#ffb08a] outline-none focus-visible:bg-white/[0.06]"
-              >
-                <IconBadgeCheck size={17} />
-                {t("menu.verify")}
-              </Link>
-            )}
-            <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => void logout()}
-              disabled={leaving}
-              className="dash-nav-link w-full text-[#fca5a5] outline-none focus-visible:bg-white/[0.06] disabled:opacity-60"
-            >
-              <IconLogout size={17} />
-              {leaving ? t("menu.loggingOut") : t("menu.logout")}
-            </button>
+            <MenuBody account={account} onNavigate={() => setOpen(false)} onLogout={() => void logout()} leaving={leaving} itemRole="menuitem" />
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+type Member = Extract<ReturnType<typeof useAccount>, { status: "member" }>;
+
+function MenuBody({
+  account,
+  onNavigate,
+  onLogout,
+  leaving,
+  itemRole,
+}: {
+  account: Member;
+  onNavigate: () => void;
+  onLogout: () => void;
+  leaving: boolean;
+  itemRole?: "menuitem";
+}) {
+  const t = useT();
+  const pathname = usePathname();
+  const { user, profile } = account;
+  const verified = user.kycStatus === "VERIFIED";
+  const isActiveSeller = profile.isSeller && profile.sellerStatus === "ACTIVE";
+  const team = user.role === "ADMIN" || user.role === "STAFF";
+  const items = team ? TEAM_ITEMS : ITEMS.filter((i) => i.seller === undefined || i.seller === isActiveSeller);
+  return (
+    <>
+    <div className="flex items-center gap-3 px-3 py-3">
+      <Avatar user={user} url={profile.avatarUrl} size={44} />
+      <div className="min-w-0">
+        <p className="truncate text-[14px] font-semibold text-white">{displayName(user)}</p>
+        <p className="truncate text-[12px] text-[#8f7d77]">{user.email}</p>
+        {team ? (
+          <span className="dash-pill dash-pill-paid mt-1.5">{user.role === "ADMIN" ? t("menu.roleAdmin") : t("menu.roleStaff")}</span>
+        ) : (
+          <span className={`dash-pill mt-1.5 ${verified ? "dash-pill-paid" : "dash-pill-due"}`}>
+            {verified ? t("menu.verified") : t("menu.unverified")}
+          </span>
+        )}
+      </div>
+    </div>
+    <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />
+    {items.map((item) => (
+      <Link
+        key={item.href}
+        href={item.href}
+        role={itemRole}
+        aria-current={pathname === item.href ? "page" : undefined}
+        onClick={onNavigate}
+        className="dash-nav-link outline-none focus-visible:bg-white/[0.06]"
+      >
+        <item.icon size={17} />
+        {t(item.label)}
+      </Link>
+    ))}
+    {!verified && !team && (
+      <Link
+        href="/identity-verification"
+        role={itemRole}
+        onClick={onNavigate}
+        className="dash-nav-link text-[#ffb08a] outline-none focus-visible:bg-white/[0.06]"
+      >
+        <IconBadgeCheck size={17} />
+        {t("menu.verify")}
+      </Link>
+    )}
+    <div className="my-1 h-px bg-[rgba(255,236,229,0.07)]" />
+    <button
+      type="button"
+      role={itemRole}
+      onClick={onLogout}
+      disabled={leaving}
+      className="dash-nav-link w-full text-[#fca5a5] outline-none focus-visible:bg-white/[0.06] disabled:opacity-60"
+    >
+      <IconLogout size={17} />
+      {leaving ? t("menu.loggingOut") : t("menu.logout")}
+    </button>
+    </>
+  );
+}
+
+/** Téléphone : le compte dans le menu ☰ (le rond de profil n'a pas la place dans la barre). */
+export function MobileAccountPanel({ onNavigate }: { onNavigate: () => void }) {
+  const account = useAccount();
+  const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
+  if (account.status !== "member") return null;
+  async function logout() {
+    setLeaving(true);
+    await logoutAccount();
+    setLeaving(false);
+    onNavigate();
+    router.push("/");
+    router.refresh();
+  }
+  return (
+    <div className="dash-card mb-4 p-2 text-start">
+      <MenuBody account={account} onNavigate={onNavigate} onLogout={() => void logout()} leaving={leaving} />
     </div>
   );
 }

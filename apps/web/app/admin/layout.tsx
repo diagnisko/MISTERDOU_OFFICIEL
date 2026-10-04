@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { request } from "@/lib/api";
+import { logoutAccount, refreshAccount } from "@/lib/account";
 import { Spinner } from "@/components/ui";
 import { DashShell, type DashNavItem } from "@/components/dash/dash-ui";
 import {
@@ -98,6 +99,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       if (session) {
         setUser(session);
         setSessionKind(kind);
+        void refreshAccount();
       } else {
         router.replace("/login");
       }
@@ -112,7 +114,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   async function logout() {
     setLoggingOut(true);
     try {
-      await request("/api/v1/auth/logout", { method: "POST", body: JSON.stringify({}) });
+      await logoutAccount();
     } finally {
       router.replace("/login");
     }

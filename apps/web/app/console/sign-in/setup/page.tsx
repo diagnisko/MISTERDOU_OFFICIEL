@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { ApiClientError, request } from "@/lib/api";
+import { refreshAccount } from "@/lib/account";
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { LuxBack, LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
 
@@ -27,6 +28,7 @@ export default function AdminTotpSetupPage() {
     event.preventDefault(); setBusy(true); setError(null);
     try {
       await request("/api/v1/auth/admin/totp/confirm", { method: "POST", body: JSON.stringify({ code }) });
+      await refreshAccount();
       router.replace("/admin");
     } catch (err) { setError(err instanceof ApiClientError ? err.message : "Code invalide."); }
     finally { setBusy(false); }

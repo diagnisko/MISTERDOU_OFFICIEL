@@ -49,15 +49,15 @@ export default async function CommentCaMarchePage() {
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-stone-400">{t("howp.lead")}</p>
 
             {chiffres && (
-              <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
                 {[
                   { label: t("howp.statOnline"), value: formatInt(chiffres.inStock) },
                   // Note : affichée seulement quand de vrais avis existent.
                   ...(chiffres.rating > 0 ? [{ label: t("howp.statRating"), value: `${chiffres.rating.toFixed(1).replace(".", ",")}/5` }] : []),
                 ].map((s) => (
-                  <div key={s.label} className="lux-glass rounded-[20px] px-5 py-5">
+                  <div key={s.label} className="lux-glass rounded-[20px] px-4 py-4 sm:px-5 sm:py-5">
                     <span className="text-[9px] uppercase tracking-[0.26em] text-stone-400">{s.label}</span>
-                    <span className="lux-serif mt-2 block text-[28px] font-bold text-stone-100 tabular-nums">{s.value}</span>
+                    <span className="lux-serif mt-1.5 block text-[22px] font-bold sm:mt-2 sm:text-[28px] text-stone-100 tabular-nums">{s.value}</span>
                   </div>
                 ))}
               </div>

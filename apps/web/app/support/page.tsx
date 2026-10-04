@@ -37,6 +37,8 @@ export default function SupportPage() {
   const router = useRouter();
   const [session, setSession] = useState<SessionUser | null>(null);
   const [checking, setChecking] = useState(true);
+  // Visiteur : les contacts restent accessibles (on peut avoir besoin d'aide avant d'avoir un compte).
+  const [guest, setGuest] = useState(false);
 
   const [tab, setTab] = useState<"mine" | "new">("mine");
   const [items, setItems] = useState<SupportTicket[]>([]);
@@ -61,7 +63,8 @@ export default function SupportPage() {
     void resolveSession().then((resolved) => {
       if (!active) return;
       if (!resolved) {
-        router.replace("/login");
+        setGuest(true);
+        setChecking(false);
         return;
       }
       setSession(resolved.user);
@@ -173,6 +176,33 @@ export default function SupportPage() {
     );
   }
 
+  if (guest) {
+    return (
+      <LuxShell>
+        <div className="relative z-10">
+          <LuxTopBar label={t("sup.kicker")} />
+          <main className="mx-auto max-w-5xl px-5 py-10 md:px-8">
+            <LuxPageHead kicker={t("sup.kicker")} title={t("sup.title")} meta={t("sup.meta")} />
+            <SupportContactChoices onMessage={() => router.push("/login?next=/support")} />
+            <section className="lux-glass mt-6 rounded-[22px] p-5 sm:p-7">
+              <h2 className="text-[16px] font-semibold text-stone-100">{t("sup.guestTitle")}</h2>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-stone-400">{t("sup.guestBody")}</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href="/login?next=/support" className="lux-btn lux-btn-gold" style={{ borderRadius: 16 }}>
+                  {t("nav.login")}
+                </Link>
+                <Link href="/register" className="lux-btn lux-btn-ghost" style={{ borderRadius: 16 }}>
+                  {t("nav.register")}
+                </Link>
+              </div>
+            </section>
+          </main>
+          <LuxFooter />
+        </div>
+      </LuxShell>
+    );
+  }
+
   return (
     <LuxShell>
       <div className="relative z-10">
@@ -190,14 +220,6 @@ export default function SupportPage() {
             kicker={t("sup.kicker")}
             title={t("sup.title")}
             meta={t("sup.meta")}
-            action={
-              <>
-                <Button variant="outline" onClick={() => router.push("/messages")}>
-                  {t("sup.preferChat")}
-                </Button>
-                <Button onClick={() => setTab("new")}>{t("sup.newRequest")}</Button>
-              </>
-            }
           />
 
           <SupportContactChoices onMessage={() => setTab("new")} />

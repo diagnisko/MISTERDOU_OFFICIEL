@@ -11,6 +11,7 @@ import { MediaManager } from "@/components/media/media-manager";
 import { AreaChart, DashHeading, DashShell, KpiCard, Panel } from "@/components/dash/dash-ui";
 import { IconClock, IconCoins, IconPercent, IconWallet } from "@/components/dash/dash-icons";
 import { useT } from "@/lib/i18n";
+import { logoutAccount } from "@/lib/account";
 import { WithdrawalsPanel, type SellerWithdrawal } from "@/components/seller/withdrawals-panel";
 
 // ---------------------------------------------------------------------------
@@ -163,7 +164,7 @@ export default function SellerPage() {
   async function logout() {
     setLoggingOut(true);
     try {
-      await request("/api/v1/auth/logout", { method: "POST", body: JSON.stringify({}) });
+      await logoutAccount();
     } finally {
       router.replace("/");
     }
@@ -237,7 +238,7 @@ export default function SellerPage() {
         </div>
       )}
 
-      <section aria-label={t("seller.balances")} className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label={t("seller.balances")} className="mt-7 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KpiCard
           hero
           icon={IconWallet}
@@ -329,7 +330,7 @@ export default function SellerPage() {
             </Link>
           </div>
         </div>
-        <div className="-mx-5 mt-3 overflow-x-auto">
+        <div className="dash-scroll -mx-5 mt-3 overflow-x-auto">
           <table className="dash-table w-full min-w-[680px] border-collapse">
             <thead>
               <tr>
