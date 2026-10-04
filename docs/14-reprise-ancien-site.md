@@ -37,14 +37,27 @@ S3_PRIVATE_BUCKET=
 
 ## Déroulé
 
+C'est une **copie**, pas un déménagement : l'ancien site reste en ligne et continue de
+fonctionner. Le moment venu, le propriétaire fait pointer son nom de domaine vers le
+nouveau site. Juste avant, une nouvelle copie rattrape ce qui a changé entre-temps,
+sans créer de doublon.
+
 1. **Essai sur la base de test locale** (port 5433). Lancer d'abord une simulation, puis l'écriture :
    ```
    DATABASE_URL=postgresql://postgres:postgres@localhost:5433/misterdou_test?schema=public pnpm --filter @misterdou/api legacy:import
    DATABASE_URL=postgresql://postgres:postgres@localhost:5433/misterdou_test?schema=public pnpm --filter @misterdou/api legacy:import -- --apply
    ```
 2. **Vérification** sur l'aperçu local : comptes présents, connexion avec un ancien mot de passe, soldes.
-3. **Jour du basculement** : mettre l'ancien site en pause (plus de commandes), puis sauvegarder Neon en créant une branche.
-4. **Transfert en production**, avec `--production` en plus de `--apply`. La commande refuse toute base non locale sans ce drapeau. Comme `apps/api/.env` vise Neon, c'est ce garde-fou qui empêche une écriture par erreur.
+3. **Copie sur le nouveau site** : sauvegarder Neon en créant une branche, puis lancer avec `--production` en plus de `--apply`. La commande refuse toute base non locale sans ce drapeau. Comme `apps/api/.env` vise Neon, c'est ce garde-fou qui empêche une écriture par erreur.
+4. **Avant la bascule du nom de domaine** : relancer la copie pour rattraper les nouveaux clients et les mensualités payées sur l'ancien site, puis rendre au nouveau site le suivi des échéances.
+
+## Mensualités en cours
+
+Les comptes vendus en mensualités sont copiés avec leurs **dates d'échéance d'origine**.
+Tant que l'ancien site encaisse, le nouveau site ne doit ni envoyer de rappel ni marquer de
+retard pour ces échéanciers copiés. Sans ça, le job des échéances
+(`markOverdueInstallments`, `sendInstallmentReminders`) les passerait en retard. Ce suivi est
+rendu au nouveau site au moment de la bascule.
 
 ## Règles de l'import des comptes
 
