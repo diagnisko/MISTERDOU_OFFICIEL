@@ -7,19 +7,22 @@ import { LuxFooter } from "@/components/lux/lux-footer";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { ProductCard } from "@/components/lux/lux-product-card";
 import { IconStar } from "@/components/lux/lux-icons";
+import { SellerAvatar } from "@/components/lux/lux-seller-badge";
 import { fetchCatalogueServer } from "@/lib/lux-catalogue";
 import { serverApiFetch } from "@/lib/server-api";
 import { formatInt } from "@/lib/lux";
 import { getServerT } from "@/lib/i18n-server";
 
 // ---------------------------------------------------------------------------
-// Profil public d'un vendeur partenaire : note, ventes, ancienneté, avis et
-// offres en vente. Son identité n'est jamais affichée (code « V-XXXXXX »).
+// Profil public d'un vendeur : prénom + initiale, photo, note, ventes,
+// ancienneté, avis et offres en vente. Nom complet et contacts restent privés.
 // ---------------------------------------------------------------------------
 
 type SellerProfile = {
   id: string;
   code: string;
+  name?: string;
+  avatarUrl?: string | null;
   rating: number | null;
   reviewCount: number;
   sales: number;
@@ -41,7 +44,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const t = await getServerT();
   const profile = await fetchProfile(id);
-  return { title: profile ? t("sellerp.partner", { code: profile.code }) : t("sellerp.notFound") };
+  return { title: profile ? (profile.name ?? t("sellerp.partner", { code: profile.code })) : t("sellerp.notFound") };
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -82,7 +85,13 @@ export default async function SellerProfilePage({ params }: { params: Promise<{ 
         <main className="relative z-10 px-5 pt-32 md:px-8 md:pt-40">
           <div className="mx-auto max-w-6xl">
             <SectionLabel>{t("sellerp.kicker")}</SectionLabel>
-            <h1 className="lux-h2 mt-5 text-stone-100">{t("sellerp.partner", { code: profile.code })}</h1>
+            <div className="mt-6 flex items-center gap-4 sm:gap-5">
+              <SellerAvatar name={profile.name ?? profile.code} avatarUrl={profile.avatarUrl} size={72} />
+              <div className="min-w-0">
+                <h1 className="lux-h2 truncate text-stone-100">{profile.name ?? t("sellerp.partner", { code: profile.code })}</h1>
+                <p className="mt-1 text-[12px] uppercase tracking-[0.2em] text-stone-500">{t("sellerp.verified")}</p>
+              </div>
+            </div>
             <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-stone-400">{t("sellerp.lead")}</p>
 
             <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

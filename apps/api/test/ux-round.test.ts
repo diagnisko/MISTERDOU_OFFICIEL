@@ -49,6 +49,44 @@ describe("Tableau de bord de l'équipe", () => {
   });
 });
 
+describe("Suppressions de l'équipe : mot de passe exigé", () => {
+  it("supprime un compte client seulement avec le bon mot de passe, et l'anonymise", async () => {
+    const { session } = await createAdmin(t);
+    const client = await createUser(t, { kycVerified: true });
+    const app = await buildMiniApp({ auth: session }, async (a) => {
+      await a.register(registerAdminConsoleRoutes, { prefix: "/api/v1" });
+    });
+    const url = `/api/v1/admin/clients/${client.id}`;
+    expect((await app.inject({ method: "DELETE", url, payload: {} })).json().error.code).toBe("PASSWORD_REQUIRED");
+    expect((await app.inject({ method: "DELETE", url, payload: { password: "mauvais" } })).json().error.code).toBe("INVALID_PASSWORD");
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: client.id } })).deletedAt).toBeNull();
+
+    const ok = await app.inject({ method: "DELETE", url, payload: { password: "MotDePasse123!" } });
+    expect(ok.statusCode).toBe(200);
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: client.id } });
+    expect(row).toMatchObject({ firstName: "Compte", lastName: "supprimé", passwordHash: null, status: "SUSPENDED" });
+    expect(row.email).toMatch(/@misterdou\.invalid$/);
+    expect(row.deletedAt).not.toBeNull();
+    await app.close();
+  });
+
+  it("refuse de supprimer un client dont une commande est en cours", async () => {
+    const { session } = await createAdmin(t);
+    const client = await createUser(t, { kycVerified: true });
+    const product = await createProduct(t);
+    const order = await prisma.order.create({
+      data: { orderNumber: `MD-T-${randomUUID().slice(0, 8)}`, buyerId: client.id, status: "PAID", totalAmount: product.basePrice },
+    });
+    track(t, "orderIds", order.id);
+    const app = await buildMiniApp({ auth: session }, async (a) => {
+      await a.register(registerAdminConsoleRoutes, { prefix: "/api/v1" });
+    });
+    const res = await app.inject({ method: "DELETE", url: `/api/v1/admin/clients/${client.id}`, payload: { password: "MotDePasse123!" } });
+    expect(res.json().error.code).toBe("ACCOUNT_BUSY");
+    await app.close();
+  });
+});
+
 describe("Fenêtre des messages", () => {
   it("liste les dernières discussions avec un lien direct vers chacune", async () => {
     const owner = await createUser(t, { role: "VENDOR", kycVerified: true });

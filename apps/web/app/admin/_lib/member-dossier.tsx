@@ -79,7 +79,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function MemberDossierModal({ url, onClose }: { url: string; onClose: () => void }) {
+export function MemberDossierModal({ url, onClose, actions }: { url: string; onClose: () => void; actions?: ReactNode }) {
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -173,6 +173,7 @@ export function MemberDossierModal({ url, onClose }: { url: string; onClose: () 
           )}
         </div>
       )}
+      {actions && <div className="mt-6 border-t border-white/[0.06] pt-4">{actions}</div>}
     </AdminModal>
   );
 }

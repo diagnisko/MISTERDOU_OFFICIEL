@@ -21,6 +21,36 @@ export type DashNavItem = {
   group?: string;
 };
 
+/**
+ * Téléphone : les tableaux s'affichent en cartes (CSS). Chaque cellule reçoit
+ * l'intitulé de sa colonne (data-label), relu à chaque changement du contenu.
+ */
+function useTableLabels(root: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const label = () => {
+      el.querySelectorAll<HTMLTableElement>("table.dash-table").forEach((table) => {
+        const heads = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent?.trim() ?? "");
+        table.querySelectorAll<HTMLTableRowElement>("tbody tr").forEach((tr) => {
+          let column = 0;
+          Array.from(tr.children).forEach((cell) => {
+            const td = cell as HTMLTableCellElement;
+            const span = td.colSpan || 1;
+            const want = span > 1 ? "" : (heads[column] ?? "");
+            if (td.getAttribute("data-label") !== want) td.setAttribute("data-label", want);
+            column += span;
+          });
+        });
+      });
+    };
+    label();
+    const observer = new MutationObserver(label);
+    observer.observe(el, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [root]);
+}
+
 /** Recherche rapide : filtre la navigation, Entrée ouvre le premier résultat. */
 function QuickJump({ items, autoFocus = false, onDone }: { items: DashNavItem[]; autoFocus?: boolean; onDone?: () => void }) {
   const t = useT();
@@ -106,6 +136,8 @@ export function DashShell({
   const [drawer, setDrawer] = useState(false);
   // Téléphone : la recherche s'ouvre sur toute la largeur, sous la barre.
   const [searching, setSearching] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  useTableLabels(mainRef);
 
   useEffect(() => {
     setDrawer(false);
@@ -210,7 +242,7 @@ export function DashShell({
             )}
           </header>
 
-          <main className="px-4 pb-14 pt-7 sm:px-6 lg:px-8">{children}</main>
+          <main ref={mainRef} className="px-4 pb-14 pt-7 sm:px-6 lg:px-8">{children}</main>
         </div>
       </div>
     </div>

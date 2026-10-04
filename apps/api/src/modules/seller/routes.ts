@@ -95,6 +95,7 @@ export async function registerSellerRoutes(app: FastifyInstance) {
               basePrice: true,
               paymentMode: true,
               featuredUntil: true,
+              featuredProduct: { where: { status: "PENDING", paymentId: { not: null } }, take: 1, select: { id: true, payment: { select: { status: true } } } },
             },
           })
         : [];
@@ -149,10 +150,12 @@ export async function registerSellerRoutes(app: FastifyInstance) {
             }
           : null,
         balance: seller?.sellerBalance ?? null,
-        products: products.map((p) => ({
+        products: products.map(({ featuredProduct: featured, ...p }) => ({
           ...p,
           featuredUntil: p.featuredUntil?.toISOString() ?? null,
           isFeatured: p.featuredUntil !== null && p.featuredUntil > now,
+          // Payée (solde ou preuve Wave envoyée) : en attente de validation par l'équipe.
+          featuredPending: featured[0] ? featured[0].payment?.status !== "PENDING" : false,
         })),
         dailyRate: await featuredDailyRate(),
         minWithdrawal: await getIntSetting("minWithdrawalAmount", 1000),

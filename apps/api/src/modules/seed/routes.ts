@@ -4,6 +4,7 @@ import { sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
 import { getPublicMeta } from "../settings/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { publicUrl } from "../../lib/media.js";
+import { sellerIdentities } from "../reviews/service.js";
 
 // ---------------------------------------------------------------------------
 // GET /api/seed — une seule requête publique pour alimenter la landing.
@@ -60,6 +61,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
       const now = new Date();
       const homeSelect = {
         ...HOME_SELECT,
+        sellerId: true,
         featuredUntil: true,
         ...promoRelationSelect(now),
         images: {
@@ -120,6 +122,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         featuredUntil: Date | null;
         promotions: ReadonlyArray<{ id: string; promoPrice: number | null; discountPercent: number | null }>;
         images: ReadonlyArray<{ objectKey: string }>;
+        sellerId: string | null;
       }) => ({
         id: p.id,
         slug: p.slug,
@@ -135,11 +138,15 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         canSplit: p.installmentMonths !== null,
         isFeatured: p.featuredUntil !== null && p.featuredUntil > now,
         coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
+        seller: p.sellerId
+          ? { kind: "SELLER" as const, id: p.sellerId, name: identities.get(p.sellerId)?.name ?? "", avatarUrl: identities.get(p.sellerId)?.avatarUrl ?? null }
+          : { kind: "MISTERDOU" as const },
       });
 
       // Les offres mises en avant passent en tête de l'accueil, puis les plus récentes.
       const seen = new Set<string>();
       const products = [...boosted, ...latest].filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true))).slice(0, 6);
+      const identities = await sellerIdentities(products.map((p) => p.sellerId));
       const home = products.map(toItem);
 
       const first = home[0];

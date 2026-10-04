@@ -20,6 +20,7 @@ import {
   verifyLocalUpload,
   writeLocalMedia,
 } from "../../lib/media.js";
+import { requireTeamPassword } from "../../lib/step-up.js";
 
 // ---------------------------------------------------------------------------
 // Médias publics des offres (images, vidéos). Gérables par le vendeur
@@ -166,6 +167,8 @@ export async function registerMediaRoutes(app: FastifyInstance) {
   app.delete("/products/:id/media/:mediaId", async (request, reply) => {
     const { id, mediaId } = request.params as { id: string; mediaId: string };
     await manageable(request, id);
+    // Équipe : mot de passe exigé (un vendeur gère ses propres médias sans).
+    await requireTeamPassword(request);
     const media = await prisma.productImage.findFirst({ where: { id: mediaId, productId: id } });
     if (!media) throw notFound("Média introuvable.");
     await prisma.productImage.delete({ where: { id: mediaId } });

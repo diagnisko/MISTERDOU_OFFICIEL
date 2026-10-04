@@ -161,6 +161,18 @@ const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   CREATED: { label: "Créée", cls: "text-[var(--lux-gold-light)] border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.1)]" },
   RESOLVED: { label: "Résolue", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
   CLOSED: { label: "Fermée", cls: "text-stone-400 border-white/15 bg-white/5" },
+  // Offre
+  DRAFT: { label: "Brouillon", cls: "text-stone-400 border-white/15 bg-white/5" },
+  PENDING_REVIEW: { label: "En validation", cls: "text-[#fbbf24] border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.1)]" },
+  SOLD: { label: "Vendu", cls: "text-[#93c5fd] border-[rgba(96,165,250,0.4)] bg-[rgba(96,165,250,0.1)]" },
+  ARCHIVED: { label: "Retiré", cls: "text-stone-400 border-white/15 bg-white/5" },
+  // Promotions, mises en avant
+  SCHEDULED: { label: "Programmé", cls: "text-[#f59e0b] border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.1)]" },
+  EXPIRED: { label: "Terminé", cls: "text-stone-400 border-white/15 bg-white/5" },
+  // Compte, échéances
+  BANNED: { label: "Banni", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
+  OVERDUE: { label: "En retard", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
+  WAIVED: { label: "Annulée", cls: "text-stone-400 border-white/15 bg-white/5" },
 };
 
 export function StatusBadge({ status }: { status: string }) {

@@ -22,6 +22,8 @@ import {
   featuredDailyRate,
   listFeaturedPurchases,
   requestFeatured,
+  approveFeaturedRequest,
+  rejectFeaturedRequest,
   runPromotionJobs,
 } from "../src/modules/promotions/service.js";
 import { settlePayment } from "../src/modules/payments/service.js";
@@ -77,7 +79,7 @@ describe("Demande de mise en avant", () => {
     expect(err.message).toContain("propriétaire");
   });
 
-  it("débite le solde vendeur et active la mise en avant immédiatement", async () => {
+  it("débite le solde vendeur, attend la validation de l'équipe, puis active", async () => {
     const { owner, seller, product } = await sellerProduct({ balanceAvailable: 5_000 });
 
     const result = await requestFeatured(product.id, 5, {
@@ -86,7 +88,7 @@ describe("Demande de mise en avant", () => {
       ip: "127.0.0.1",
     });
 
-    expect(result).toMatchObject({ activated: true, amount: 1_000, days: 5, token: null });
+    expect(result).toMatchObject({ activated: false, pendingReview: true, amount: 1_000, days: 5, token: null });
     expect(result.dailyRate).toBe(200);
 
     const balance = await prisma.sellerBalance.findUniqueOrThrow({ where: { sellerId: seller.id } });
@@ -97,13 +99,20 @@ describe("Demande de mise en avant", () => {
     });
     expect(payment).toMatchObject({ type: "FEATURED", status: "SUCCESS", provider: "BALANCE", amount: 1_000 });
 
+    // Pas encore visible : l'équipe doit valider.
+    expect((await prisma.featuredProduct.findUniqueOrThrow({ where: { id: result.purchaseId } })).status).toBe("PENDING");
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).featuredUntil).toBeNull();
+
+    const admin = await createAdmin(t);
+    await approveFeaturedRequest(result.purchaseId, { actorId: admin.user.id, actorRole: "ADMIN" });
+
     const purchase = await prisma.featuredProduct.findUniqueOrThrow({ where: { id: result.purchaseId } });
     expect(purchase.status).toBe("ACTIVE");
     expect(purchase.expiresAt.getTime()).toBeGreaterThan(Date.now());
 
     const row = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
     expect(row.featuredUntil).not.toBeNull();
-    expect(result.featuredUntil).toBe(row.featuredUntil?.toISOString());
+    await expect(approveFeaturedRequest(result.purchaseId, { actorId: admin.user.id, actorRole: "ADMIN" })).rejects.toMatchObject({ code: "ALREADY_REVIEWED" });
 
     const notification = await prisma.notification.findFirst({
       where: { userId: owner.id, type: "FEATURED_ACTIVATED", createdAt: { gte: SUITE_STARTED_AT } },
@@ -114,6 +123,27 @@ describe("Demande de mise en avant", () => {
       where: { userId: owner.id, action: "FEATURED_PAID_BALANCE", resourceId: result.purchaseId },
     });
     expect(audit?.severity).toBe("WARNING");
+  });
+
+  it("un refus de l'équipe rembourse le solde et prévient le vendeur", async () => {
+    const { owner, seller, product } = await sellerProduct({ balanceAvailable: 3_000 });
+    const result = await requestFeatured(product.id, 2, { actorId: owner.id, actorRole: "VENDOR" });
+    expect((await prisma.sellerBalance.findUniqueOrThrow({ where: { sellerId: seller.id } })).balanceAvailable).toBe(2_600);
+
+    const admin = await createAdmin(t);
+    const refused = await rejectFeaturedRequest(result.purchaseId, "Vidéo floue", { actorId: admin.user.id, actorRole: "ADMIN" });
+    expect(refused.status).toBe("REFUNDED");
+    expect((await prisma.sellerBalance.findUniqueOrThrow({ where: { sellerId: seller.id } })).balanceAvailable).toBe(3_000);
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).featuredUntil).toBeNull();
+    const notice = await prisma.notification.findFirst({ where: { userId: owner.id, title: "Mise en avant refusée" }, orderBy: { createdAt: "desc" } });
+    expect(notice?.message).toContain("Vidéo floue");
+  });
+
+  it("une demande Wave sans preuve ne peut pas encore être validée", async () => {
+    const { owner, product } = await sellerProduct({ balanceAvailable: 0 });
+    const result = await requestFeatured(product.id, 1, { actorId: owner.id, actorRole: "VENDOR" });
+    const admin = await createAdmin(t);
+    await expect(approveFeaturedRequest(result.purchaseId, { actorId: admin.user.id, actorRole: "ADMIN" })).rejects.toMatchObject({ code: "AWAITING_PAYMENT" });
   });
 
   it("refuse un solde insuffisant quand le paiement par solde est imposé", async () => {

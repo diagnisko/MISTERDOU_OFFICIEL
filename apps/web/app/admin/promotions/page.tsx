@@ -11,6 +11,7 @@ import {
   ConfirmDialog,
   DataTable,
   ErrorAlert,
+  FieldModal,
   NoticeAlert,
   Pagination,
   RowAction,
@@ -26,9 +27,9 @@ import {
 // POST   /admin/promotions          (createPromotionBody : productId, title?,
 //                                    promoPrice?/discountPercent?, startsAt, endsAt)
 // POST   /admin/promotions/:id/cancel
-// GET    /admin/featured            { page, perPage }
-// Le routes file ne propose AUCUNE action approve/reject sur les mises en
-// avant : le tableau est donc en lecture seule.
+// GET    /admin/featured            { page, perPage, status?=PENDING }
+// POST   /admin/featured/:id/approve | /reject { reason }
+// Les mises en avant achetées par les vendeurs s'activent quand l'équipe les valide.
 // ---------------------------------------------------------------------------
 
 type OfferingRow = { id: string; slug: string; title: string; basePrice: number; status: string };
@@ -57,8 +58,17 @@ type FeaturedRow = {
   createdAt: string;
   product: { id: string; slug: string; title: string };
   purchasedBy: { id: string; firstName: string | null; lastName: string | null; email: string | null } | null;
-  payment: { paymentNumber: string; status: string } | null;
+  payment: { paymentNumber: string; status: string; provider: string; pendingProofId: string | null } | null;
 };
+
+/** Où en est le paiement d'une demande : ce que l'équipe doit savoir avant de valider. */
+function paymentState(row: FeaturedRow): { label: string; ready: boolean } {
+  const p = row.payment;
+  if (!p) return { label: "Offerte par l’équipe", ready: false };
+  if (p.status === "SUCCESS") return { label: p.provider === "BALANCE" ? "Payée par le solde" : "Paiement encaissé", ready: true };
+  if (p.pendingProofId) return { label: "Preuve Wave envoyée", ready: true };
+  return { label: "En attente du paiement Wave", ready: false };
+}
 
 export default function PromotionsPage() {
   const [search, setSearch] = useState("");
@@ -80,6 +90,27 @@ export default function PromotionsPage() {
   const featured = useAdminList<FeaturedRow>(
     `/api/v1/admin/featured${buildQuery({ page: featuredPage, perPage: featuredPerPage })}`,
   );
+  const requests = useAdminList<FeaturedRow>(`/api/v1/admin/featured${buildQuery({ status: "PENDING", page: 1, perPage: 50 })}`);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<FeaturedRow | null>(null);
+
+  async function approveRequest(row: FeaturedRow) {
+    setBusyId(row.id);
+    try {
+      await request(`/api/v1/admin/featured/${row.id}/approve`, { method: "POST", body: "{}" });
+      await Promise.all([requests.refresh(`Mise en avant de « ${row.product.title} » validée.`), featured.refresh()]);
+    } catch (err) {
+      requests.setError(err);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function rejectRequest(row: FeaturedRow, reason: string) {
+    await request(`/api/v1/admin/featured/${row.id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+    setRejectTarget(null);
+    await Promise.all([requests.refresh("Demande refusée, le vendeur est prévenu."), featured.refresh()]);
+  }
 
   async function createPromotion(payload: unknown) {
     await request("/api/v1/admin/promotions", { method: "POST", body: JSON.stringify(payload) });
@@ -101,7 +132,7 @@ export default function PromotionsPage() {
       <AdminPageHead
         kicker="Visibilité"
         title="Promotions"
-        meta="Baisses de prix datées sur les offres MISTERDOU. Les vendeurs mettent leurs offres en avant eux-mêmes par forfait : activation au paiement, fin automatique ; l’historique est ci-dessous, en lecture seule."
+        meta="Baisses de prix datées sur les offres MISTERDOU, et validation des mises en avant achetées par les vendeurs."
         action={
           <>
             <Button variant="outline" loading={promos.refreshing} onClick={() => void promos.refresh()}>
@@ -115,7 +146,79 @@ export default function PromotionsPage() {
       <ErrorAlert error={promos.error} />
       <NoticeAlert notice={promos.notice} />
 
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+      {/* Demandes des vendeurs : rien n'est visible avant la validation de l'équipe. */}
+      <section className="mt-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="lux-kicker">Mises en avant à valider</p>
+            <p className="mt-2 max-w-2xl text-sm text-stone-400">
+              Le vendeur a choisi son offre et sa durée, puis payé. Vérifiez l’offre (et la preuve Wave le cas échéant) :
+              la mise en avant démarre à votre validation. Un refus rembourse le solde du vendeur.
+            </p>
+          </div>
+          <Button variant="outline" loading={requests.refreshing} onClick={() => void requests.refresh()}>
+            Actualiser
+          </Button>
+        </div>
+        <ErrorAlert error={requests.error} />
+        <NoticeAlert notice={requests.notice} />
+        {requests.loading ? (
+          <TableCard>
+            <TableLoading label="Chargement des demandes…" />
+          </TableCard>
+        ) : requests.items.length === 0 ? (
+          <TableCard>
+            <TableEmpty label="Aucune demande en attente." />
+          </TableCard>
+        ) : (
+          <ul className="mt-5 grid gap-3 md:grid-cols-2">
+            {requests.items.map((row) => {
+              const state = paymentState(row);
+              const seller = [row.purchasedBy?.firstName, row.purchasedBy?.lastName].filter(Boolean).join(" ") || row.purchasedBy?.email || "Vendeur";
+              return (
+                <li key={row.id} className="dash-card p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <a href={`/catalogue/${row.product.slug}`} target="_blank" rel="noopener noreferrer" className="block truncate text-[15px] font-semibold text-white hover:text-[#ffb08a]">
+                        {row.product.title}
+                      </a>
+                      <p className="mt-0.5 truncate text-[12px] text-[#8f7d77]">{seller}</p>
+                    </div>
+                    <p className="shrink-0 text-right">
+                      <span className="block text-[17px] font-semibold tabular-nums text-white">{formatXof(Number(row.totalPaid))}</span>
+                      <span className="text-[12px] text-[#b8a6a1]">{row.days} jour{row.days > 1 ? "s" : ""}</span>
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
+                    <span className={`dash-pill ${state.ready ? "dash-pill-paid" : "dash-pill-due"}`}>{state.label}</span>
+                    {row.payment?.pendingProofId && (
+                      <a
+                        href={`/api/v1/admin/payment-proofs/${row.payment.pendingProofId}/file`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#ff8a5c] hover:underline"
+                      >
+                        Voir la capture Wave
+                      </a>
+                    )}
+                    <span className="text-[#6f5f5a]">· demandé le {new Date(row.createdAt).toLocaleDateString("fr-FR")}</span>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button className="flex-1" loading={busyId === row.id} disabled={!state.ready || busyId !== null} onClick={() => void approveRequest(row)}>
+                      Valider
+                    </Button>
+                    <Button variant="outline" className="flex-1" disabled={busyId !== null} onClick={() => setRejectTarget(row)}>
+                      Refuser
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <div className="mt-12 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="lux-kicker">Promotions</p>
           <p className="mt-2 text-sm text-stone-400">Recherche par titre de promo ou offre associée.</p>
@@ -175,12 +278,11 @@ export default function PromotionsPage() {
         }}
       />
 
-      <div className="mt-10 flex flex-wrap items-end justify-between gap-3">
+
+      <div className="mt-12 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="lux-kicker">Mises en avant</p>
-          <p className="mt-2 text-sm text-stone-400">
-            Forfaits achetés par les vendeurs : ils s’activent au paiement et prennent fin d’eux-mêmes.
-          </p>
+          <p className="lux-kicker">Historique des mises en avant</p>
+          <p className="mt-2 text-sm text-stone-400">Toutes les demandes, validées, refusées ou terminées.</p>
         </div>
         <Button variant="outline" loading={featured.refreshing} onClick={() => void featured.refresh()}>
           Actualiser
@@ -206,11 +308,12 @@ export default function PromotionsPage() {
                 <td className="px-4 py-3.5">
                   <StatusBadge status={row.status} />
                 </td>
+                {/* Une demande pas encore validée n'a pas de dates réelles. */}
                 <td className="whitespace-nowrap px-4 py-3.5 text-stone-400">
-                  {new Date(row.startedAt).toLocaleDateString("fr-FR")}
+                  {row.status === "PENDING" ? "—" : new Date(row.startedAt).toLocaleDateString("fr-FR")}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3.5 text-stone-400">
-                  {new Date(row.expiresAt).toLocaleDateString("fr-FR")}
+                  {row.status === "PENDING" ? "—" : new Date(row.expiresAt).toLocaleDateString("fr-FR")}
                 </td>
               </tr>
             ))}
@@ -228,6 +331,19 @@ export default function PromotionsPage() {
       />
 
       {createOpen && <CreatePromotionModal onClose={() => setCreateOpen(false)} onSubmit={createPromotion} />}
+
+      {rejectTarget && (
+        <FieldModal
+          title="Refuser la mise en avant"
+          label="Motif communiqué au vendeur"
+          placeholder="Ex. : photos de l’offre trompeuses"
+          minLength={3}
+          maxLength={300}
+          submitLabel="Refuser"
+          onClose={() => setRejectTarget(null)}
+          onSubmit={(reason) => rejectRequest(rejectTarget, reason)}
+        />
+      )}
 
       {cancelTarget && (
         <ConfirmDialog

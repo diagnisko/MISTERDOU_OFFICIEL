@@ -4,6 +4,7 @@ import type { RoleName } from "@misterdou/db";
 import { conflict, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
+import { publicUrl } from "../../lib/media.js";
 
 // ---------------------------------------------------------------------------
 // Avis clients et réputation des vendeurs.
@@ -36,6 +37,31 @@ const SOLD_STATUSES = ["DELIVERED", "COMPLETED"] as const;
 /** Code public court d'un vendeur (ex. « V-3F9A2C ») : jamais son nom. */
 export function sellerCode(sellerId: string): string {
   return `V-${sellerId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+}
+
+export type SellerIdentity = { name: string; avatarUrl: string | null };
+
+/**
+ * Nom public d'un vendeur : prénom + initiale du nom (« Moussa D. »), et la
+ * photo de son profil. Le nom complet, l'e-mail et le téléphone restent privés.
+ */
+export async function sellerIdentities(sellerIds: Array<string | null | undefined>): Promise<Map<string, SellerIdentity>> {
+  const ids = [...new Set(sellerIds.filter((id): id is string => Boolean(id)))];
+  const out = new Map<string, SellerIdentity>();
+  if (ids.length === 0) return out;
+  const rows = await prisma.seller.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, user: { select: { firstName: true, lastName: true, avatarKey: true } } },
+  });
+  for (const r of rows) {
+    const first = r.user.firstName?.trim();
+    const initial = r.user.lastName?.trim()[0];
+    out.set(r.id, {
+      name: first ? (initial ? `${first} ${initial.toUpperCase()}.` : first) : sellerCode(r.id),
+      avatarUrl: r.user.avatarKey ? publicUrl(r.user.avatarKey) : null,
+    });
+  }
+  return out;
 }
 
 /** Réputation de plusieurs vendeurs en 4 requêtes groupées (null = MISTERDOU). */
@@ -155,7 +181,7 @@ export async function submitReview(orderId: string, input: ReviewInput, ctx: { a
 export async function sellerPublicProfile(sellerId: string) {
   const seller = await prisma.seller.findFirst({ where: { id: sellerId, status: "ACTIVE" }, select: { id: true } });
   if (!seller) throw notFound("Vendeur introuvable.");
-  const [rep, reviews] = await Promise.all([
+  const [rep, reviews, identity] = await Promise.all([
     reputations([seller.id]),
     prisma.productReview.findMany({
       where: { product: { sellerId: seller.id } },
@@ -163,10 +189,13 @@ export async function sellerPublicProfile(sellerId: string) {
       take: 20,
       select: { rating: true, comment: true, createdAt: true, user: { select: { firstName: true, lastName: true } } },
     }),
+    sellerIdentities([seller.id]),
   ]);
   return {
     id: seller.id,
     code: sellerCode(seller.id),
+    name: identity.get(seller.id)?.name ?? sellerCode(seller.id),
+    avatarUrl: identity.get(seller.id)?.avatarUrl ?? null,
     ...(rep.get(seller.id) ?? { rating: null, reviewCount: 0, sales: 0, since: null }),
     reviews: reviews.map((r) => ({
       rating: r.rating,

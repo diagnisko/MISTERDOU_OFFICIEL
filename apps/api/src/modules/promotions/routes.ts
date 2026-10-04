@@ -7,6 +7,8 @@ import { requirePermission, requireAuth } from "../../lib/auth-context.js";
 import {
   FEATURED_MAX_DAYS,
   adminFeature,
+  approveFeaturedRequest,
+  rejectFeaturedRequest,
   cancelPromotion,
   createPromotion,
   featuredDailyRate,
@@ -52,8 +54,31 @@ export async function registerPromotionRoutes(app: FastifyInstance) {
     async (request, reply) => {
       await requirePermission(request, "PRODUCTS");
       const { page, perPage } = pageQuery.parse(request.query);
-      const { items, total } = await listFeaturedPurchases({ page, perPage });
+      const pending = (request.query as { status?: string }).status === "PENDING";
+      const { items, total } = await listFeaturedPurchases({ page, perPage, pending });
       return sendOk(reply, items, { page, perPage, total });
+    },
+  );
+
+  // --- Demandes de mise en avant des vendeurs : validation par l'équipe ---
+  app.post(
+    "/admin/featured/:id/approve",
+    { schema: { tags: ["Admin"], summary: "Valider une mise en avant", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      const auth = await requirePermission(request, "PRODUCTS");
+      const { id } = request.params as { id: string };
+      return sendOk(reply, await approveFeaturedRequest(id, { actorId: auth.user.id, actorRole: auth.user.role?.name, ip: request.ip }));
+    },
+  );
+  app.post(
+    "/admin/featured/:id/reject",
+    { schema: { tags: ["Admin"], summary: "Refuser une mise en avant", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      const auth = await requirePermission(request, "PRODUCTS");
+      const { id } = request.params as { id: string };
+      const parsed = z.object({ reason: z.string().trim().min(3).max(300) }).safeParse(request.body);
+      if (!parsed.success) throw badRequest("VALIDATION_ERROR", "Indiquez le motif du refus (3 caractères minimum).");
+      return sendOk(reply, await rejectFeaturedRequest(id, parsed.data.reason, { actorId: auth.user.id, actorRole: auth.user.role?.name, ip: request.ip }));
     },
   );
 

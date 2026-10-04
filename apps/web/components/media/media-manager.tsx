@@ -5,6 +5,7 @@ import { ApiClientError, request } from "@/lib/api";
 import { putFile } from "@/lib/upload";
 import { useT } from "@/lib/i18n";
 import { documentLocale, translate } from "@/lib/i18n-core";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
 // Médias publics d'une offre (captures, vidéos). Envoi direct vers le bucket
@@ -30,7 +31,7 @@ function mb(bytes: number) {
   return translate(documentLocale(), "media.mb", { n: Math.round(bytes / 1024 / 1024) });
 }
 
-export function MediaManager({ productId }: { productId: string }) {
+export function MediaManager({ productId, team = false }: { productId: string; team?: boolean }) {
   const t = useT();
   const [items, setItems] = useState<Media[]>([]);
   const [limits, setLimits] = useState<Limits | null>(null);
@@ -98,13 +99,22 @@ export function MediaManager({ productId }: { productId: string }) {
     }
   }
 
-  async function remove(id: string) {
-    if (!window.confirm(t("media.confirmDelete"))) return;
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  async function remove(id: string, password?: string) {
+    if (team && password === undefined) {
+      setConfirmId(id);
+      return;
+    }
+    if (!team && !window.confirm(t("media.confirmDelete"))) return;
     setBusyId(id);
     try {
-      await request(`/api/v1/products/${productId}/media/${id}`, { method: "DELETE", body: JSON.stringify({}) });
+      await request(`/api/v1/products/${productId}/media/${id}`, { method: "DELETE", body: JSON.stringify(password ? { password } : {}) });
+      setConfirmId(null);
       await load();
     } catch (err) {
+      // Équipe : l'erreur (mot de passe faux…) s'affiche dans la fenêtre de confirmation.
+      if (team) throw err;
       setError(err instanceof ApiClientError ? err.message : t("media.deleteFailed"));
     } finally {
       setBusyId(null);
@@ -208,6 +218,14 @@ export function MediaManager({ productId }: { productId: string }) {
             </li>
           ))}
         </ul>
+      )}
+      {confirmId && (
+        <PasswordConfirmDialog
+          title="Supprimer ce média"
+          message="La photo ou la vidéo est retirée de l’offre et effacée du stockage."
+          onClose={() => setConfirmId(null)}
+          onConfirm={(password) => remove(confirmId, password)}
+        />
       )}
     </div>
   );

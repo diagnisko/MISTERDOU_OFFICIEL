@@ -159,6 +159,9 @@ export const fr = {
   "cat.howLink": "Comment ça marche ?",
   "monthly.howTitle": "Comment se passe le paiement en mensualités",
   "chat.browseOffers": "Voir les offres",
+  "card.sellerLink": "Voir la page de {name}",
+  "sellerp.verified": "Vendeur vérifié",
+  "sellerp.official": "Boutique officielle",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -311,6 +314,9 @@ export const en: Translations<typeof fr> = {
   "cat.howLink": "How does it work?",
   "monthly.howTitle": "How paying monthly works",
   "chat.browseOffers": "Browse offers",
+  "card.sellerLink": "View {name}'s page",
+  "sellerp.verified": "Verified seller",
+  "sellerp.official": "Official store",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -463,4 +469,7 @@ export const ar: Translations<typeof fr> = {
   "cat.howLink": "كيف يعمل؟",
   "monthly.howTitle": "كيف يتم الدفع بالتقسيط",
   "chat.browseOffers": "تصفح العروض",
+  "card.sellerLink": "عرض صفحة {name}",
+  "sellerp.verified": "بائع موثّق",
+  "sellerp.official": "المتجر الرسمي",
 };

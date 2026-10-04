@@ -18,12 +18,12 @@ import {
   IconSparkle,
   IconStar,
 } from "@/components/lux/lux-icons";
-import { divisionTier, formatFcfa, formatInt, tierTileClass } from "@/lib/lux";
+import { divisionTier, formatFcfa, formatInt } from "@/lib/lux";
 import { ApiClientError, request } from "@/lib/api";
 import { useAccount } from "@/lib/account";
 import { createOrder } from "@/lib/orders";
 import { SellerChatBox } from "@/components/chat/seller-chat-box";
-import { SellerBadge } from "@/components/lux/lux-seller-badge";
+import { SellerBadge, SellerChip, toCardSeller } from "@/components/lux/lux-seller-badge";
 import { useT, type MessageKey } from "@/lib/i18n";
 
 // Un vendeur qui ouvre sa propre offre : pas d'achat ni de discussion avec lui-même.
@@ -306,10 +306,7 @@ function DetailHub() {
         <div className="grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-start">
           {item.media && item.media.length > 0 ? (
             <Gallery media={item.media} title={item.title} badges={<>
-                <span className="lux-glass-chip pointer-events-none absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
-                  <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
-                  {t(`tier.${tier}` as MessageKey)}
-                </span>
+                <SellerChip seller={toCardSeller(item.seller)} className="left-5 top-5" />
                 {item.isFeatured && (
                   <span className="pointer-events-none absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
                     <IconSparkle className="h-3 w-3" aria-hidden />
@@ -325,10 +322,7 @@ function DetailHub() {
                 background: `radial-gradient(120% 100% at 70% 0%, ${glow}, transparent 56%), radial-gradient(150% 120% at 18% 100%, rgba(232,71,36,0.1), transparent 58%), linear-gradient(180deg, var(--lux-surface-2), var(--lux-surface))`,
               }}
             >
-              <span className="lux-glass-chip absolute left-5 top-5 flex items-center gap-2 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-stone-300">
-                <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
-                {t(`tier.${tier}` as MessageKey)}
-              </span>
+              <SellerChip seller={toCardSeller(item.seller)} className="left-5 top-5" />
               {item.isFeatured && (
                 <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
                   <IconSparkle className="h-3 w-3" aria-hidden />

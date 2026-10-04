@@ -153,7 +153,7 @@ export const fr = {
   "sellermsg.title": "Discussions clients",
   "sellermsg.lead": "Les questions des acheteurs sur vos comptes. L’équipe MISTERDOU peut aussi répondre à votre place.",
   "sellermsg.empty": "Aucune question pour l’instant. Elles apparaîtront ici dès qu’un client vous écrit.",
-  "seller.autoNote": "Le forfait s’active dès le paiement : votre offre passe en tête. À la fin, elle reprend sa place d’elle-même.",
+  "seller.autoNote": "Après le paiement, l’équipe MISTERDOU vérifie et valide votre demande : la mise en avant démarre à ce moment-là, puis s’arrête d’elle-même à la fin. En cas de refus, votre solde est remboursé.",
   "offer.newTitle": "Nouvelle offre",
   "offer.newLead": "Votre offre est publiée dès l’enregistrement, visible par tous les clients. Vous ajouterez ensuite photos et vidéos.",
   "offer.editTitle": "Modifier l’offre",
@@ -204,6 +204,8 @@ export const fr = {
   "wd.cancel": "Annuler",
   "wd.confirming": "Confirmation…",
   "wd.disputed": "Vous avez signalé ne pas avoir reçu cet argent : l’équipe vérifie. Confirmez dès qu’il arrive.",
+  "seller.featurePending": "Demande envoyée : {amount} réservés sur votre solde. La mise en avant démarrera dès que l’équipe l’aura validée.",
+  "seller.inReview": "En validation",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -353,7 +355,7 @@ export const en: Translations<typeof fr> = {
   "sellermsg.title": "Customer conversations",
   "sellermsg.lead": "Buyers’ questions about your accounts. The MISTERDOU team can also answer on your behalf.",
   "sellermsg.empty": "No questions yet. They’ll appear here as soon as a customer writes to you.",
-  "seller.autoNote": "The package starts as soon as it is paid: your offer moves to the top. When it ends, the offer returns to its place on its own.",
+  "seller.autoNote": "After payment, the MISTERDOU team checks and approves your request: the feature starts then and ends on its own. If it is refused, your balance is refunded.",
   "offer.newTitle": "New offer",
   "offer.newLead": "Your offer is published as soon as you save it, visible to every customer. You will then add photos and videos.",
   "offer.editTitle": "Edit offer",
@@ -404,6 +406,8 @@ export const en: Translations<typeof fr> = {
   "wd.cancel": "Cancel",
   "wd.confirming": "Confirming…",
   "wd.disputed": "You reported not receiving this money: the team is checking. Confirm as soon as it arrives.",
+  "seller.featurePending": "Request sent: {amount} held from your balance. The feature starts as soon as the team approves it.",
+  "seller.inReview": "Under review",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -553,7 +557,7 @@ export const ar: Translations<typeof fr> = {
   "sellermsg.title": "محادثات العملاء",
   "sellermsg.lead": "أسئلة المشترين حول حساباتك. يمكن لفريق MISTERDOU أيضًا الرد نيابةً عنك.",
   "sellermsg.empty": "لا توجد أسئلة بعد. ستظهر هنا فور مراسلة أحد العملاء لك.",
-  "seller.autoNote": "تُفعَّل الباقة فور الدفع: ينتقل عرضك إلى الأعلى. وعند انتهائها يعود إلى مكانه تلقائيًا.",
+  "seller.autoNote": "بعد الدفع، يراجع فريق MISTERDOU طلبك ويوافق عليه: يبدأ التمييز عندها وينتهي تلقائيًا. في حال الرفض يُعاد المبلغ إلى رصيدك.",
   "offer.newTitle": "عرض جديد",
   "offer.newLead": "يُنشر عرضك فور الحفظ ويراه جميع العملاء. بعد ذلك تضيف الصور ومقاطع الفيديو.",
   "offer.editTitle": "تعديل العرض",
@@ -604,4 +608,6 @@ export const ar: Translations<typeof fr> = {
   "wd.cancel": "إلغاء",
   "wd.confirming": "جارٍ التأكيد…",
   "wd.disputed": "أبلغت بعدم استلام هذا المبلغ: الفريق يتحقق. أكّد الاستلام فور وصوله.",
+  "seller.featurePending": "تم إرسال الطلب: حُجز {amount} من رصيدك. يبدأ التمييز فور موافقة الفريق.",
+  "seller.inReview": "قيد المراجعة",
 };

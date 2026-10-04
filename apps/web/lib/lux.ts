@@ -38,6 +38,9 @@ export interface LuxProduct {
 }
 
 // Carte produit partagée (landing + catalogue).
+/** Qui vend : MISTERDOU, ou un vendeur (prénom + initiale, photo de profil). */
+export type CardSeller = { kind: "MISTERDOU" } | { kind: "SELLER"; id: string; name: string; avatarUrl: string | null };
+
 export interface LuxCardData {
   id: string;
   slug: string;
@@ -55,6 +58,7 @@ export interface LuxCardData {
   avgRating?: number | null;
   /** Image de couverture (bucket public) ; absente → visuel dégradé par division. */
   coverUrl?: string | null;
+  seller?: CardSeller;
 }
 
 export interface LuxSeed {

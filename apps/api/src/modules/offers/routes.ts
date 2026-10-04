@@ -13,6 +13,7 @@ import {
   updateOfferSchema,
   type OfferActor,
 } from "./service.js";
+import { requireTeamPassword } from "../../lib/step-up.js";
 
 function actor(request: FastifyRequest): OfferActor {
   const auth = requireAuth(request);
@@ -71,6 +72,7 @@ export async function registerOfferRoutes(app: FastifyInstance) {
 
   app.delete("/admin/offerings/:id", limited, async (request, reply) => {
     await requirePermission(request, "PRODUCTS");
+    await requireTeamPassword(request);
     const { id } = request.params as { id: string };
     return sendOk(reply, await removeOffer(id, team, actor(request)));
   });

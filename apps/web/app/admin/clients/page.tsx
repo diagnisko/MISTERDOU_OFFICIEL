@@ -5,6 +5,7 @@ import { errorMessage, request } from "@/lib/api";
 import { Alert, Button } from "@/components/ui";
 import { buildQuery } from "../_lib/api";
 import { MemberDossierModal } from "../_lib/member-dossier";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
 import { useAdminList } from "../_lib/hooks";
 import {
   AdminModal,
@@ -61,6 +62,13 @@ export default function ClientsPage() {
   const [resetLink, setResetLink] = useState<{ email: string; link: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState<ClientRow | null>(null);
+
+  async function deleteClient(row: ClientRow, password: string) {
+    await request(`/api/v1/admin/clients/${row.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
+    setDeleting(null);
+    await list.refresh("Compte supprimé : données personnelles effacées, sessions coupées.");
+  }
 
   // Mot de passe oublié sans e-mail : lien (30 min) à envoyer au client (WhatsApp…).
   async function createResetLink(row: ClientRow) {
@@ -150,7 +158,6 @@ export default function ClientsPage() {
                   ))}
                   <td className="flex gap-2 px-4 py-3.5">
                     <RowAction label="Voir la fiche" tone="muted" onClick={() => setViewing(row.id)} />
-                    <RowAction label="Lien mot de passe" tone="muted" busy={busy === row.id} onClick={() => void createResetLink(row)} />
                     <RowAction
                       label={status === "ACTIVE" ? "Suspendre" : "Réactiver"}
                       busy={busy === row.id}
@@ -158,6 +165,7 @@ export default function ClientsPage() {
                         setTarget({ row, next: status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })
                       }
                     />
+                    <RowAction label="Supprimer" tone="danger" onClick={() => setDeleting(row)} />
                   </td>
                 </tr>
               );
@@ -209,7 +217,41 @@ export default function ClientsPage() {
           </div>
         </AdminModal>
       )}
-      {viewing && <MemberDossierModal url={`/api/v1/admin/clients/${viewing}`} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <MemberDossierModal
+          url={`/api/v1/admin/clients/${viewing}`}
+          onClose={() => setViewing(null)}
+          actions={
+            (() => {
+              const row = list.items.find((item) => item.id === viewing);
+              return row ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="max-w-sm text-[12px] leading-relaxed text-[#8f7d77]">
+                    Mot de passe oublié ? Créez un lien à lui envoyer (WhatsApp, e-mail) : valable 30 minutes, une seule fois.
+                  </p>
+                  <Button variant="outline" loading={busy === row.id} onClick={() => void createResetLink(row)}>
+                    Lien de nouveau mot de passe
+                  </Button>
+                </div>
+              ) : null;
+            })()
+          }
+        />
+      )}
+      {deleting && (
+        <PasswordConfirmDialog
+          title="Supprimer ce compte"
+          message={
+            <>
+              Le compte <strong className="text-stone-100">{String((deleting as unknown as Record<string, unknown>).email ?? "")}</strong> sera
+              anonymisé : nom, e-mail, téléphone, photo et accès effacés, sessions coupées, offres retirées s’il vend. Ses commandes
+              passées restent pour la comptabilité. Impossible si une commande, un retrait ou un solde est en cours.
+            </>
+          }
+          onClose={() => setDeleting(null)}
+          onConfirm={(password) => deleteClient(deleting, password)}
+        />
+      )}
     </>
   );
 }

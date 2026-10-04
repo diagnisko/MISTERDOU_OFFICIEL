@@ -7,6 +7,7 @@ import { ApiClientError, request } from "@/lib/api";
 import { Alert, Spinner } from "@/components/ui";
 import { OfferForm, type EditableOffer } from "@/components/offers/offer-form";
 import { AdminPageHead } from "../../_lib/ui";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // Modifier ou retirer une offre MISTERDOU. Les offres des vendeurs restent
 // les leurs : la console ne peut que les désactiver.
@@ -23,17 +24,10 @@ export default function EditAdminOfferPage() {
       .catch((err: unknown) => setError(err instanceof ApiClientError ? err.message : "Offre introuvable."));
   }, [id]);
 
-  async function remove() {
-    if (!window.confirm("Retirer cette offre du site ?")) return;
-    setRemoving(true);
-    setError(null);
-    try {
-      await request(`/api/v1/admin/offerings/${id}`, { method: "DELETE", body: JSON.stringify({}) });
-      router.push("/admin/offers");
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Retrait impossible.");
-      setRemoving(false);
-    }
+  async function remove(password: string) {
+    await request(`/api/v1/admin/offerings/${id}`, { method: "DELETE", body: JSON.stringify({ password }) });
+    setRemoving(false);
+    router.push("/admin/offers");
   }
 
   return (
@@ -60,13 +54,22 @@ export default function EditAdminOfferPage() {
             <div className="dash-card p-5">
               <h2 className="text-[15px] font-semibold text-white">Retirer l’offre</h2>
               <p className="mb-4 mt-1 text-[12px] text-[#8f7d77]">Elle disparaît du site. Impossible pendant un achat en cours.</p>
-              <button type="button" onClick={() => void remove()} disabled={removing} className="dash-btn dash-btn-ghost !text-[#fca5a5] disabled:opacity-60">
-                {removing && <Spinner />} Retirer l’offre
+              <button type="button" onClick={() => setRemoving(true)} className="dash-btn dash-btn-ghost !text-[#fca5a5]">
+                Retirer l’offre
               </button>
             </div>
           </>
         )}
       </div>
+      {removing && offer && (
+        <PasswordConfirmDialog
+          title="Retirer cette offre"
+          message="Elle disparaît du site. Impossible pendant un achat en cours."
+          confirmLabel="Retirer l’offre"
+          onClose={() => setRemoving(false)}
+          onConfirm={remove}
+        />
+      )}
     </>
   );
 }

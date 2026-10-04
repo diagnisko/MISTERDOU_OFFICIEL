@@ -164,7 +164,7 @@ export default function OffersPage() {
 
       {media && (
         <AdminModal title={`Médias — ${media.title}`} onClose={() => setMedia(null)} width="max-w-2xl">
-          <MediaManager productId={media.id} />
+          <MediaManager productId={media.id} team />
         </AdminModal>
       )}
 

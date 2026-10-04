@@ -232,7 +232,7 @@ export default function PlansPage() {
                           Échéancier — {plan.order.orderNumber} · {plan.order.paymentMode}
                         </p>
                         <div className="dash-scroll mt-3 overflow-x-auto">
-                          <table className="w-full min-w-[640px] border-collapse text-left text-xs">
+                          <table className="dash-table w-full min-w-[640px] border-collapse text-left text-xs">
                             <thead className="text-[9px] uppercase tracking-[0.14em] text-stone-500">
                               <tr>
                                 <th className="px-3 py-2 font-semibold">#</th>

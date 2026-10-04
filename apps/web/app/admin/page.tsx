@@ -16,7 +16,7 @@ import {
 } from "@/components/dash/dash-icons";
 import { buildQuery, errorMessage } from "./_lib/api";
 import { useAdminList } from "./_lib/hooks";
-import { AdminModal, ErrorAlert } from "./_lib/ui";
+import { AdminModal, ErrorAlert, PAYMENT_TYPE_LABELS } from "./_lib/ui";
 
 // ---------------------------------------------------------------------------
 // Vue d'ensemble — GET /admin/finance (STATS) + GET /admin/receivables
@@ -97,13 +97,7 @@ const STATE_PILL: Record<MonthState, string> = {
   NONE: "dash-pill-none",
 };
 
-const PAYMENT_TYPE: Record<string, string> = {
-  ORDER_PAYMENT: "Achat",
-  INITIAL_INSTALLMENT: "Apport",
-  INSTALLMENT: "Mensualité",
-  SELLER_REGISTRATION: "Frais vendeur",
-  FEATURED: "Mise en avant",
-};
+const PAYMENT_TYPE = PAYMENT_TYPE_LABELS;
 
 function monthLabel(key: string) {
   const [y, m] = key.split("-").map(Number);

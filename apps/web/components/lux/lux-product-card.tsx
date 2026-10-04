@@ -4,8 +4,9 @@ import { motion, useReducedMotion, type Variants } from "motion/react";
 import Link from "next/link";
 import { cx, LUX_EASE } from "./lux-fx";
 import { IconArrowRight, IconCoins, IconDiamond, IconSparkle, IconStar } from "./lux-icons";
-import { divisionTier, formatFcfa, formatInt, tierTileClass, type LuxCardData } from "@/lib/lux";
-import { useT, type MessageKey } from "@/lib/i18n";
+import { divisionTier, formatFcfa, formatInt, type LuxCardData } from "@/lib/lux";
+import { useT } from "@/lib/i18n";
+import { SellerChip } from "./lux-seller-badge";
 
 const CARD: Variants = {
   hidden: { opacity: 0, y: 40 },
@@ -35,7 +36,6 @@ export function ProductCard({
   const t = useT();
   const tier = divisionTier(product.division);
   const reduce = useReducedMotion(); // (réservé : pause anim, traité par animateIn)
-  const tierClass = tierTileClass(tier);
   const glow = TIER_GLOW[tier] ?? TIER_GLOW.bronze; // teinte du dégradé du visuel
   const distFromCenter = Math.min(Math.abs(index - 2), Math.abs(index - 3));
   const delay = animateIn ? 0.04 + distFromCenter * 0.07 : 0;
@@ -47,7 +47,7 @@ export function ProductCard({
       initial={animateIn ? undefined : false}
       animate={animateIn ? undefined : "show"}
       transition={{ delay }}
-      className="lux-card group/card overflow-hidden rounded-[24px]"
+      className="lux-card group/card relative overflow-hidden rounded-[24px]"
     >
       <Link href={detailHref} className="block" aria-label={t("card.viewLabel", { title: product.title })} legacyBehavior={false}>
         {/* Visuel : dégradé radial teinté par division */}
@@ -70,13 +70,6 @@ export function ProductCard({
               <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,3,3,0.45)_0%,transparent_32%,rgba(5,3,3,0.88)_100%)]" />
             </>
           )}
-          {/* tuile division 6×6 — usage exclusif */}
-          <span className="absolute left-4 top-4 flex items-center gap-2.5">
-            <span className={cx("lux-div-tile", tierTileClass(tier))} aria-hidden />
-            <span className="lux-glass-chip px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-stone-300">
-              {t(`tier.${tier}` as MessageKey)}
-            </span>
-          </span>
           {product.isFeatured && (
             <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1a0503] shadow-lg">
               <IconSparkle className="h-3 w-3" aria-hidden />
@@ -100,6 +93,9 @@ export function ProductCard({
           <h3 className="text-[16px] font-semibold leading-snug text-stone-100">{product.title}</h3>
         </div>
       </Link>
+
+      {/* Hors du lien de la carte (pas de lien dans un lien) : mène à la page du vendeur. */}
+      <SellerChip seller={product.seller ?? { kind: "MISTERDOU" }} className="left-4 top-4" />
 
       <div className="flex flex-col gap-3 p-5">
         {typeof product.avgRating === "number" && product.avgRating > 0 && (

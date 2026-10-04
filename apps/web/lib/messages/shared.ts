@@ -207,6 +207,15 @@ export const fr = {
   "nav.back": "Retour",
   "sup.guestTitle": "Suivre vos demandes",
   "sup.guestBody": "Connectez-vous pour écrire à l’équipe depuis le site et retrouver toutes vos demandes au même endroit. Sans compte, WhatsApp et l’e-mail ci-dessus restent à votre disposition.",
+  "badge.DRAFT": "Brouillon",
+  "badge.PENDING_REVIEW": "En validation",
+  "badge.SOLD": "Vendu",
+  "badge.ARCHIVED": "Retiré",
+  "badge.EXPIRED": "Terminé",
+  "badge.SCHEDULED": "Programmé",
+  "badge.BANNED": "Banni",
+  "badge.OVERDUE": "En retard",
+  "badge.WAIVED": "Annulée",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -415,6 +424,15 @@ export const en: Translations<typeof fr> = {
   "nav.back": "Back",
   "sup.guestTitle": "Track your requests",
   "sup.guestBody": "Sign in to message the team from the site and keep all your requests in one place. Without an account, WhatsApp and email above are still available.",
+  "badge.DRAFT": "Draft",
+  "badge.PENDING_REVIEW": "Under review",
+  "badge.SOLD": "Sold",
+  "badge.ARCHIVED": "Withdrawn",
+  "badge.EXPIRED": "Ended",
+  "badge.SCHEDULED": "Scheduled",
+  "badge.BANNED": "Banned",
+  "badge.OVERDUE": "Overdue",
+  "badge.WAIVED": "Waived",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -623,4 +641,13 @@ export const ar: Translations<typeof fr> = {
   "nav.back": "رجوع",
   "sup.guestTitle": "متابعة طلباتك",
   "sup.guestBody": "سجّل الدخول لمراسلة الفريق من الموقع ومتابعة كل طلباتك في مكان واحد. بدون حساب، يبقى واتساب والبريد الإلكتروني أعلاه متاحين.",
+  "badge.DRAFT": "مسودة",
+  "badge.PENDING_REVIEW": "قيد المراجعة",
+  "badge.SOLD": "مُباع",
+  "badge.ARCHIVED": "مسحوب",
+  "badge.EXPIRED": "منتهٍ",
+  "badge.SCHEDULED": "مجدول",
+  "badge.BANNED": "محظور",
+  "badge.OVERDUE": "متأخر",
+  "badge.WAIVED": "مُعفاة",
 };

@@ -3,7 +3,8 @@ import { prisma } from "@misterdou/db";
 import type { Prisma, PromotionStatus, RoleName } from "@misterdou/db";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyMany, notifyUser } from "../../lib/notify.js";
+import { notifyMany, notifyTeam, notifyUser } from "../../lib/notify.js";
+import { approvePaymentProof, rejectPaymentProof } from "../payments/proofs.js";
 import { logger } from "../../lib/logger.js";
 import { getIntSetting } from "../settings/service.js";
 
@@ -203,8 +204,10 @@ export type FeaturedPaymentMethod = "AUTO" | "BALANCE" | "WAVE";
 
 export interface RequestFeaturedResult {
   purchaseId: string;
-  /** true = déjà activée (débit solde) ; false = paiement Wave à finaliser. */
+  /** Toujours false : une mise en avant s'active quand l'équipe la valide. */
   activated: boolean;
+  /** true = payée (solde), en attente de validation ; false = paiement Wave à finaliser. */
+  pendingReview: boolean;
   amount: number;
   days: number;
   dailyRate: number;
@@ -286,9 +289,14 @@ export async function requestFeatured(
           },
           select: { id: true },
         });
-        // Même chemin qu'un paiement Wave validé : prolongation + statut + notification.
-        await activateFeatured(tx, { id: payment.id, userId: ctx.actorId });
+        // Pas d'activation ici : l'équipe valide la demande (page Promotions).
         return { purchaseId: purchase.id };
+      });
+      await notifyTeam("PRODUCTS", "ADMIN_ALERT", {
+        title: "Mise en avant à valider",
+        message: `« ${product.title} » : ${days} jour${days > 1 ? "s" : ""}, ${amount} FCFA payés par le solde du vendeur.`,
+        actionUrl: "/admin/promotions",
+        priority: "CRITICAL",
       });
 
       await logAudit({
@@ -301,20 +309,8 @@ export async function requestFeatured(
         metadata: { productId: product.id, days, amount, paymentNumber },
         severity: "WARNING",
       });
-      const updated = await prisma.product.findUnique({
-        where: { id: product.id },
-        select: { featuredUntil: true },
-      });
-      logger.info({ purchaseId, productId: product.id, days, amount }, "[promotions] mise en avant payée par solde");
-      return {
-        purchaseId,
-        activated: true,
-        amount,
-        days,
-        dailyRate,
-        token: null,
-        featuredUntil: updated?.featuredUntil?.toISOString() ?? null,
-      };
+      logger.info({ purchaseId, productId: product.id, days, amount }, "[promotions] mise en avant payée par solde, à valider");
+      return { purchaseId, activated: false, pendingReview: true, amount, days, dailyRate, token: null, featuredUntil: null };
     }
   }
 
@@ -362,7 +358,7 @@ export async function requestFeatured(
     metadata: { productId: product.id, days, amount, paymentNumber },
   });
   logger.info({ purchaseId, productId: product.id, days, amount }, "[promotions] mise en avant demandée");
-  return { purchaseId, activated: false, amount, days, dailyRate, token, featuredUntil: null };
+  return { purchaseId, activated: false, pendingReview: false, amount, days, dailyRate, token, featuredUntil: null };
 }
 
 // --- Activation (appelée par settlePayment DANS la transaction) ------------
@@ -457,10 +453,13 @@ export async function adminFeature(
 
 // --- Historique (admin) ----------------------------------------------------
 
-export async function listFeaturedPurchases(args: { page: number; perPage: number }) {
+export async function listFeaturedPurchases(args: { page: number; perPage: number; pending?: boolean }) {
   const { page, perPage } = args;
+  // Demandes à traiter : en attente, hors mises en avant offertes par l'équipe.
+  const where: Prisma.FeaturedProductWhereInput = args.pending ? { status: "PENDING", paymentId: { not: null } } : {};
   const [rows, total] = await Promise.all([
     prisma.featuredProduct.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -475,10 +474,17 @@ export async function listFeaturedPurchases(args: { page: number; perPage: numbe
         createdAt: true,
         product: { select: { id: true, slug: true, title: true } },
         purchasedById: true,
-        payment: { select: { paymentNumber: true, status: true } },
+        payment: {
+          select: {
+            paymentNumber: true,
+            status: true,
+            provider: true,
+            proofs: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true } },
+          },
+        },
       },
     }),
-    prisma.featuredProduct.count(),
+    prisma.featuredProduct.count({ where }),
   ]);
 
   const buyerIds = [...new Set(rows.map((r) => r.purchasedById))];
@@ -491,9 +497,104 @@ export async function listFeaturedPurchases(args: { page: number; perPage: numbe
   const buyerById = new Map(buyers.map((u) => [u.id, u]));
 
   return {
-    items: rows.map((r) => ({ ...r, purchasedBy: buyerById.get(r.purchasedById) ?? null })),
+    items: rows.map(({ payment, ...r }) => ({
+      ...r,
+      payment: payment
+        ? { paymentNumber: payment.paymentNumber, status: payment.status, provider: payment.provider, pendingProofId: payment.proofs[0]?.id ?? null }
+        : null,
+      purchasedBy: buyerById.get(r.purchasedById) ?? null,
+    })),
     total,
   };
+}
+
+// --- Validation par l'équipe -------------------------------------------------
+
+async function pendingPurchase(id: string) {
+  const purchase = await prisma.featuredProduct.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      days: true,
+      totalPaid: true,
+      sellerId: true,
+      purchasedById: true,
+      product: { select: { title: true, slug: true } },
+      payment: { select: { id: true, status: true, provider: true, proofs: { where: { status: "PENDING" }, take: 1, select: { id: true } } } },
+    },
+  });
+  if (!purchase || !purchase.payment) throw notFound("Demande introuvable.");
+  if (purchase.status !== "PENDING") throw conflict("ALREADY_REVIEWED", "Cette demande a déjà été traitée.");
+  return purchase as typeof purchase & { payment: NonNullable<typeof purchase.payment> };
+}
+
+/** Valide une demande : activation (solde déjà débité) ou validation de la preuve Wave. */
+export async function approveFeaturedRequest(id: string, actor: PromotionActor) {
+  const purchase = await pendingPurchase(id);
+  const { payment } = purchase;
+  if (payment.status === "SUCCESS") {
+    await prisma.$transaction((tx) => activateFeatured(tx, { id: payment.id, userId: purchase.purchasedById }));
+  } else if (payment.status === "PROCESSING" && payment.proofs[0]) {
+    // Paiement Wave : valider la preuve active la mise en avant (même porte que Paiements).
+    await approvePaymentProof(payment.proofs[0].id, { actorId: actor.actorId, actorRole: actor.actorRole, ip: actor.ip });
+  } else {
+    throw conflict("AWAITING_PAYMENT", "Le vendeur n’a pas encore envoyé sa preuve de paiement Wave.");
+  }
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: "FEATURED_APPROVED",
+    resourceType: "FeaturedProduct",
+    resourceId: id,
+    metadata: { days: purchase.days, amount: purchase.totalPaid },
+    severity: "WARNING",
+  });
+  return { id, status: "ACTIVE" as const };
+}
+
+/** Refuse une demande : solde remboursé, ou paiement Wave annulé. */
+export async function rejectFeaturedRequest(id: string, reason: string, actor: PromotionActor) {
+  const purchase = await pendingPurchase(id);
+  const { payment } = purchase;
+  if (payment.proofs[0]) {
+    // La preuve Wave en attente est refusée avec le même motif.
+    await rejectPaymentProof(payment.proofs[0].id, reason, { actorId: actor.actorId, actorRole: actor.actorRole, ip: actor.ip }).catch(() => undefined);
+  }
+  const refundBalance = payment.status === "SUCCESS" && payment.provider === "BALANCE" && purchase.sellerId !== null;
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.featuredProduct.updateMany({
+      where: { id, status: "PENDING" },
+      data: { status: refundBalance ? "REFUNDED" : "CANCELLED" },
+    });
+    if (claimed.count === 0) throw conflict("ALREADY_REVIEWED", "Cette demande a déjà été traitée.");
+    if (refundBalance) {
+      await tx.sellerBalance.update({ where: { sellerId: purchase.sellerId! }, data: { balanceAvailable: { increment: purchase.totalPaid } } });
+      await tx.payment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } });
+    } else {
+      await tx.payment.updateMany({ where: { id: payment.id, status: { in: ["PENDING", "PROCESSING"] } }, data: { status: "CANCELLED" } });
+    }
+  });
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: "FEATURED_REJECTED",
+    resourceType: "FeaturedProduct",
+    resourceId: id,
+    metadata: { reason, refunded: refundBalance ? purchase.totalPaid : 0 },
+    severity: "WARNING",
+  });
+  await notifyUser(purchase.purchasedById, "SYSTEM", {
+    title: "Mise en avant refusée",
+    message: refundBalance
+      ? `La mise en avant de « ${purchase.product.title} » n’a pas été validée (motif : « ${reason} »). ${purchase.totalPaid} FCFA sont revenus sur votre solde.`
+      : `La mise en avant de « ${purchase.product.title} » n’a pas été validée (motif : « ${reason} »). Si vous avez déjà payé par Wave, contactez le support pour le remboursement.`,
+    actionUrl: "/seller",
+    priority: "CRITICAL",
+  });
+  return { id, status: refundBalance ? ("REFUNDED" as const) : ("CANCELLED" as const) };
 }
 
 // --- Jobs périodiques : expiration + synchronisation des statuts -----------

@@ -2,14 +2,65 @@
 
 import Link from "next/link";
 import { IconShield, IconStar } from "@/components/lux/lux-icons";
-import { formatInt } from "@/lib/lux";
+import { cx } from "@/components/lux/lux-fx";
+import { formatInt, type CardSeller } from "@/lib/lux";
 import { useT } from "@/lib/i18n";
 import type { CatalogueSeller } from "@/lib/lux-catalogue";
 
 // ---------------------------------------------------------------------------
-// Qui vend ce compte : MISTERDOU, ou un vendeur partenaire avec sa réputation
-// (note, ventes, ancienneté) et un lien vers son profil. Jamais son nom.
+// Qui vend ce compte : MISTERDOU, ou le vendeur (prénom + initiale, photo)
+// avec sa réputation (note, ventes, ancienneté) et un lien vers son profil.
 // ---------------------------------------------------------------------------
+
+/** Photo du vendeur dans un anneau braise (tourne au survol), coche « vérifié ». */
+export function SellerAvatar({ name, avatarUrl, house = false, size = 30 }: { name: string; avatarUrl?: string | null; house?: boolean; size?: number }) {
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]!.toUpperCase())
+      .join("") || "?";
+  return (
+    <span className="lux-seller-avatar" style={{ width: size, height: size }} aria-hidden>
+      {house ? (
+        <span className="lux-seller-ini lux-serif">M.</span>
+      ) : avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- bucket public R2
+        <img src={avatarUrl} alt="" loading="lazy" decoding="async" />
+      ) : (
+        <span className="lux-seller-ini">{initials}</span>
+      )}
+      <span className="lux-seller-check">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.2 4.2L19 7" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
+/** Pastille photo + nom posée sur le visuel d'une offre ; mène à la page du vendeur. */
+export function SellerChip({ seller, className }: { seller: CardSeller; className?: string }) {
+  const t = useT();
+  const name = seller.kind === "SELLER" ? seller.name : "MISTERDOU";
+  return (
+    <Link
+      href={seller.kind === "SELLER" ? `/vendeurs/${seller.id}` : "/a-propos"}
+      aria-label={t("card.sellerLink", { name })}
+      className={cx("lux-seller-chip absolute z-10", className)}
+    >
+      <SellerAvatar name={name} avatarUrl={seller.kind === "SELLER" ? seller.avatarUrl : null} house={seller.kind !== "SELLER"} />
+      <span className="max-w-[150px] truncate">{name}</span>
+    </Link>
+  );
+}
+
+/** Vendeur de la fiche détaillée → format de la pastille. */
+export function toCardSeller(seller: CatalogueSeller | undefined): CardSeller {
+  if (!seller || seller.kind !== "SELLER") return { kind: "MISTERDOU" };
+  return { kind: "SELLER", id: seller.id, name: seller.name ?? seller.code, avatarUrl: seller.avatarUrl ?? null };
+}
 
 export function Stars({ rating, size = "h-3.5 w-3.5" }: { rating: number; size?: string }) {
   return (
@@ -31,9 +82,20 @@ export function SellerBadge({ seller, rating, reviewCount }: { seller: Catalogue
   return (
     <div className="lux-glass flex flex-wrap items-center justify-between gap-3 rounded-[18px] px-4 py-3.5">
       <div className="min-w-0">
-        <p className="flex items-center gap-2 text-[13.5px] font-semibold text-stone-100">
-          <IconShield className="h-4 w-4 shrink-0 text-[var(--lux-gold)]" aria-hidden />
-          {seller.kind === "SELLER" ? t("sellerp.partner", { code: seller.code }) : t("sellerp.house")}
+        <p className="flex items-center gap-2.5 text-[13.5px] font-semibold text-stone-100">
+          <SellerAvatar
+            name={seller.kind === "SELLER" ? (seller.name ?? seller.code) : "MISTERDOU"}
+            avatarUrl={seller.kind === "SELLER" ? seller.avatarUrl : null}
+            house={seller.kind !== "SELLER"}
+            size={34}
+          />
+          <span className="min-w-0">
+            <span className="block truncate">{seller.kind === "SELLER" ? (seller.name ?? seller.code) : t("sellerp.house")}</span>
+            <span className="flex items-center gap-1 text-[11px] font-normal text-stone-400">
+              <IconShield className="h-3 w-3 text-[var(--lux-gold)]" aria-hidden />
+              {seller.kind === "SELLER" ? t("sellerp.verified") : t("sellerp.official")}
+            </span>
+          </span>
         </p>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-stone-400">
           {rating !== null && reviewCount > 0 ? (

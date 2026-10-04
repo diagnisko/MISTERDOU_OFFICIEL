@@ -6,7 +6,7 @@ import { sendError, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelop
 import { buildSchedule } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { mediaKind, publicUrl } from "../../lib/media.js";
-import { PLATFORM_KEY, reputations, sellerCode } from "../reviews/service.js";
+import { PLATFORM_KEY, reputations, sellerCode, sellerIdentities } from "../reviews/service.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -208,7 +208,10 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       // Note affichée : réputation du vendeur (un compte n'est vendu qu'une
       // fois, il n'a jamais d'avis propre avant sa vente). Requêtes groupées
       // restreintes aux vendeurs de la page renvoyée.
-      const rep = await reputations(pageRows.map((p) => p.sellerId));
+      const [rep, identities] = await Promise.all([
+        reputations(pageRows.map((p) => p.sellerId)),
+        sellerIdentities(pageRows.map((p) => p.sellerId)),
+      ]);
 
       const items = pageRows.map((p) => {
         const { price, promoPrice } = resolvePrice(p);
@@ -230,6 +233,10 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
           schedule: scheduleFor(p, price),
           avgRating: rep.get(p.sellerId ?? PLATFORM_KEY)?.rating ?? null,
           coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
+          // Qui vend : MISTERDOU, ou le vendeur (prénom + initiale, photo) → sa page.
+          seller: p.sellerId
+            ? { kind: "SELLER" as const, id: p.sellerId, name: identities.get(p.sellerId)?.name ?? sellerCode(p.sellerId), avatarUrl: identities.get(p.sellerId)?.avatarUrl ?? null }
+            : { kind: "MISTERDOU" as const },
         };
       });
 
@@ -280,7 +287,8 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
         select: { id: true, objectKey: true, mimeType: true },
       });
-      const rep = (await reputations([p.sellerId])).get(p.sellerId ?? PLATFORM_KEY);
+      const [repMap, identities] = await Promise.all([reputations([p.sellerId]), sellerIdentities([p.sellerId])]);
+      const rep = repMap.get(p.sellerId ?? PLATFORM_KEY);
       const { price, promoPrice } = resolvePrice(p);
 
       const data = {
@@ -306,7 +314,15 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         reviewCount: rep?.reviewCount ?? 0,
         // Vendeur : MISTERDOU ou « Vendeur partenaire » avec sa réputation (jamais son nom).
         seller: p.sellerId
-          ? { kind: "SELLER" as const, id: p.sellerId, code: sellerCode(p.sellerId), sales: rep?.sales ?? 0, since: rep?.since ?? null }
+          ? {
+              kind: "SELLER" as const,
+              id: p.sellerId,
+              code: sellerCode(p.sellerId),
+              name: identities.get(p.sellerId)?.name ?? sellerCode(p.sellerId),
+              avatarUrl: identities.get(p.sellerId)?.avatarUrl ?? null,
+              sales: rep?.sales ?? 0,
+              since: rep?.since ?? null,
+            }
           : { kind: "MISTERDOU" as const, sales: rep?.sales ?? 0 },
         media: media.map((m) => ({
           id: m.id,

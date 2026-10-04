@@ -383,6 +383,111 @@ body {
   }
 }
 
+/* --- Vendeur sur les cartes : pastille verre + anneau braise ------------------ */
+.lux-seller-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 13px 4px 4px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(145deg, rgba(12, 7, 6, 0.78), rgba(12, 7, 6, 0.5));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #f5ece8;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.9);
+  transition:
+    border-color 0.35s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease,
+    color 0.35s ease;
+}
+.lux-seller-chip:hover,
+.lux-seller-chip:focus-visible {
+  border-color: rgba(255, 106, 50, 0.6);
+  color: #ffd2bd;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px -14px rgba(232, 71, 36, 0.75);
+  outline: none;
+}
+.lux-seller-avatar {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 9999px;
+  isolation: isolate;
+}
+/* Anneau : seul le dégradé tourne, la photo reste immobile. */
+.lux-seller-avatar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, #ffb08a, #e84724, #7a1712, #e84724, #ffb08a);
+  transition: filter 0.4s ease;
+}
+.lux-seller-avatar > img,
+.lux-seller-avatar > .lux-seller-ini {
+  width: calc(100% - 3px);
+  height: calc(100% - 3px);
+  border-radius: 9999px;
+  object-fit: cover;
+}
+.lux-seller-ini {
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 30% 25%, #3a1d16, #140b09);
+  color: #ffb08a;
+  font-size: 0.38em;
+  font-weight: 700;
+}
+.lux-seller-avatar .lux-seller-ini {
+  font-size: 11px;
+}
+.lux-seller-avatar[style*="72px"] .lux-seller-ini {
+  font-size: 24px;
+}
+.lux-seller-check {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 36%;
+  min-width: 12px;
+  height: 36%;
+  min-height: 12px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #ffb08a, #e84724);
+  color: #1a0a06;
+  box-shadow: 0 0 0 2px #0c0706;
+}
+.lux-seller-check svg {
+  width: 70%;
+  height: 70%;
+}
+.lux-seller-chip:hover .lux-seller-avatar::before,
+.group\/card:hover .lux-seller-avatar::before {
+  animation: lux-ring-spin 2.6s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 106, 50, 0.85));
+}
+@keyframes lux-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lux-seller-chip:hover .lux-seller-avatar::before,
+  .group\/card:hover .lux-seller-avatar::before {
+    animation: none;
+  }
+}
+
 /* --- Hero épinglé : couches de lumière --- */
 .lux-hero-halo {
   background: radial-gradient(38% 34% at 50% 24%, rgba(255, 106, 50, 0.3), rgba(232, 71, 36, 0.1) 45%, transparent 72%);
@@ -1226,11 +1331,86 @@ button.dash-card:hover {
 table {
   position: relative;
 }
-/* Téléphone : les colonnes coupées s'estompent à droite, signe que le tableau défile. */
+/* Téléphone : chaque ligne de tableau devient une carte (intitulé à gauche,
+   valeur à droite) — plus rien ne glisse sur le côté. Les intitulés sont posés
+   sur les cellules (data-label) par le cadre des tableaux de bord. */
 @media (max-width: 767px) {
   .dash-scroll {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    overflow: visible !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .dash-table {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .dash-table thead {
+    display: none;
+  }
+  .dash-table tbody {
+    display: block;
+  }
+  .dash-table tbody tr {
+    display: block;
+    margin: 10px 0;
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 236, 229, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .dash-table tbody td {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px 12px;
+    max-width: none !important;
+    padding: 7px 0 !important;
+    border: 0 !important;
+    text-align: right;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+  .dash-table tbody td > * {
+    margin-right: 0 !important; /* l'écart vient du gap, pas des marges du bureau */
+  }
+  .dash-table tbody td + td {
+    border-top: 1px solid rgba(255, 236, 229, 0.05) !important;
+  }
+  .dash-table tbody td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    max-width: 45%;
+    margin-right: auto; /* intitulé à gauche, valeurs et boutons groupés à droite */
+    text-align: left;
+    font-size: 12px;
+    color: #8f7d77;
+  }
+  .dash-table tbody td:not([data-label])::before,
+  .dash-table tbody td[data-label=""]::before {
+    display: none;
+  }
+  .dash-table tbody td[colspan] {
+    display: block;
+    text-align: left;
+  }
+  /* Le cadre d'un tableau seul s'efface : les cartes suffisent. */
+  .dash-card:has(> .dash-scroll) {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+}
+
+/* iPhone : un champ en dessous de 16 px fait zoomer la page au toucher, qui
+   glisse ensuite sur le côté. 16 px partout sur téléphone. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
 .dash-table th {

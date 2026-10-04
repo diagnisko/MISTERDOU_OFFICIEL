@@ -4,6 +4,8 @@ import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAdminSession, requireAuth, requirePermission } from "../../lib/auth-context.js";
 import { adminPasswordResetLink } from "../auth/password-reset.js";
+import { deleteClientAccount } from "./delete-client.js";
+import { requireTeamPassword } from "../../lib/step-up.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 
@@ -114,6 +116,14 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const auth = requireAdminSession(request);
     const { id } = request.params as { id: string };
     return sendOk(reply, await adminPasswordResetLink(id, { actorId: auth.user.id, actorRole: "ADMIN", ip: request.ip }));
+  });
+
+  // Suppression d'un compte client : administrateur, mot de passe confirmé.
+  app.delete("/admin/clients/:id", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const auth = requireAdminSession(request);
+    await requireTeamPassword(request);
+    const { id } = request.params as { id: string };
+    return sendOk(reply, await deleteClientAccount(id, { actorId: auth.user.id, actorRole: "ADMIN", ip: request.ip }));
   });
 
   app.patch("/admin/clients/:id/status", async (request, reply) => {

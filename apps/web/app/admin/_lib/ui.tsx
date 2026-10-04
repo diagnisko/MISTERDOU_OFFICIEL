@@ -483,8 +483,21 @@ const DATE_KEYS = new Set([
   "updatedAt",
 ]);
 
+/** Nature d'un paiement, en mots de l'équipe (enum PaymentType). */
+export const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  ORDER_PAYMENT: "Achat",
+  INITIAL_INSTALLMENT: "Apport",
+  INSTALLMENT: "Mensualité",
+  SELLER_REGISTRATION_FEE: "Frais vendeur",
+  FEATURED: "Mise en avant",
+  REFUND: "Remboursement",
+};
+
 export function formatCell(value: unknown, key: string): ReactNode {
   if (key === "status" || key === "kycStatus") return <StatusBadge status={String(value ?? "—")} />;
+  if (key === "type" && typeof value === "string" && PAYMENT_TYPE_LABELS[value]) return <span>{PAYMENT_TYPE_LABELS[value]}</span>;
+  if (key === "paymentMode") return <span>{value === "INSTALLMENTS" ? "Mensualités" : "Comptant"}</span>;
+  if (key === "ownerType") return <span>{value === "VENDOR" ? "Vendeur" : "MISTERDOU"}</span>;
   if (value === null || value === undefined || value === "")
     return <span className="text-stone-600">—</span>;
   if (MONEY_KEYS.has(key))

@@ -26,6 +26,7 @@ import {
   type OpsActor,
 } from "./service.js";
 import { financeOverview, listReceivables } from "./finance.js";
+import { requireTeamPassword } from "../../lib/step-up.js";
 
 const TAG = "Admin — Opérations";
 
@@ -160,6 +161,7 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
     "/admin/managers/:id",
     { preHandler: adminGuard, schema: secured("Désactiver un manager et supprimer son profil — ADMIN") },
     async (request, reply) => {
+      await requireTeamPassword(request);
       const { id } = request.params as { id: string };
       return sendOk(reply, await deleteManager(id, actor(request)));
     },

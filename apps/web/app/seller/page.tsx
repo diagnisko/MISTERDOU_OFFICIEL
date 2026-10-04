@@ -43,6 +43,8 @@ type Dashboard = {
     paymentMode: string;
     featuredUntil: string | null;
     isFeatured: boolean;
+    /** Payée, en attente de validation par l'équipe. */
+    featuredPending?: boolean;
   }[];
   dailyRate: number;
   minWithdrawal: number;
@@ -65,6 +67,7 @@ type Me = { firstName: string | null; lastName: string | null; email: string | n
 type FeaturedResult = {
   purchaseId: string;
   activated: boolean;
+  pendingReview?: boolean;
   amount: number;
   days: number;
   dailyRate: number;
@@ -145,6 +148,13 @@ export default function SellerPage() {
             until: result.featuredUntil ? t("seller.featuredUntil", { date: new Date(result.featuredUntil).toLocaleDateString(t.intl) }) : "",
           }),
         );
+        setModalProduct(null);
+        await load();
+        return;
+      }
+      if (result.pendingReview) {
+        // Payée par le solde : l'équipe valide, la mise en avant démarre ensuite.
+        setNotice(t("seller.featurePending", { amount: formatXof(result.amount) }));
         setModalProduct(null);
         await load();
         return;
@@ -366,7 +376,9 @@ export default function SellerPage() {
                     <StatusBadge status={product.status} />
                   </td>
                   <td>
-                    {product.isFeatured ? (
+                    {product.featuredPending ? (
+                      <span className="dash-pill dash-pill-due">{t("seller.inReview")}</span>
+                    ) : product.isFeatured ? (
                       <span className="dash-pill dash-pill-paid">
                         {t("seller.until", { date: product.featuredUntil ? new Date(product.featuredUntil).toLocaleDateString(t.intl) : "—" })}
                       </span>
@@ -387,13 +399,17 @@ export default function SellerPage() {
                     >
                       {t("seller.media")}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openFeatured(product)}
-                      className="dash-btn dash-btn-ghost !min-h-[34px] !text-[12px]"
-                    >
-                      {product.isFeatured ? t("seller.extend") : t("seller.feature")}
-                    </button>
+                    {/* Seule une offre en vente peut être mise en avant (règle de l'API). */}
+                    {product.status === "ACTIVE" && (
+                      <button
+                        type="button"
+                        onClick={() => openFeatured(product)}
+                        disabled={product.featuredPending}
+                        className="dash-btn dash-btn-ghost !min-h-[34px] !text-[12px] disabled:opacity-40"
+                      >
+                        {product.isFeatured ? t("seller.extend") : t("seller.feature")}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

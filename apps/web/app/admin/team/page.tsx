@@ -18,7 +18,6 @@ import { useAdminList } from "../_lib/hooks";
 import {
   AdminModal,
   AdminPageHead,
-  ConfirmDialog,
   DataTable,
   ErrorAlert,
   NoticeAlert,
@@ -27,6 +26,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "../_lib/ui";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
 // Équipe — GET /admin/managers (liste), POST/PATCH/DELETE /admin/managers[/:id].
@@ -153,8 +153,8 @@ export default function TeamPage() {
     await list.refresh("Membre mis à jour.");
   }
 
-  async function deleteMember(row: ManagerRow) {
-    await request(`/api/v1/admin/managers/${row.id}`, { method: "DELETE", body: JSON.stringify({}) });
+  async function deleteMember(row: ManagerRow, password: string) {
+    await request(`/api/v1/admin/managers/${row.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
     setDeleteTarget(null);
     await list.refresh("Membre retiré de l’équipe.");
   }
@@ -244,9 +244,8 @@ export default function TeamPage() {
       )}
 
       {deleteTarget && (
-        <ConfirmDialog
+        <PasswordConfirmDialog
           title="Retirer ce membre"
-          danger
           confirmLabel="Supprimer"
           message={
             <>
@@ -256,7 +255,7 @@ export default function TeamPage() {
             </>
           }
           onClose={() => setDeleteTarget(null)}
-          onConfirm={() => deleteMember(deleteTarget)}
+          onConfirm={(password) => deleteMember(deleteTarget, password)}
         />
       )}
     </>

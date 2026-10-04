@@ -124,7 +124,7 @@ export function OfferForm({
         <div className="dash-card p-5">
           <h2 className="text-[15px] font-semibold text-white">{t("offer.mediaTitle")}</h2>
           <p className="mb-4 mt-1 text-[12px] text-[#8f7d77]">{t("offer.mediaLead")}</p>
-          <MediaManager productId={created.id} />
+          <MediaManager productId={created.id} team={apiBase.startsWith("/api/v1/admin")} />
         </div>
         <button type="button" onClick={() => onDone(created)} className="dash-btn dash-btn-primary">
           {doneLabel}
