@@ -281,7 +281,9 @@ async function copyProduct(p: VantaProduct, plan: VantaPlan | null, ctx: Ctx): P
     return null;
   }
   const features = parseFeatures(p.features);
-  const detail = `${p.title} · ${target === "SOLD" ? "vendue" : "masquée jusqu'à la bascule"} · ${p.media.length} média(s)`;
+  // À la bascule, une offre encore en vente est publiée dès sa création.
+  const status = target === "DRAFT" && ctx.bascule ? "ACTIVE" : target;
+  const detail = `${p.title} · ${status === "SOLD" ? "vendue" : status === "ACTIVE" ? "publiée" : "masquée jusqu'à la bascule"} · ${p.media.length} média(s)`;
   if (!ctx.apply) {
     ctx.lines.push({ ...line, outcome: "créé", detail });
     return null;
@@ -304,8 +306,8 @@ async function copyProduct(p: VantaProduct, plan: VantaPlan | null, ctx: Ctx): P
         paymentMode: "INSTALLMENTS",
         installmentDownPayment: Math.round(p.initialDepositAmount),
         installmentMonths: p.installmentsCount,
-        status: target,
-        publishedAt: target === "SOLD" ? p.createdAt : null,
+        status,
+        publishedAt: status === "SOLD" ? p.createdAt : status === "ACTIVE" ? ctx.now : null,
         createdAt: p.createdAt,
       },
       select: { id: true },

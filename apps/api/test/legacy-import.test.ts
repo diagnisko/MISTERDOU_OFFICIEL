@@ -413,7 +413,14 @@ describe("Copie de l'ancien site (faux Vanta sur la base locale)", () => {
   });
 
   it("bascule : offres encore en vente publiées, mensualités rendues au nouveau site", async () => {
+    // Offre mise en vente sur l'ancien site après la copie : créée et publiée d'un coup.
+    await source.query(`INSERT INTO "Product" VALUES ($1,'ASNEW-000','asnew-${stamp}','Compte eFootball',NULL,$2,30000,5000,2,'AVAILABLE','2026-10-04T00:00:00Z')`, [
+      id("p4"),
+      { ovr: 3000, coins: 10000, division: 2 },
+    ]);
     const report = await run({ apply: true, bascule: true });
+    const p4 = await prisma.legacyRef.findUniqueOrThrow({ where: { source_entity_legacyId: { source: SOURCE, entity: "product", legacyId: id("p4") } } });
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: p4.newId } })).toMatchObject({ status: "ACTIVE", publishedAt: expect.any(Date) });
     expect(report.lines.find((l) => l.step === "offre" && l.ref === id("p2"))).toMatchObject({ outcome: "publié" });
     const p2 = await prisma.legacyRef.findUniqueOrThrow({ where: { source_entity_legacyId: { source: SOURCE, entity: "product", legacyId: id("p2") } } });
     expect(await prisma.product.findUniqueOrThrow({ where: { id: p2.newId } })).toMatchObject({ status: "ACTIVE", publishedAt: expect.any(Date) });
