@@ -286,7 +286,7 @@ describe("Copie de l'ancien site (faux Vanta sur la base locale)", () => {
 
     await source.query(`INSERT INTO "Purchase" VALUES ($1,$2,$3,'ACTIVE',140000,'2026-09-10T08:00:00Z')`, [id("pu1"), id("a"), id("p1")]);
     await source.query(`INSERT INTO "PaymentPlan" (id, "purchaseId", "initialDepositAmount", "initialDepositStatus", "remainingAmount", "installmentsCount", "startDate", status)
-      VALUES ($1,$2,45000,'PAID',95000,7,'2026-09-11T00:00:00Z','ACTIVE')`, [id("plan1"), id("pu1")]);
+      VALUES ($1,$2,45000,'PAID',81428.57,7,'2026-09-11T00:00:00Z','ACTIVE')`, [id("plan1"), id("pu1")]); // reste déjà baissé d'un mois
     for (let i = 1; i <= 7; i++) {
       await source.query(`INSERT INTO "PaymentSchedule" VALUES ($1,$2,$3,$4,$5,$6,NULL)`, [
         id(`s${i}`), id("plan1"), i, new Date(Date.UTC(2026, 9 + i - 1, 11)), (95000 / 7).toFixed(2), i === 1 ? "DUE" : "UPCOMING",

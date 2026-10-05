@@ -386,9 +386,11 @@ async function copyPlan(
   }
   if (!eligible) return false;
   const deposit = Math.round(plan.initialDepositAmount);
-  const remaining = Math.round(plan.remainingAmount);
-  const total = deposit + remaining;
   const schedules = plan.schedules;
+  // Le « reste » de l'ancien site baisse à chaque mois payé : le total vient de
+  // l'achat (à défaut : apport + toutes les échéances).
+  const total = Math.round(plan.totalPrice) || Math.round(deposit + schedules.reduce((s, x) => s + x.amount, 0));
+  const remaining = total - deposit;
   const amounts = splitAmounts(schedules.map((s) => s.amount), remaining);
   const firstDue = schedules[0]?.dueDate;
   const detail =
