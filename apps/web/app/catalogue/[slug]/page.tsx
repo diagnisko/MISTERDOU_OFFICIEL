@@ -144,22 +144,42 @@ function Gallery({
 }) {
   const t = useT();
   const [active, setActive] = useState(0);
+  // Proportions de l'image affichée (largeur / hauteur), lues à son chargement.
+  const [ratios, setRatios] = useState<Record<string, number>>({});
   const current = media[Math.min(active, media.length - 1)]!;
   const imageCount = media.filter((m) => m.kind === "image").length;
+  // Le cadre épouse l'image (bornée entre 4:5 et 21:10) : rien n'est rogné ; s'il
+  // reste de la place, la même image floutée la comble au lieu de bandes noires.
+  const ratio = current.kind === "image" && ratios[current.id] ? Math.min(2.1, Math.max(0.8, ratios[current.id]!)) : 16 / 10;
+  const remember = (img: HTMLImageElement | null) => {
+    if (img?.complete && img.naturalWidth && !ratios[current.id]) {
+      setRatios((r) => ({ ...r, [current.id]: img.naturalWidth / img.naturalHeight }));
+    }
+  };
   return (
     <div>
-      <div className="relative aspect-[16/10] overflow-hidden rounded-[28px] border border-[var(--lux-line)] bg-black">
+      <div
+        className="relative overflow-hidden rounded-[28px] border border-[var(--lux-line)] bg-black transition-[aspect-ratio] duration-500"
+        style={{ aspectRatio: String(ratio), maxHeight: "72vh" }}
+      >
         {current.kind === "video" ? (
           <video key={current.id} src={current.url} controls playsInline preload="metadata" className="h-full w-full bg-black object-contain">
             {t("product.noVideo")}
           </video>
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element -- bucket public R2, domaine configurable
-          <img
-            src={current.url}
-            alt={t("product.capture", { title, n: media.filter((m) => m.kind === "image").indexOf(current) + 1, total: imageCount })}
-            className="h-full w-full object-cover"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- fond décoratif, même image */}
+            <img src={current.url} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-2xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- bucket public R2, domaine configurable */}
+            <img
+              key={current.id}
+              ref={remember}
+              src={current.url}
+              alt={t("product.capture", { title, n: media.filter((m) => m.kind === "image").indexOf(current) + 1, total: imageCount })}
+              onLoad={(e) => remember(e.currentTarget)}
+              className="relative h-full w-full object-contain"
+            />
+          </>
         )}
         {current.kind === "image" && badges}
       </div>
