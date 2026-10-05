@@ -9,6 +9,7 @@
     "admin:bootstrap": "tsx src/admin-bootstrap.ts",
     "admin:reset": "tsx src/admin-reset.ts",
     "legacy:import": "tsx src/legacy/run.ts",
+    "legacy:repair": "tsx src/legacy/repair.ts",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "build": "tsc --noEmit",

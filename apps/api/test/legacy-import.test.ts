@@ -205,8 +205,8 @@ describe("Copie de l'ancien site (faux Vanta sur la base locale)", () => {
   };
   const existing = { id: "", email: "" };
   const run = async (opts: { apply: boolean; bascule?: boolean }) => {
-    // Conversion .mov → .mp4 simulée (ffmpeg n'est pas requis pour les essais).
-    const report = await copyVanta(await readVanta(source), { ...opts, files: fakeFiles, source: SOURCE, convertMov: async () => MP4 });
+    // Conversion vidéo → MP4 H.264 simulée (ffmpeg n'est pas requis pour les essais).
+    const report = await copyVanta(await readVanta(source), { ...opts, files: fakeFiles, source: SOURCE, convertVideo: async () => ({ buffer: MP4, changed: true }) });
     for (const l of report.users) if (l.newId && !t.userIds.includes(l.newId)) t.userIds.push(l.newId);
     for (const l of report.lines) {
       if (l.step === "offre" && l.newId && !t.productIds.includes(l.newId)) t.productIds.push(l.newId);

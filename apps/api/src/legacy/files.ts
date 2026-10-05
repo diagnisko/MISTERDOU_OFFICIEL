@@ -1,9 +1,3 @@
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { promisify } from "node:util";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 // ---------------------------------------------------------------------------
@@ -51,34 +45,4 @@ export function s3LegacyFiles(cfg: {
     readPublic: (urlOrKey) => read(cfg.publicBucket, keyFromUrl(urlOrKey)),
     readPrivate: (key) => read(cfg.privateBucket, keyFromUrl(key)),
   };
-}
-
-/**
- * Vidéo .mov (iPhone) → .mp4 lisible partout, avec ffmpeg : d'abord sans
- * réencodage (rapide, sans perte), sinon réencodée en H.264/AAC.
- * null si ffmpeg est absent ou si la vidéo est illisible.
- */
-export async function movToMp4(input: Buffer): Promise<Buffer | null> {
-  const run = promisify(execFile);
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "reprise-video-"));
-  const src = path.join(dir, `${randomUUID()}.mov`);
-  const out = path.join(dir, `${randomUUID()}.mp4`);
-  try {
-    await fs.writeFile(src, input);
-    const attempts = [
-      ["-c", "copy"],
-      ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac"],
-    ];
-    for (const codec of attempts) {
-      try {
-        await run("ffmpeg", ["-y", "-loglevel", "error", "-i", src, ...codec, "-movflags", "+faststart", out], { timeout: 300_000 });
-        return await fs.readFile(out);
-      } catch {
-        // essai suivant
-      }
-    }
-    return null;
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
 }

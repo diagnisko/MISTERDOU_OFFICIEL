@@ -77,7 +77,13 @@ async function main() {
   }
   console.log(`Lu sur l'ancien site : ${data.users.length} comptes, ${data.products.length} offres, ${data.plans.length} échéanciers avec apport payé`);
 
-  const report = await copyVanta(data, { apply, files, bascule, progress: (m) => console.log(`[${new Date().toLocaleTimeString("fr-FR")}] ${m}`) });
+  if (apply) await acquireLock();
+  let report;
+  try {
+    report = await copyVanta(data, { apply, files, bascule, progress: (m) => console.log(`[${new Date().toLocaleTimeString("fr-FR")}] ${m}`) });
+  } finally {
+    if (apply) await releaseLock();
+  }
 
   const tally = <T,>(items: T[], key: (i: T) => string) => {
     const counts = new Map<string, number>();
@@ -100,6 +106,32 @@ async function main() {
   const file = path.join(legacy.reportDir, `copie-${new Date().toISOString().replace(/[:.]/g, "-")}${apply ? "" : "-simulation"}.json`);
   writeFileSync(file, JSON.stringify({ date: new Date().toISOString(), apply, bascule, target: target.host, ...report }, null, 2));
   console.log(`\nRapport détaillé : ${file}`);
+}
+
+// Une seule copie à la fois : deux copies simultanées créeraient des doublons.
+const LOCK_KEY = "legacy.lock";
+
+async function acquireLock() {
+  const value = { startedAt: new Date().toISOString(), pid: process.pid };
+  try {
+    await prisma.settings.create({
+      data: { key: LOCK_KEY, value, valueType: "json", group: "legacy", description: "Copie de l'ancien site en cours." },
+    });
+  } catch {
+    const current = await prisma.settings.findUnique({ where: { key: LOCK_KEY }, select: { value: true } });
+    const since = (current?.value as { startedAt?: string } | null)?.startedAt;
+    if (!args.has("--forcer")) {
+      throw new Error(
+        `Une copie tourne déjà${since ? ` (lancée le ${new Date(since).toLocaleString("fr-FR")})` : ""}. ` +
+          "Attendez qu'elle se termine ; si elle a été interrompue, relancez avec --forcer.",
+      );
+    }
+    await prisma.settings.update({ where: { key: LOCK_KEY }, data: { value } });
+  }
+}
+
+async function releaseLock() {
+  await prisma.settings.deleteMany({ where: { key: LOCK_KEY } });
 }
 
 async function assertProductionKey() {

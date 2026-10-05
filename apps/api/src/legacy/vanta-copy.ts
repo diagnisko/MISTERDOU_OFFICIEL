@@ -6,7 +6,8 @@ import { MEDIA_TYPES, putPublicMedia } from "../lib/media.js";
 import { findRef } from "./refs.js";
 import { setFollowOldSite } from "./follow.js";
 import { importLegacyUsers, type LegacyUser, type UserImportLine } from "./users.js";
-import { movToMp4, type LegacyFiles } from "./files.js";
+import type { LegacyFiles } from "./files.js";
+import { normalizeVideo } from "./videos.js";
 import type { VantaData, VantaPlan, VantaProduct, VantaUser } from "./vanta-read.js";
 import {
   chooseKycDocs,
@@ -59,8 +60,8 @@ interface Ctx {
   now: Date;
   /** Étiquette des repères LegacyRef (« vanta » ; autre valeur pour les essais). */
   source: string;
-  /** Conversion .mov → .mp4 (ffmpeg par défaut ; remplaçable dans les essais). */
-  convertMov?: (input: Buffer) => Promise<Buffer | null>;
+  /** Vidéo → MP4 H.264 lisible partout (ffmpeg par défaut ; remplaçable dans les essais). */
+  convertVideo?: typeof normalizeVideo;
   /** Suivi en direct (terminal) ; muet par défaut. */
   progress: (message: string) => void;
   lines: CopyLine[];
@@ -107,7 +108,7 @@ export async function copyVanta(
     bascule?: boolean;
     now?: Date;
     source?: string;
-    convertMov?: (input: Buffer) => Promise<Buffer | null>;
+    convertVideo?: typeof normalizeVideo;
     progress?: (message: string) => void;
   },
 ): Promise<CopyReport> {
@@ -117,7 +118,7 @@ export async function copyVanta(
     bascule: opts.bascule ?? false,
     now: opts.now ?? new Date(),
     source: opts.source ?? VANTA_SOURCE,
-    convertMov: opts.convertMov,
+    convertVideo: opts.convertVideo,
     progress: opts.progress ?? (() => undefined),
     lines: [],
   };
@@ -352,10 +353,16 @@ async function copyMedia(p: VantaProduct, productId: string, ctx: Ctx) {
     }
     try {
       const file = await files.readPublic(m.url);
-      // Vidéo d'iPhone (.mov) : convertie en .mp4, le format lu partout.
-      if ((file.mime ?? mimeFromKey(m.url)) === "video/quicktime") {
-        const mp4 = await (ctx.convertMov ?? movToMp4)(file.buffer);
-        if (mp4) Object.assign(file, { buffer: mp4, mime: "video/mp4" });
+      // Vidéos : toujours en MP4 H.264, lu partout (les iPhone filment souvent en HEVC,
+      // image noire dans Chrome sous Windows).
+      const sourceMime = file.mime && file.mime !== "application/octet-stream" ? file.mime : mimeFromKey(m.url);
+      if (sourceMime?.startsWith("video/")) {
+        const video = await (ctx.convertVideo ?? normalizeVideo)(file.buffer, sourceMime);
+        if (!video) {
+          ctx.lines.push({ ...line, outcome: "à vérifier", reason: "vidéo illisible (ou ffmpeg absent)" });
+          continue;
+        }
+        Object.assign(file, { buffer: video.buffer, mime: "video/mp4" });
       }
       const mime = mediaMime(file.mime, m.url);
       if (!mime) {
