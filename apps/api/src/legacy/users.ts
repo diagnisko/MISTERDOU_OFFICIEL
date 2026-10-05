@@ -1,6 +1,6 @@
 import { prisma } from "@misterdou/db";
 import { isBcryptHash } from "../lib/password.js";
-import { findRef } from "./refs.js";
+import { findRef, longTransaction } from "./refs.js";
 
 // ---------------------------------------------------------------------------
 // Comptes clients de l'ancien site → nouveau site, quelle que soit la source.
@@ -105,7 +105,7 @@ export async function importLegacyUsers(legacy: LegacyUser[], opts: { apply: boo
       }
       if (opts.apply) {
         const phone = existing.phoneNumber ? {} : await freePhone(u, existing.id);
-        await prisma.$transaction(async (tx) => {
+        await longTransaction(async (tx) => {
           await tx.user.update({
             where: { id: existing.id },
             data: {
@@ -131,7 +131,7 @@ export async function importLegacyUsers(legacy: LegacyUser[], opts: { apply: boo
     }
     const googleTaken = u.googleSub ? await prisma.user.findUnique({ where: { googleSub: u.googleSub }, select: { id: true } }) : null;
     const phone = await freePhone(u);
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await longTransaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           roleId: clientRole.id,

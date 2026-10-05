@@ -3,7 +3,7 @@ import { prisma } from "@misterdou/db";
 import { isBcryptHash } from "../lib/password.js";
 import { encryptString, putFile } from "../lib/storage.js";
 import { MEDIA_TYPES, putPublicMedia } from "../lib/media.js";
-import { findRef } from "./refs.js";
+import { findRef, longTransaction } from "./refs.js";
 import { setFollowOldSite } from "./follow.js";
 import { importLegacyUsers, type LegacyUser, type UserImportLine } from "./users.js";
 import type { LegacyFiles } from "./files.js";
@@ -213,7 +213,7 @@ async function copyKyc(u: VantaUser, newId: string | undefined, data: VantaData,
     const selfieKey = await store(choice.selfie, "kyc_selfie");
     const dates = data.verifiedAt.get(u.id);
     const reviewedAt = dates?.reviewedAt ?? dates?.submittedAt ?? u.createdAt;
-    const verification = await prisma.$transaction(async (tx) => {
+    const verification = await longTransaction(async (tx) => {
       const created = await tx.identityVerification.create({
         data: {
           userId: newId,
@@ -292,7 +292,7 @@ async function copyProduct(p: VantaProduct, plan: VantaPlan | null, ctx: Ctx): P
 
   const slugTaken = await prisma.product.findUnique({ where: { slug: p.slug }, select: { id: true } });
   const extraInfo = [p.importantInfo?.trim(), features.platform ? `Plateforme : ${features.platform}` : null].filter(Boolean).join("\n") || null;
-  const created = await prisma.$transaction(async (tx) => {
+  const created = await longTransaction(async (tx) => {
     const product = await tx.product.create({
       data: {
         ownerType: "ADMIN",
@@ -435,7 +435,7 @@ async function copyPlan(
   const completed = plan.status === "COMPLETED" || totalPaid >= total;
   const depositAt = plan.depositPaidAt ?? plan.startDate ?? plan.purchaseCreatedAt;
 
-  const created = await prisma.$transaction(async (tx) => {
+  const created = await longTransaction(async (tx) => {
     const order = await tx.order.create({
       data: {
         orderNumber,
@@ -527,7 +527,7 @@ async function syncPlan(plan: VantaPlan, planId: string, ctx: Ctx): Promise<bool
   const totalPaid = current.totalPaid + added;
   const completed = totalPaid >= current.totalAmount;
   if (ctx.apply) {
-    await prisma.$transaction(async (tx) => {
+    await longTransaction(async (tx) => {
       for (const s of newlyPaid) {
         const mine = current.installments.find((i) => i.index === s.installmentNumber)!;
         await tx.installment.update({

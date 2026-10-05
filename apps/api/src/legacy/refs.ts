@@ -1,4 +1,4 @@
-import { prisma } from "@misterdou/db";
+import { prisma, type Prisma } from "@misterdou/db";
 
 // Correspondance ancien site → nouveau site (table LegacyRef) : une ligne
 // d'origine n'est jamais créée deux fois, quel que soit le nombre de passages.
@@ -19,4 +19,12 @@ export async function saveRef(source: string, entity: LegacyEntity, legacyId: st
     create: { source, entity, legacyId, newId },
     update: { newId },
   });
+}
+
+/**
+ * Transaction de la copie : jusqu'à une minute (contre 5 s par défaut), car la
+ * base est loin du poste qui copie et chaque écriture fait un aller-retour.
+ */
+export function longTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return prisma.$transaction(fn, { maxWait: 20_000, timeout: 60_000 });
 }
