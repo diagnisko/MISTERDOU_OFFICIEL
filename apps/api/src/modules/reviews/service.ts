@@ -32,7 +32,16 @@ export const PLATFORM_KEY = "MISTERDOU";
 
 export type Reputation = { rating: number | null; reviewCount: number; sales: number; since: string | null };
 
-const SOLD_STATUSES = ["DELIVERED", "COMPLETED"] as const;
+/**
+ * Une vente compte dès que le compte est remis : commande livrée, ou commande en
+ * mensualités dont l'apport est validé (le client a déjà les identifiants).
+ */
+const SOLD_ORDER: Prisma.OrderWhereInput = {
+  OR: [{ status: { in: ["DELIVERED", "COMPLETED"] } }, { status: "PARTIALLY_PAID", paymentMode: "INSTALLMENTS" }],
+};
+
+/** Identifiant public de la boutique officielle (offres sans vendeur). */
+export const PLATFORM_PROFILE_ID = "misterdou";
 
 /** Code public court d'un vendeur (ex. « V-3F9A2C ») : jamais son nom. */
 export function sellerCode(sellerId: string): string {
@@ -84,12 +93,12 @@ export async function reputations(sellerIds: Array<string | null>): Promise<Map<
     ids.length
       ? prisma.orderItem.groupBy({
           by: ["sellerId"],
-          where: { sellerId: { in: ids }, order: { status: { in: [...SOLD_STATUSES] } } },
+          where: { sellerId: { in: ids }, order: SOLD_ORDER },
           _count: { _all: true },
         })
       : Promise.resolve([]),
     wantsPlatform
-      ? prisma.orderItem.count({ where: { sellerId: null, product: { sellerId: null }, order: { status: { in: [...SOLD_STATUSES] } } } })
+      ? prisma.orderItem.count({ where: { sellerId: null, product: { sellerId: null }, order: SOLD_ORDER } })
       : Promise.resolve(0),
     ids.length ? prisma.seller.findMany({ where: { id: { in: ids } }, select: { id: true, sellerSince: true, createdAt: true } }) : Promise.resolve([]),
   ]);
@@ -177,32 +186,91 @@ export async function submitReview(orderId: string, input: ReviewInput, ctx: { a
   return { rating: review.rating, comment: review.comment, createdAt: review.createdAt.toISOString() };
 }
 
-/** Profil public d'un vendeur : réputation, derniers avis, offres en vente. */
+type ReviewRow = { rating: number; comment: string | null; createdAt: Date; user: { firstName: string | null; lastName: string | null } };
+
+function publicReview(r: ReviewRow) {
+  return {
+    rating: r.rating,
+    comment: r.comment,
+    createdAt: r.createdAt.toISOString(),
+    // Prénom + initiale : l'avis reste crédible sans exposer l'acheteur.
+    author: [r.user.firstName, r.user.lastName ? `${r.user.lastName[0]}.` : null].filter(Boolean).join(" ") || "Client",
+  };
+}
+
+const REVIEW_SELECT = { rating: true, comment: true, createdAt: true, user: { select: { firstName: true, lastName: true } } } as const;
+
+/**
+ * Derniers comptes vendus d'un vendeur (null = MISTERDOU) : vitrine de confiance
+ * du profil. Aucune donnée d'acheteur, seulement le compte et sa photo.
+ */
+export async function soldShowcase(sellerId: string | null, take = 12) {
+  const rows = await prisma.product.findMany({
+    where: { sellerId, status: "SOLD", deletedAt: null },
+    orderBy: { updatedAt: "desc" },
+    take,
+    select: {
+      id: true,
+      title: true,
+      division: true,
+      teamPower: true,
+      coins: true,
+      images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }], select: { objectKey: true, mimeType: true } },
+    },
+  });
+  return rows.map((p) => {
+    // Une photo de préférence ; à défaut, la vidéo (sa première image sert de couverture).
+    const image = p.images.find((m) => m.mimeType.startsWith("image/"));
+    const video = image ? undefined : p.images.find((m) => m.mimeType.startsWith("video/"));
+    return {
+      id: p.id,
+      title: p.title,
+      division: p.division,
+      teamPower: p.teamPower,
+      coins: p.coins,
+      coverUrl: image ? publicUrl(image.objectKey) : null,
+      coverVideoUrl: video ? publicUrl(video.objectKey) : null,
+    };
+  });
+}
+
+/** Profil public d'un vendeur : réputation, derniers avis, comptes vendus. */
 export async function sellerPublicProfile(sellerId: string) {
   const seller = await prisma.seller.findFirst({ where: { id: sellerId, status: "ACTIVE" }, select: { id: true } });
   if (!seller) throw notFound("Vendeur introuvable.");
-  const [rep, reviews, identity] = await Promise.all([
+  const [rep, reviews, identity, sold] = await Promise.all([
     reputations([seller.id]),
-    prisma.productReview.findMany({
-      where: { product: { sellerId: seller.id } },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      select: { rating: true, comment: true, createdAt: true, user: { select: { firstName: true, lastName: true } } },
-    }),
+    prisma.productReview.findMany({ where: { product: { sellerId: seller.id } }, orderBy: { createdAt: "desc" }, take: 20, select: REVIEW_SELECT }),
     sellerIdentities([seller.id]),
+    soldShowcase(seller.id),
   ]);
   return {
     id: seller.id,
     code: sellerCode(seller.id),
+    official: false,
     name: identity.get(seller.id)?.name ?? sellerCode(seller.id),
     avatarUrl: identity.get(seller.id)?.avatarUrl ?? null,
     ...(rep.get(seller.id) ?? { rating: null, reviewCount: 0, sales: 0, since: null }),
-    reviews: reviews.map((r) => ({
-      rating: r.rating,
-      comment: r.comment,
-      createdAt: r.createdAt.toISOString(),
-      // Prénom + initiale : l'avis reste crédible sans exposer l'acheteur.
-      author: [r.user.firstName, r.user.lastName ? `${r.user.lastName[0]}.` : null].filter(Boolean).join(" ") || "Client",
-    })),
+    reviews: reviews.map(publicReview),
+    sold,
+  };
+}
+
+/** Boutique officielle MISTERDOU : même vitrine que les vendeurs, pour les offres maison. */
+export async function platformPublicProfile() {
+  const [rep, reviews, sold] = await Promise.all([
+    reputations([null]),
+    prisma.productReview.findMany({ where: { product: { sellerId: null } }, orderBy: { createdAt: "desc" }, take: 20, select: REVIEW_SELECT }),
+    soldShowcase(null),
+  ]);
+  return {
+    id: PLATFORM_PROFILE_ID,
+    code: "MISTERDOU",
+    official: true,
+    name: "MISTERDOU",
+    avatarUrl: null,
+    ...(rep.get(PLATFORM_KEY) ?? { rating: null, reviewCount: 0, sales: 0, since: null }),
+    reviews: reviews.map(publicReview),
+    sold,
   };
 }

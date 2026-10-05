@@ -46,7 +46,7 @@ export function SellerChip({ seller, className }: { seller: CardSeller; classNam
   const name = seller.kind === "SELLER" ? seller.name : "MISTERDOU";
   return (
     <Link
-      href={seller.kind === "SELLER" ? `/vendeurs/${seller.id}` : "/a-propos"}
+      href={seller.kind === "SELLER" ? `/vendeurs/${seller.id}` : "/vendeurs/misterdou"}
       aria-label={t("card.sellerLink", { name })}
       className={cx("lux-seller-chip absolute z-10", className)}
     >
@@ -116,11 +116,12 @@ export function SellerBadge({ seller, rating, reviewCount }: { seller: Catalogue
           )}
         </p>
       </div>
-      {seller.kind === "SELLER" && (
-        <Link href={`/vendeurs/${seller.id}`} className="shrink-0 text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
-          {t("sellerp.viewProfile")}
-        </Link>
-      )}
+      <Link
+        href={seller.kind === "SELLER" ? `/vendeurs/${seller.id}` : "/vendeurs/misterdou"}
+        className="shrink-0 text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline"
+      >
+        {seller.kind === "SELLER" ? t("sellerp.viewProfile") : t("sellerp.viewShop")}
+      </Link>
     </div>
   );
 }

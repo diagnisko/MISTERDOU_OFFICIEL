@@ -246,6 +246,20 @@ describe("Mensualités : apport et mois dans un même paiement", () => {
     expect(note?.message).toContain("identifiants");
   });
 
+  it("boutique MISTERDOU : la vente compte dès l'apport validé, le compte rejoint les « déjà vendus »", async () => {
+    const { platformPublicProfile } = await import("../src/modules/reviews/service.js");
+    const { product, buyer, orderId } = await planOrder();
+    const before = await platformPublicProfile();
+    expect(before).toMatchObject({ id: "misterdou", official: true, name: "MISTERDOU" });
+    expect(before.sold.some((s) => s.id === product.id)).toBe(false);
+
+    const down = await createNextInstallmentPayment(orderId, { actorId: buyer.id }, 0);
+    await settlePayment({ id: down.paymentId }, "SUCCESS", { source: "MANUAL" });
+    const after = await platformPublicProfile();
+    expect(after.sales).toBe(before.sales + 1);
+    expect(after.sold.some((s) => s.id === product.id)).toBe(true);
+  });
+
   it("apport seul (0 mois), puis 2 mois ensemble", async () => {
     const { buyer, orderId } = await planOrder();
     const down = await createNextInstallmentPayment(orderId, { actorId: buyer.id }, 0);

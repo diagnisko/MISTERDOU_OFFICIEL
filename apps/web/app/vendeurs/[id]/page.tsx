@@ -15,12 +15,16 @@ import { getServerT } from "@/lib/i18n-server";
 
 // ---------------------------------------------------------------------------
 // Profil public d'un vendeur : prénom + initiale, photo, note, ventes,
-// ancienneté, avis et offres en vente. Nom complet et contacts restent privés.
+// ancienneté, offres en vente, comptes déjà vendus et avis. Nom complet et
+// contacts restent privés. /vendeurs/misterdou : la boutique officielle.
 // ---------------------------------------------------------------------------
+
+type SoldAccount = { id: string; title: string; division: string; teamPower: number; coins: number; coverUrl: string | null; coverVideoUrl?: string | null };
 
 type SellerProfile = {
   id: string;
   code: string;
+  official?: boolean;
   name?: string;
   avatarUrl?: string | null;
   rating: number | null;
@@ -28,6 +32,7 @@ type SellerProfile = {
   sales: number;
   since: string | null;
   reviews: Array<{ rating: number; comment: string | null; createdAt: string; author: string }>;
+  sold?: SoldAccount[];
 };
 
 async function fetchProfile(id: string): Promise<SellerProfile | null> {
@@ -44,7 +49,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const t = await getServerT();
   const profile = await fetchProfile(id);
-  return { title: profile ? (profile.name ?? t("sellerp.partner", { code: profile.code })) : t("sellerp.notFound") };
+  if (!profile) return { title: t("sellerp.notFound") };
+  return { title: profile.official ? `MISTERDOU — ${t("sellerp.official")}` : (profile.name ?? t("sellerp.partner", { code: profile.code })) };
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -54,6 +60,37 @@ function Stars({ rating }: { rating: number }) {
         <IconStar key={s} filled={s < Math.round(rating)} className="h-3.5 w-3.5" />
       ))}
     </span>
+  );
+}
+
+/** Compte déjà vendu : même allure que les cartes du catalogue, sans achat possible. */
+function SoldCard({ account, label }: { account: SoldAccount; label: string }) {
+  return (
+    <article className="lux-card relative overflow-hidden rounded-[24px]">
+      <div className="lux-card-visual relative h-44 bg-[linear-gradient(180deg,var(--lux-surface-2),var(--lux-surface))]">
+        {account.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- bucket public R2
+          <img src={account.coverUrl} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover opacity-70 saturate-[0.85]" />
+        ) : account.coverVideoUrl ? (
+          // Pas de photo : la première image de la vidéo, sans lecture ni son.
+          <video src={`${account.coverVideoUrl}#t=0.5`} muted playsInline preload="metadata" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70 saturate-[0.85]" />
+        ) : null}
+        {(account.coverUrl || account.coverVideoUrl) && (
+          <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,3,3,0.35)_0%,transparent_35%,rgba(5,3,3,0.9)_100%)]" />
+        )}
+        <span className="absolute right-4 top-4 rounded-full border border-[rgba(147,197,253,0.45)] bg-[rgba(15,23,42,0.72)] px-3 py-1 text-[9.5px] font-bold uppercase tracking-[0.18em] text-[#bfdbfe] backdrop-blur-sm">
+          {label}
+        </span>
+        <span className="absolute inset-x-0 bottom-3 flex items-end justify-between px-5">
+          <span>
+            <span className="lux-serif block text-[34px] font-bold leading-none text-stone-50">{formatInt(account.teamPower)}</span>
+            <span className="mt-1 block text-[10px] uppercase tracking-[0.3em] text-stone-400">OVR</span>
+          </span>
+          <span className="text-[12.5px] tabular-nums text-stone-300">{account.division}</span>
+        </span>
+      </div>
+      <p className="truncate px-5 py-4 text-[14.5px] font-semibold text-stone-200">{account.title}</p>
+    </article>
   );
 }
 
@@ -84,15 +121,15 @@ export default async function SellerProfilePage({ params }: { params: Promise<{ 
         <LuxNav />
         <main className="relative z-10 px-5 pt-32 md:px-8 md:pt-40">
           <div className="mx-auto max-w-6xl">
-            <SectionLabel>{t("sellerp.kicker")}</SectionLabel>
+            <SectionLabel>{profile.official ? t("sellerp.officialKicker") : t("sellerp.kicker")}</SectionLabel>
             <div className="mt-6 flex items-center gap-4 sm:gap-5">
-              <SellerAvatar name={profile.name ?? profile.code} avatarUrl={profile.avatarUrl} size={72} />
+              <SellerAvatar name={profile.name ?? profile.code} avatarUrl={profile.avatarUrl} house={profile.official} size={72} />
               <div className="min-w-0">
                 <h1 className="lux-h2 truncate text-stone-100">{profile.name ?? t("sellerp.partner", { code: profile.code })}</h1>
-                <p className="mt-1 text-[12px] uppercase tracking-[0.2em] text-stone-500">{t("sellerp.verified")}</p>
+                <p className="mt-1 text-[12px] uppercase tracking-[0.2em] text-stone-500">{profile.official ? t("sellerp.official") : t("sellerp.verified")}</p>
               </div>
             </div>
-            <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-stone-400">{t("sellerp.lead")}</p>
+            <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-stone-400">{profile.official ? t("sellerp.leadOfficial") : t("sellerp.lead")}</p>
 
             <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {stats.map((s) => (
@@ -115,6 +152,18 @@ export default async function SellerProfilePage({ params }: { params: Promise<{ 
                 <p className="mt-6 text-[14px] text-stone-400">{t("sellerp.noOffers")}</p>
               )}
             </section>
+
+            {profile.sold && profile.sold.length > 0 && (
+              <section className="mt-14">
+                <SectionLabel>{t("sellerp.sold")}</SectionLabel>
+                <p className="mt-3 max-w-2xl text-[13.5px] text-stone-400">{t("sellerp.soldLead")}</p>
+                <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {profile.sold.map((a) => (
+                    <SoldCard key={a.id} account={a} label={t("sellerp.soldBadge")} />
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="mt-14">
               <SectionLabel>{t("sellerp.reviews")}</SectionLabel>

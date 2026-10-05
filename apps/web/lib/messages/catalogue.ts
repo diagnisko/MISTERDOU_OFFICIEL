@@ -162,6 +162,12 @@ export const fr = {
   "card.sellerLink": "Voir la page de {name}",
   "sellerp.verified": "Vendeur vérifié",
   "sellerp.official": "Boutique officielle",
+  "sellerp.viewShop": "Voir la boutique",
+  "sellerp.officialKicker": "Boutique officielle",
+  "sellerp.leadOfficial": "Les comptes vendus directement par MISTERDOU : vérifiés par l'équipe, payables comptant ou en mensualités, avec un suivi depuis votre espace.",
+  "sellerp.sold": "Comptes déjà vendus",
+  "sellerp.soldLead": "Ils ont trouvé preneur : comptant ou en mensualités, chaque compte a été remis à son acheteur.",
+  "sellerp.soldBadge": "Vendu",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -317,6 +323,12 @@ export const en: Translations<typeof fr> = {
   "card.sellerLink": "View {name}'s page",
   "sellerp.verified": "Verified seller",
   "sellerp.official": "Official store",
+  "sellerp.viewShop": "View the shop",
+  "sellerp.officialKicker": "Official shop",
+  "sellerp.leadOfficial": "Accounts sold directly by MISTERDOU: checked by the team, payable in full or in instalments, tracked from your space.",
+  "sellerp.sold": "Accounts already sold",
+  "sellerp.soldLead": "They found a buyer: paid in full or in instalments, each account was handed over to its buyer.",
+  "sellerp.soldBadge": "Sold",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -472,4 +484,10 @@ export const ar: Translations<typeof fr> = {
   "card.sellerLink": "عرض صفحة {name}",
   "sellerp.verified": "بائع موثّق",
   "sellerp.official": "المتجر الرسمي",
+  "sellerp.viewShop": "عرض المتجر",
+  "sellerp.officialKicker": "المتجر الرسمي",
+  "sellerp.leadOfficial": "حسابات تبيعها MISTERDOU مباشرة: يتحقق منها الفريق، وتُدفع كاملة أو على أقساط، مع المتابعة من مساحتك.",
+  "sellerp.sold": "حسابات بيعت",
+  "sellerp.soldLead": "وجدت مشتريها: نقدًا أو بالأقساط، سُلِّم كل حساب لمشتريه.",
+  "sellerp.soldBadge": "مُباع",
 };

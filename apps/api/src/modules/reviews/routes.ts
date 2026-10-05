@@ -3,7 +3,7 @@ import type { RoleName } from "@misterdou/db";
 import { sendOk, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { badRequest } from "../../lib/errors.js";
-import { reviewSchema, sellerPublicProfile, submitReview } from "./service.js";
+import { PLATFORM_PROFILE_ID, platformPublicProfile, reviewSchema, sellerPublicProfile, submitReview } from "./service.js";
 
 export async function registerReviewRoutes(app: FastifyInstance) {
   // --- L'acheteur note sa commande après « Reçu » (une seule fois) ---
@@ -28,12 +28,13 @@ export async function registerReviewRoutes(app: FastifyInstance) {
   // --- Profil public d'un vendeur (réputation, avis ; jamais son identité) ---
   app.get(
     "/sellers/:id/profile",
-    { schema: { tags: ["Public"], summary: "Profil public d'un vendeur : note, ventes, avis" } },
+    { schema: { tags: ["Public"], summary: "Profil public d'un vendeur (ou « misterdou ») : note, ventes, avis, comptes vendus" } },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      if (!/^[0-9a-f-]{36}$/i.test(id)) throw badRequest("VALIDATION_ERROR", "Vendeur introuvable.");
+      // « misterdou » : la boutique officielle (offres sans vendeur).
+      if (id !== PLATFORM_PROFILE_ID && !/^[0-9a-f-]{36}$/i.test(id)) throw badRequest("VALIDATION_ERROR", "Vendeur introuvable.");
       reply.header("Cache-Control", PUBLIC_CACHE_CONTROL);
-      return sendPublicOk(request, reply, await sellerPublicProfile(id));
+      return sendPublicOk(request, reply, id === PLATFORM_PROFILE_ID ? await platformPublicProfile() : await sellerPublicProfile(id));
     },
   );
 }

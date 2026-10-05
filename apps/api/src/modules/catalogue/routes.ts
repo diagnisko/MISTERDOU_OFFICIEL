@@ -6,7 +6,7 @@ import { sendError, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelop
 import { buildSchedule } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { mediaKind, publicUrl } from "../../lib/media.js";
-import { PLATFORM_KEY, reputations, sellerCode, sellerIdentities } from "../reviews/service.js";
+import { PLATFORM_KEY, PLATFORM_PROFILE_ID, reputations, sellerCode, sellerIdentities } from "../reviews/service.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -171,12 +171,13 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const search = q.q?.trim().slice(0, 60) || undefined;
       const minPower = search && /^\d[\d\s.]*$/.test(search) ? Number(search.replace(/\D/g, "")) : null;
 
-      const sellerId = q.seller && /^[0-9a-f-]{36}$/i.test(q.seller) ? q.seller : undefined;
+      // seller=<id> : un vendeur ; seller=misterdou : les offres maison (sans vendeur).
+      const sellerId = q.seller === PLATFORM_PROFILE_ID ? null : q.seller && /^[0-9a-f-]{36}$/i.test(q.seller) ? q.seller : undefined;
 
       const where: Prisma.ProductWhereInput = {
         status: "ACTIVE" as const,
         deletedAt: null,
-        ...(sellerId ? { sellerId } : {}),
+        ...(sellerId !== undefined ? { sellerId } : {}),
         ...(division ? { division } : {}),
         ...(paymentMode ? { paymentMode } : {}),
         ...(search
