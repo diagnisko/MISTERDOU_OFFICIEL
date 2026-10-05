@@ -72,7 +72,8 @@ export async function listSettings() {
   return prisma.settings.findMany({
     orderBy: [{ group: "asc" }, { key: "asc" }],
     // Les clés internes (secrets MFA chiffrés) ne sont JAMAIS exposées en lecture.
-    where: { key: { not: { startsWith: INTERNAL_SETTINGS_PREFIX } } },
+    // …ni les repères de la reprise de l'ancien site (« legacy. »), gérés par l'outil de copie.
+    where: { AND: [{ key: { not: { startsWith: INTERNAL_SETTINGS_PREFIX } } }, { key: { not: { startsWith: "legacy." } } }] },
     select: { key: true, value: true, valueType: true, group: true, description: true, updatedById: true, updatedAt: true },
   });
 }

@@ -24,6 +24,7 @@ import { logAudit } from "../../lib/audit.js";
 import { notifyMany, notifyUser, type NotifyParams } from "../../lib/notify.js";
 import { logger } from "../../lib/logger.js";
 import { alertDoubleSale, markProductsSold } from "../orders/fulfillment.js";
+import { plansFollowedElsewhere } from "../../legacy/follow.js";
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -368,6 +369,9 @@ export async function createNextInstallmentPayment(orderId: string, actor: Insta
   if (plan.totalPaid >= plan.totalAmount) {
     throw conflict("PLAN_ALREADY_PAID", "Toutes vos mensualités sont réglées.");
   }
+  if ((await plansFollowedElsewhere()).includes(plan.id)) {
+    throw conflict("LEGACY_PLAN", "Cette mensualité se règle encore sur l’ancien site : rien à payer ici pour l’instant.");
+  }
 
   const open = plan.installments.filter((i) => i.status !== "PAID" && i.status !== "WAIVED" && i.status !== "CANCELLED");
   const inReview = await prisma.payment.findFirst({
@@ -504,13 +508,16 @@ export async function createNextInstallmentPayment(orderId: string, actor: Insta
 
 /** Marque les mensualités échues comme OVERDUE (appelé par un job ou à la lecture). */
 export async function markOverdueInstallments(now = new Date()): Promise<number> {
+  // Échéanciers copiés de l'ancien site : encore suivis là-bas jusqu'à la bascule.
+  const frozen = await plansFollowedElsewhere();
+  const notFrozen = frozen.length ? { planId: { notIn: frozen } } : {};
   const res = await prisma.installment.updateMany({
-    where: { status: "PENDING", dueDate: { lt: now } },
+    where: { status: "PENDING", dueDate: { lt: now }, ...notFrozen },
     data: { status: "OVERDUE" },
   });
   if (res.count > 0) {
     await prisma.installmentPlan.updateMany({
-      where: { status: "ACTIVE", installments: { some: { status: "OVERDUE" } } },
+      where: { status: "ACTIVE", installments: { some: { status: "OVERDUE" } }, ...(frozen.length ? { id: { notIn: frozen } } : {}) },
       data: { status: "DEFAULTED" },
     });
   }
@@ -553,14 +560,16 @@ export async function sendInstallmentReminders(now = new Date()): Promise<{ upco
   const horizon = new Date(now);
   horizon.setDate(horizon.getDate() + REMINDER_WINDOW_DAYS);
 
+  const frozen = await plansFollowedElsewhere();
+  const notFrozen = frozen.length ? { planId: { notIn: frozen } } : {};
   const [dueSoon, overdueRows] = await Promise.all([
     prisma.installment.findMany({
-      where: { status: "PENDING", dueDate: { gte: now, lte: horizon } },
+      where: { status: "PENDING", dueDate: { gte: now, lte: horizon }, ...notFrozen },
       include: { plan: { include: { order: { select: { orderNumber: true, buyerId: true } } } } },
       take: 200,
     }),
     prisma.installment.findMany({
-      where: { status: "OVERDUE" },
+      where: { status: "OVERDUE", ...notFrozen },
       include: { plan: { include: { order: { select: { orderNumber: true, buyerId: true } } } } },
       take: 200,
     }),

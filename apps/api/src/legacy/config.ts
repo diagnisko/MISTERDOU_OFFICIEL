@@ -1,40 +1,57 @@
 import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { parse } from "dotenv";
-import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // Accès à l'ancien site, lus dans un fichier local hors dépôt (jamais dans le
-// code ni dans la discussion). Par défaut C:\ancien-site\migration.env.
-// Seules les clés nécessaires à l'étape lancée sont exigées.
+// code ni dans la discussion). Le fichier peut être le .env de l'ancien site
+// tel quel : ses noms (DATABASE_URL, S3_BUCKET_PUBLIC…) sont reconnus.
+// Emplacements cherchés : LEGACY_ENV_FILE, C:\ancien-site, Bureau\ancien-site.
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_LEGACY_ENV = "C:/ancien-site/migration.env";
+export const LEGACY_ENV_CANDIDATES = [
+  "C:/ancien-site/migration.env",
+  path.join(os.homedir(), "Desktop", "ancien-site", "migration.env"),
+];
 
-const schema = z.object({
-  SUPABASE_DB_URL: z.string().startsWith("postgres", "SUPABASE_DB_URL doit commencer par postgresql://").optional(),
-  AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  AWS_REGION: z.string().min(1).optional(),
-  S3_PUBLIC_BUCKET: z.string().min(1).optional(),
-  S3_PRIVATE_BUCKET: z.string().min(1).optional(),
-});
+export interface LegacyConfig {
+  file: string;
+  reportDir: string;
+  /** Base de l'ancien site (PostgreSQL), lue en lecture seule. */
+  dbUrl?: string;
+  awsRegion?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  publicBucket?: string;
+  privateBucket?: string;
+}
 
-export type LegacyConfig = z.infer<typeof schema> & { file: string; reportDir: string };
+const first = (env: Record<string, string>, ...keys: string[]) => keys.map((k) => env[k]?.trim()).find((v) => v) || undefined;
 
-export function loadLegacyConfig(file = process.env.LEGACY_ENV_FILE ?? DEFAULT_LEGACY_ENV): LegacyConfig {
-  if (!existsSync(file)) {
-    throw new Error(`Fichier d'accès introuvable : ${file}. Créez-le (voir docs/14-reprise-ancien-site.md) ou indiquez LEGACY_ENV_FILE.`);
+export function loadLegacyConfig(file = process.env.LEGACY_ENV_FILE ?? LEGACY_ENV_CANDIDATES.find((f) => existsSync(f))): LegacyConfig {
+  if (!file || !existsSync(file)) {
+    throw new Error(
+      `Fichier d'accès introuvable (${file ?? LEGACY_ENV_CANDIDATES.join(" ou ")}). ` +
+        "Voir docs/14-reprise-ancien-site.md, ou indiquez LEGACY_ENV_FILE.",
+    );
   }
-  const raw = parse(readFileSync(file));
-  // Les lignes laissées vides comptent comme absentes.
-  const filled = Object.fromEntries(Object.entries(raw).filter(([, v]) => v.trim() !== ""));
-  const parsed = schema.safeParse(filled);
-  if (!parsed.success) {
+  const env = parse(readFileSync(file));
+  const dbUrl = first(env, "LEGACY_DB_URL", "SUPABASE_DB_URL", "DATABASE_URL");
+  if (dbUrl && !/^postgres(ql)?:\/\//.test(dbUrl)) {
     // Le message cite la clé fautive, jamais sa valeur.
-    throw new Error(`Fichier d'accès invalide : ${parsed.error.issues.map((i) => `${i.path.join(".")} — ${i.message}`).join(" ; ")}`);
+    throw new Error("Fichier d'accès invalide : l'adresse de la base doit commencer par postgresql://");
   }
-  return { ...parsed.data, file, reportDir: path.join(path.dirname(file), "rapports") };
+  return {
+    file,
+    reportDir: path.join(path.dirname(file), "rapports"),
+    dbUrl,
+    awsRegion: first(env, "AWS_REGION"),
+    awsAccessKeyId: first(env, "AWS_ACCESS_KEY_ID"),
+    awsSecretAccessKey: first(env, "AWS_SECRET_ACCESS_KEY"),
+    publicBucket: first(env, "S3_PUBLIC_BUCKET", "S3_BUCKET_PUBLIC"),
+    privateBucket: first(env, "S3_PRIVATE_BUCKET", "S3_BUCKET_PRIVATE"),
+  };
 }
 
 export function requireKeys<K extends keyof LegacyConfig>(config: LegacyConfig, keys: K[]): Required<Pick<LegacyConfig, K>> {

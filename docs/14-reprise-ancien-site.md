@@ -1,80 +1,62 @@
-# Reprise des données de l'ancien site
+# Reprise des données de l'ancien site (Vanta)
 
-L'ancien site garde sa base sur **Supabase** et ses fichiers sur **AWS S3** (un bucket
-public, un bucket privé). La reprise copie ces données dans MISTERDOU sans jamais
-modifier l'ancien site : toutes les lectures se font en lecture seule.
+L'ancien site **Vanta** est fait avec Next.js et Prisma, sa base est sur **Neon** et ses fichiers sur
+**AWS S3** (un bucket public pour les photos et vidéos, un bucket privé pour les pièces
+d'identité). C'est une **copie** : l'ancien site reste en ligne et n'est jamais modifié, car
+toutes les lectures se font en lecture seule. Le jour venu, le propriétaire fait pointer
+son nom de domaine vers le nouveau site.
 
-## Ce qui est déjà prêt
+## Ce que fait la copie
 
-| Élément | Où | Rôle |
-|---|---|---|
-| Mots de passe des anciens clients | `apps/api/src/lib/password.ts` | Les empreintes bcrypt de Supabase Auth sont acceptées à la connexion, puis remplacées par scrypt. Les clients gardent leur mot de passe. |
-| Mot de passe oublié | `apps/api/src/modules/auth/password-reset.ts`, page `/mot-de-passe-oublie` | Code à 6 chiffres par e-mail : 15 minutes, 5 essais, un code par minute, un seul code valable à la fois. Le code reçu confirme aussi l'adresse e-mail. |
-| Table `LegacyRef` | `packages/db/prisma/schema.prisma` | Correspondance « ligne de l'ancien site → ligne du nouveau ». Le transfert peut être relancé sans créer de doublon. |
-| Import des comptes | `apps/api/src/legacy/supabase-users.ts` | Lit `auth.users` et `auth.identities` (Google). |
-| Commande | `pnpm --filter @misterdou/api legacy:import` | Simulation par défaut, `--apply` pour écrire. |
+| Ancien site | Nouveau site |
+|---|---|
+| Clients (rôle CLIENT, et l'ancien vendeur) | Comptes clients. Les comptes de l'équipe (SUPER_ADMIN, MANAGER) ne sont pas copiés. |
+| Mots de passe (bcrypt) | Repris tels quels, puis convertis en scrypt à la première connexion (`lib/password.ts`). |
+| Inscrits par Google | `googleSub` repris : connexion par Google, ou code « mot de passe oublié ». |
+| Téléphone, pays, adresse, photo de profil | Repris. Un numéro porté par deux comptes ne reste que sur le premier. |
+| Clients vérifiés (pièce recto/verso + photo du visage) | Dossier d'identité VERIFIED, avec les pièces rangées chiffrées (`lib/storage.ts`). Un dossier incomplet est à refaire. |
+| Offres liées à des mensualités en cours | Offres MISTERDOU « vendues », avec leurs identifiants chiffrés. |
+| Offres encore en vente | Offres « brouillon » (masquées) jusqu'à la bascule, pour qu'un compte ne soit jamais vendu deux fois. |
+| Photos et vidéos | Copiées vers R2. Les vidéos .mov sont converties en .mp4 avec ffmpeg. |
+| Mensualités dont l'apport est payé | Commande « mensualités en cours » : apport payé, mêmes dates et montants (au franc près). |
+| Réservations sans apport, messages, notifications, journaux | Non copiés : ils restent sur l'ancien site. |
 
-Le lien de nouveau mot de passe créé depuis la console (fiche du client) reste disponible :
-il sert tant que l'envoi d'e-mails n'est pas configuré.
+Sur le nouveau site, un client ne voit les identifiants qu'une fois tout payé. C'est la même
+règle pour les commandes copiées, même si l'ancien site les a déjà remis.
+
+**Avant la bascule :**
+- le réglage interne `legacy.followOldSite` vaut `true` (`src/legacy/follow.ts`) ;
+- le nouveau site n'envoie aucun rappel pour les échéanciers copiés, ne les marque jamais « en retard » et refuse de les encaisser (`LEGACY_PLAN`). L'ancien site continue d'encaisser.
 
 ## Accès à l'ancien site
 
-Les accès sont rangés dans un fichier local, **hors du dépôt et hors de OneDrive** :
-`C:\ancien-site\migration.env`. Un autre chemin peut être indiqué avec `LEGACY_ENV_FILE`.
+Le fichier d'accès est cherché dans cet ordre : `LEGACY_ENV_FILE`, `C:\ancien-site\migration.env`, puis
+`Bureau\ancien-site\migration.env`. Ce peut être le `.env` de l'ancien site tel quel : `DATABASE_URL`,
+`AWS_*`, `S3_BUCKET_PUBLIC` et `S3_BUCKET_PRIVATE` sont reconnus. Les rapports sont écrits dans
+`rapports\`, à côté du fichier ; ils contiennent des adresses e-mail.
+
+La clé AWS doit pouvoir **lire** les deux buckets. La clé applicative de Vanta ne peut pas lire
+le bucket privé : pour les pièces d'identité, il faut une clé IAM avec `AmazonS3ReadOnlyAccess`,
+à supprimer une fois la copie faite.
+
+## Commandes
 
 ```
-SUPABASE_DB_URL=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=
-S3_PUBLIC_BUCKET=
-S3_PRIVATE_BUCKET=
+pnpm --filter @misterdou/api legacy:import                         # simulation : rien n'est écrit
+pnpm --filter @misterdou/api legacy:import -- --apply              # copie (relançable, sans doublon)
+pnpm --filter @misterdou/api legacy:import -- --apply --bascule    # au changement de domaine
 ```
 
-- **`SUPABASE_DB_URL`** : dans Supabase, bouton « Connect », puis « Session pooler ». Remplacer `[YOUR-PASSWORD]` par le mot de passe de la base.
-- **Clés AWS** : créer un utilisateur IAM `misterdou-migration` avec seulement `AmazonS3ReadOnlyAccess`. Supprimer sa clé une fois la reprise terminée.
-- **Rapports** : ils sont écrits dans `C:\ancien-site\rapports\`. Ils contiennent des adresses e-mail : ne pas les partager.
+- **Essai local** : avec `DATABASE_URL=postgresql://…@localhost:5433/…`. Rien n'est écrit dans R2 : les fichiers vont sur le disque (`STORAGE_DIR`).
+- **Production** : ajouter `--production`. La commande refuse toute base non locale sans ce drapeau, et vérifie que la clé de chiffrement locale est bien celle de la production avant d'écrire.
+- **Nouveau passage** : il rattrape les nouveaux clients, les mois payés sur l'ancien site et les médias ou pièces manqués.
+- **`--bascule`** : il publie les offres encore en vente et rend les mensualités au nouveau site (rappels, retards, paiements).
 
-## Déroulé
+## Mot de passe oublié
 
-C'est une **copie**, pas un déménagement : l'ancien site reste en ligne et continue de
-fonctionner. Le moment venu, le propriétaire fait pointer son nom de domaine vers le
-nouveau site. Juste avant, une nouvelle copie rattrape ce qui a changé entre-temps,
-sans créer de doublon.
+C'est un code à 6 chiffres envoyé par e-mail :
+- valable 15 minutes, avec 5 essais au maximum ;
+- un seul code valable à la fois, et pas plus d'un code par minute ;
+- le code reçu confirme aussi l'adresse e-mail.
 
-1. **Essai sur la base de test locale** (port 5433). Lancer d'abord une simulation, puis l'écriture :
-   ```
-   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/misterdou_test?schema=public pnpm --filter @misterdou/api legacy:import
-   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/misterdou_test?schema=public pnpm --filter @misterdou/api legacy:import -- --apply
-   ```
-2. **Vérification** sur l'aperçu local : comptes présents, connexion avec un ancien mot de passe, soldes.
-3. **Copie sur le nouveau site** : sauvegarder Neon en créant une branche, puis lancer avec `--production` en plus de `--apply`. La commande refuse toute base non locale sans ce drapeau. Comme `apps/api/.env` vise Neon, c'est ce garde-fou qui empêche une écriture par erreur.
-4. **Avant la bascule du nom de domaine** : relancer la copie pour rattraper les nouveaux clients et les mensualités payées sur l'ancien site, puis rendre au nouveau site le suivi des échéances.
-
-## Mensualités en cours
-
-Les comptes vendus en mensualités sont copiés avec leurs **dates d'échéance d'origine**.
-Tant que l'ancien site encaisse, le nouveau site ne doit ni envoyer de rappel ni marquer de
-retard pour ces échéanciers copiés. Sans ça, le job des échéances
-(`markOverdueInstallments`, `sendInstallmentReminders`) les passerait en retard. Ce suivi est
-rendu au nouveau site au moment de la bascule.
-
-## Règles de l'import des comptes
-
-| Cas | Résultat |
-|---|---|
-| Nouveau client | Compte CLIENT créé : e-mail, prénom/nom (métadonnées), date d'inscription, e-mail vérifié, identité Google. |
-| Adresse déjà inscrite sur le nouveau site | Comptes fusionnés : le mot de passe du nouveau site est gardé, l'ancien sert seulement s'il n'y en a pas. |
-| Adresse d'un compte de l'équipe (ADMIN/STAFF) | Ignoré : on ne fusionne jamais avec un compte de l'équipe. |
-| Compte supprimé, anonyme ou sans e-mail | Ignoré, avec la raison dans le rapport. |
-| Banni sur l'ancien site | Compte repris en « Suspendu ». |
-| Inscrit uniquement par Google | Pas de mot de passe : se connecte par Google ou fixe un mot de passe via « Mot de passe oublié ». |
-| Nouveau passage (transfert final) | Aucun doublon. Le mot de passe suit l'ancien site tant que le client ne s'est pas connecté sur le nouveau. |
-
-## Reste à faire (après lecture du code de l'ancien site)
-
-- Correspondance des tables métier : profils (téléphone), vendeurs et soldes, offres, identifiants des comptes eFootball (à chiffrer de nouveau), commandes, paiements, échéances, avis.
-- Commandes en cours au moment du basculement : règle à décider avec le propriétaire.
-- Fichiers S3 :
-  - le bucket public est copié tel quel vers R2 ;
-  - le bucket privé passe par le chiffrement de `apps/api/src/lib/storage.ts`, jamais par une copie brute.
+Le lien créé depuis la console (fiche du client) reste disponible tant que l'envoi d'e-mails n'est pas configuré.

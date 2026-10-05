@@ -65,6 +65,18 @@ export async function writeLocalMedia(key: string, body: Buffer) {
   await fs.writeFile(target, body);
 }
 
+/** Dépose un média public déjà contrôlé (reprise de l'ancien site) : R2, ou disque en local. */
+export async function putPublicMedia(key: string, body: Buffer, mime: string): Promise<void> {
+  const bucket = publicBucket();
+  if (bucket) {
+    await r2().send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: mime, CacheControl: "public, max-age=31536000, immutable" }),
+    );
+    return;
+  }
+  await writeLocalMedia(key, body);
+}
+
 export async function readLocalMedia(key: string): Promise<Buffer> {
   return fs.readFile(localPath(key)).catch(() => {
     throw badRequest("FILE_ACCESS_DENIED", "Média introuvable");

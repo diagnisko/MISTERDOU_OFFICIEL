@@ -298,6 +298,7 @@ export const API_ERROR_CODES = [
   "INVALID_PASSWORD",
   "ACCOUNT_BUSY",
   "AWAITING_PAYMENT",
+  "LEGACY_PLAN",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
