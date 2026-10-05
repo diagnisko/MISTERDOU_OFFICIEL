@@ -39,6 +39,8 @@ export function s3LegacyFiles(cfg: {
   const client = new S3Client({
     region: cfg.awsRegion,
     credentials: { accessKeyId: cfg.awsAccessKeyId, secretAccessKey: cfg.awsSecretAccessKey },
+    requestHandler: { connectionTimeout: 15_000, requestTimeout: 120_000 },
+    maxAttempts: 5,
   });
   const read = async (bucket: string, key: string): Promise<LegacyFile> => {
     const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));

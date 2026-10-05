@@ -77,7 +77,7 @@ async function main() {
   }
   console.log(`Lu sur l'ancien site : ${data.users.length} comptes, ${data.products.length} offres, ${data.plans.length} échéanciers avec apport payé`);
 
-  const report = await copyVanta(data, { apply, files, bascule });
+  const report = await copyVanta(data, { apply, files, bascule, progress: (m) => console.log(`[${new Date().toLocaleTimeString("fr-FR")}] ${m}`) });
 
   const tally = <T,>(items: T[], key: (i: T) => string) => {
     const counts = new Map<string, number>();

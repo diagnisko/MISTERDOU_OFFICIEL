@@ -61,6 +61,8 @@ interface Ctx {
   source: string;
   /** Conversion .mov → .mp4 (ffmpeg par défaut ; remplaçable dans les essais). */
   convertMov?: (input: Buffer) => Promise<Buffer | null>;
+  /** Suivi en direct (terminal) ; muet par défaut. */
+  progress: (message: string) => void;
   lines: CopyLine[];
 }
 
@@ -106,6 +108,7 @@ export async function copyVanta(
     now?: Date;
     source?: string;
     convertMov?: (input: Buffer) => Promise<Buffer | null>;
+    progress?: (message: string) => void;
   },
 ): Promise<CopyReport> {
   const ctx: Ctx = {
@@ -115,16 +118,19 @@ export async function copyVanta(
     now: opts.now ?? new Date(),
     source: opts.source ?? VANTA_SOURCE,
     convertMov: opts.convertMov,
+    progress: opts.progress ?? (() => undefined),
     lines: [],
   };
   const legacyUsers = data.users.map(toLegacyUser);
 
   // 1. Clients.
+  ctx.progress(`Clients : ${legacyUsers.length} à vérifier…`);
   const users = await importLegacyUsers(legacyUsers, { apply: ctx.apply, source: ctx.source });
   const userIds = new Map(users.filter((l) => l.newId).map((l) => [l.legacyId, l.newId!]));
   const copiedUser = (id: string) => users.some((l) => l.legacyId === id && l.outcome !== "ignoré");
 
   // 2. Photos de profil et 3. dossiers d'identité des clients vérifiés.
+  ctx.progress("Photos de profil et dossiers d'identité…");
   for (const u of data.users) {
     if (!copiedUser(u.id)) continue;
     const newId = userIds.get(u.id);
@@ -136,12 +142,14 @@ export async function copyVanta(
   const plans = data.plans.filter((p) => COPIED_PLAN_STATUSES.has(p.status) && p.purchaseStatus !== "CANCELLED" && copiedUser(p.userId));
   const planByProduct = new Map(plans.map((p) => [p.productId, p]));
   const productIds = new Map<string, string>();
-  for (const p of data.products) {
+  for (const [n, p] of data.products.entries()) {
+    ctx.progress(`Offre ${n + 1}/${data.products.length} : ${p.title} (${p.media.length} média(s))`);
     const id = await copyProduct(p, planByProduct.get(p.id) ?? null, ctx);
     if (id) productIds.set(p.id, id);
   }
 
   // 5. Mensualités.
+  ctx.progress("Mensualités…");
   let copiedPlans = 0;
   for (const plan of data.plans) {
     const done = await copyPlan(plan, plans.includes(plan), userIds.get(plan.userId), productIds.get(plan.productId), ctx);
@@ -353,7 +361,9 @@ async function copyMedia(p: VantaProduct, productId: string, ctx: Ctx) {
         continue;
       }
       const key = `products/${productId}/${randomUUID()}.${MEDIA_TYPES[mime]!.ext}`;
+      const started = Date.now();
       await putPublicMedia(key, file.buffer, mime);
+      ctx.progress(`  média envoyé : ${(file.buffer.length / 1048576).toFixed(1)} Mo en ${Math.round((Date.now() - started) / 1000)} s`);
       await prisma.$transaction([
         prisma.productImage.create({
           data: { productId, objectKey: key, mimeType: mime, sizeBytes: file.buffer.length, isPrimary: !hasCover && m === cover, position: position++ },
