@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
-import { encryptString } from "../../lib/storage.js";
+import { decryptString, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
 import { getIntSetting } from "../settings/service.js";
 import { holdsReservation } from "../orders/fulfillment.js";
@@ -232,4 +232,39 @@ export async function removeOffer(productId: string, owner: OfferOwner, actor: O
     severity: "WARNING",
   });
   return { id: product.id, removed: true };
+}
+
+/**
+ * « Clé d'accès » : identifiants du compte, pour l'équipe (codes de vérification,
+ * aide au client). Chaque affichage est tracé dans le journal d'audit.
+ */
+export async function revealOfferCredential(productId: string, actor: OfferActor) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, deletedAt: null },
+    select: { id: true, title: true, credential: { select: { id: true, encryptedEmail: true, encryptedPassword: true } } },
+  });
+  if (!product) throw notFound("Offre introuvable.");
+  if (!product.credential) throw notFound("Aucun identifiant enregistré pour ce compte.");
+  let email: string;
+  let password: string;
+  try {
+    email = decryptString(product.credential.encryptedEmail);
+    password = decryptString(product.credential.encryptedPassword);
+  } catch {
+    throw badRequest("CREDENTIAL_UNREADABLE", "Identifiants illisibles : saisissez-les de nouveau dans l'offre.");
+  }
+  await prisma.productCredential.update({
+    where: { id: product.credential.id },
+    data: { lastAccessedAt: new Date(), lastAccessedById: actor.actorId },
+  });
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: "PRODUCT_CREDENTIAL_REVEALED",
+    resourceType: "Product",
+    resourceId: product.id,
+    severity: "WARNING",
+  });
+  return { title: product.title, email, password };
 }

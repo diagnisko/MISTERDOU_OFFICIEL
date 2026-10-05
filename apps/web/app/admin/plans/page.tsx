@@ -6,6 +6,7 @@ import { formatXof, request } from "@/lib/api";
 import { Alert, Button, SelectInput, StatusBadge, TextInput } from "@/components/ui";
 import { buildQuery, isErrorCode } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
+import { CredentialKeyButton } from "../_lib/credential-key";
 import {
   AdminModal,
   AdminPageHead,
@@ -54,6 +55,7 @@ type PlanRow = {
     totalAmount: number;
     paymentMode: string;
     buyer: { id: string; email: string; firstName: string | null; lastName: string | null };
+    items?: Array<{ productId: string; title: string }>;
   };
   installments: Installment[];
 };
@@ -193,7 +195,12 @@ export default function PlansPage() {
                     className="cursor-pointer transition hover:bg-white/[0.025]"
                     onClick={() => setExpanded(open ? null : plan.id)}
                   >
-                    <td className="px-4 py-3.5 text-stone-200">{plan.order.orderNumber}</td>
+                    <td className="px-4 py-3.5 text-stone-200">
+                      {plan.order.orderNumber}
+                      {plan.order.items?.[0] && (
+                        <span className="mt-0.5 block text-[12px] font-normal text-stone-500">{plan.order.items[0].title}</span>
+                      )}
+                    </td>
                     <td className="max-w-[200px] truncate px-4 py-3.5 text-stone-300">
                       {plan.order.buyer.email}
                     </td>
@@ -218,6 +225,7 @@ export default function PlansPage() {
                           label={open ? "Masquer" : "Échéances"}
                           onClick={() => setExpanded(open ? null : plan.id)}
                         />
+                        {plan.order.items?.[0] && <CredentialKeyButton productId={plan.order.items[0].productId} />}
                         {active && (
                           <RowAction label="Solder le plan" tone="danger" onClick={() => setSettleTarget(plan)} />
                         )}

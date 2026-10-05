@@ -9,6 +9,7 @@ import {
   getOfferForEdit,
   parseOffer,
   removeOffer,
+  revealOfferCredential,
   updateOffer,
   updateOfferSchema,
   type OfferActor,
@@ -62,6 +63,13 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     await requirePermission(request, "PRODUCTS");
     const { id } = request.params as { id: string };
     return sendOk(reply, await getOfferForEdit(id, team));
+  });
+
+  // « Clé d'accès » : identifiants du compte (affichage tracé).
+  app.get("/admin/offerings/:id/credential", limited, async (request, reply) => {
+    await requirePermission(request, "PRODUCTS");
+    const { id } = request.params as { id: string };
+    return sendOk(reply, await revealOfferCredential(id, actor(request)));
   });
 
   app.put("/admin/offerings/:id", limited, async (request, reply) => {

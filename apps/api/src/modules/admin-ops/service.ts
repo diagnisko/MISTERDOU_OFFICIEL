@@ -587,6 +587,8 @@ export async function listPlans(args: PlanListArgs) {
             totalAmount: true,
             paymentMode: true,
             buyer: { select: { id: true, email: true, firstName: true, lastName: true } },
+            // Le compte acheté (« Clé d'accès » depuis la liste).
+            items: { take: 1, select: { productId: true, title: true } },
           },
         },
         installments: {

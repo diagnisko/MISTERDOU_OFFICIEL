@@ -8,6 +8,7 @@ import { Alert, Spinner } from "@/components/ui";
 import { OfferForm, type EditableOffer } from "@/components/offers/offer-form";
 import { AdminPageHead } from "../../_lib/ui";
 import { PasswordConfirmDialog } from "@/components/password-confirm";
+import { CredentialKeyButton } from "../../_lib/credential-key";
 
 // Modifier ou retirer une offre MISTERDOU. Les offres des vendeurs restent
 // les leurs : la console ne peut que les désactiver.
@@ -36,9 +37,12 @@ export default function EditAdminOfferPage() {
         kicker="Gestion de la plateforme"
         title="Modifier l’offre"
         action={
-          <Link href="/admin/offers" className="dash-btn dash-btn-ghost">
-            Retour aux offres
-          </Link>
+          <>
+            {offer && <CredentialKeyButton productId={id} variant="button" />}
+            <Link href="/admin/offers" className="dash-btn dash-btn-ghost">
+              Retour aux offres
+            </Link>
+          </>
         }
       />
       <div className="mt-6 max-w-3xl space-y-5">

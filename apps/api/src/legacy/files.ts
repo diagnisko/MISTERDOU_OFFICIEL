@@ -33,7 +33,7 @@ export function s3LegacyFiles(cfg: {
   const client = new S3Client({
     region: cfg.awsRegion,
     credentials: { accessKeyId: cfg.awsAccessKeyId, secretAccessKey: cfg.awsSecretAccessKey },
-    requestHandler: { connectionTimeout: 15_000, requestTimeout: 120_000, throwOnRequestTimeout: true },
+    requestHandler: { connectionTimeout: 15_000, requestTimeout: 600_000, throwOnRequestTimeout: true }, // grosses vidéos sur connexion lente
     maxAttempts: 5,
   });
   const read = async (bucket: string, key: string): Promise<LegacyFile> => {

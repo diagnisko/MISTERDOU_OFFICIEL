@@ -24,6 +24,10 @@ const apiDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..
 loadDotenv({ path: process.env.DOTENV_CONFIG_PATH ?? path.join(apiDir, ".env"), quiet: true });
 
 const { targetHost } = await import("./config.js");
+// Connexion lente : patience pour joindre la base (Prisma attend 10 s par défaut).
+if (process.env.DATABASE_URL && !/pool_timeout=/.test(process.env.DATABASE_URL)) {
+  process.env.DATABASE_URL += `${process.env.DATABASE_URL.includes("?") ? "&" : "?"}pool_timeout=60&connect_timeout=30`;
+}
 const target = targetHost(process.env.DATABASE_URL);
 if (!target.local && !args.has("--production")) {
   console.error(

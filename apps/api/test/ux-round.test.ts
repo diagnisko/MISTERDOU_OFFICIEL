@@ -260,6 +260,15 @@ describe("Mensualités : apport et mois dans un même paiement", () => {
     expect(after.sold.some((s) => s.id === product.id)).toBe(true);
   });
 
+  it("« Clé d'accès » : l'équipe voit les identifiants du compte, l'affichage est tracé", async () => {
+    const { revealOfferCredential } = await import("../src/modules/offers/service.js");
+    const { product } = await planOrder();
+    const admin = await createAdmin(t);
+    const cred = await revealOfferCredential(product.id, { actorId: admin.user.id, actorRole: "ADMIN" });
+    expect(cred).toMatchObject({ email: expect.any(String), password: expect.any(String) });
+    expect(await prisma.auditLog.count({ where: { action: "PRODUCT_CREDENTIAL_REVEALED", resourceId: product.id } })).toBe(1);
+  });
+
   it("apport seul (0 mois), puis 2 mois ensemble", async () => {
     const { buyer, orderId } = await planOrder();
     const down = await createNextInstallmentPayment(orderId, { actorId: buyer.id }, 0);
