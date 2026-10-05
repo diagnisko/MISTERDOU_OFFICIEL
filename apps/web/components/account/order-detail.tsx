@@ -129,6 +129,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         </div>
       )}
 
+      {/* Mensualités en cours : le compte est remis, il reste à MISTERDOU jusqu'à la dernière échéance. */}
+      {order.canReveal && order.status === "PARTIALLY_PAID" && <Alert tone="warning">{t("creds.monthlyRule")}</Alert>}
+
       {order.canReveal && !closed && (
         <section className="dash-card flex flex-wrap items-center justify-between gap-3 p-5">
           <div className="min-w-0">

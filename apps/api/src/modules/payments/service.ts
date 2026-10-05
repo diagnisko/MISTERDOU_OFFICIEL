@@ -176,9 +176,12 @@ export async function settlePayment(
   });
 
   if (outcome === "SUCCESS") {
+    const deposit = payment.type === "INITIAL_INSTALLMENT";
     await notifyUser(payment.userId, "PAYMENT_CONFIRMED", {
-      title: "Paiement confirmé",
-      message: `Votre paiement de ${payment.amount.toLocaleString("fr-FR")} FCFA a été confirmé.`,
+      title: deposit ? "Apport confirmé : votre compte est disponible" : "Paiement confirmé",
+      message: deposit
+        ? `Votre apport de ${payment.amount.toLocaleString("fr-FR")} FCFA est confirmé. Les identifiants du compte sont dans « Mes commandes » ; réglez ensuite chaque mensualité à sa date.`
+        : `Votre paiement de ${payment.amount.toLocaleString("fr-FR")} FCFA a été confirmé.`,
       actionUrl: "/account/orders",
       priority: "CRITICAL",
     });

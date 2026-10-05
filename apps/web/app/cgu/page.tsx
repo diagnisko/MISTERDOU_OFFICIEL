@@ -60,8 +60,10 @@ export default async function CguPage() {
       <Section title="5. Paiement en plusieurs fois">
         <p>
           Certaines offres peuvent être réglées en plusieurs fois depuis la page « Mensualités » : un apport, puis des mensualités
-          à date fixe, chacune payée par Wave. Le compte est livré une fois l’échéancier entièrement réglé. Une échéance non payée
-          à temps entraîne des rappels et peut faire passer l’échéancier en défaut.
+          à date fixe, chacune payée par Wave. Les identifiants du compte sont remis dès la validation de l’apport ; le client
+          s’engage à ne modifier ni l’adresse e-mail ni le mot de passe du compte avant le règlement de la dernière mensualité,
+          date à laquelle le compte lui revient entièrement. Une échéance non payée à temps entraîne des rappels et peut faire
+          passer l’échéancier en défaut.
         </p>
       </Section>
 

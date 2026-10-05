@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasAccountAccess } from "../orders/service.js";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { conflict, forbidden, notFound } from "../../lib/errors.js";
@@ -29,7 +30,6 @@ export const provideCodeSchema = z.object({
     .regex(/^[A-Za-z0-9 -]+$/, "Lettres, chiffres, espaces ou tirets uniquement"),
 });
 
-const DELIVERED_STATUSES = ["DELIVERED", "COMPLETED"] as const;
 
 export type ClientCodeView = {
   id: string;
@@ -92,12 +92,13 @@ export async function requestVerificationCode(orderId: string, actor: CodeActor)
       id: true,
       orderNumber: true,
       status: true,
+      paymentMode: true,
       items: { select: { title: true, product: { select: { seller: { select: { userId: true } } } } } },
     },
   });
   if (!order) throw notFound("Commande introuvable.");
-  if (!(DELIVERED_STATUSES as readonly string[]).includes(order.status)) {
-    throw conflict("ORDER_NOT_DELIVERED", "Le code se demande une fois le compte livré.");
+  if (!hasAccountAccess(order)) {
+    throw conflict("ORDER_NOT_DELIVERED", "Le code se demande une fois l’accès ouvert (compte livré, ou apport validé en mensualités).");
   }
 
   const current = await latestCodeForOrder(order.id);

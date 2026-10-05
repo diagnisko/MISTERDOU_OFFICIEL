@@ -7,7 +7,8 @@ import { authFor, buildMiniApp, cleanup, createAdmin, createProduct, createSelle
 import { registerProductChatRoutes } from "../src/modules/product-chat/routes.js";
 import { registerMessagingRoutes } from "../src/modules/messaging/routes.js";
 import { registerAdminConsoleRoutes } from "../src/modules/admin-console/routes.js";
-import { createOrder } from "../src/modules/orders/service.js";
+import { createOrder, getMyOrder, listMyOrders, revealCredentials } from "../src/modules/orders/service.js";
+import { requestVerificationCode } from "../src/modules/verification-codes/service.js";
 import { settlePayment } from "../src/modules/payments/service.js";
 import { createNextInstallmentPayment, getSchedule } from "../src/modules/installments/service.js";
 import { approvePaymentProof, purgeProofScreenshots, submitPaymentProof } from "../src/modules/payments/proofs.js";
@@ -227,6 +228,22 @@ describe("Mensualités : apport et mois dans un même paiement", () => {
     expect(last.amount).toBe(30_000);
     await settlePayment({ id: last.paymentId }, "SUCCESS", { source: "MANUAL" });
     expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe("DELIVERED");
+  });
+
+  it("l'apport validé ouvre l'accès au compte (identifiants, codes), pas avant", async () => {
+    const { buyer, orderId } = await planOrder();
+    expect((await expectApiError(() => revealCredentials(orderId, { actorId: buyer.id }))).code).toBe("ORDER_NOT_DELIVERED");
+    expect((await expectApiError(() => requestVerificationCode(orderId, { actorId: buyer.id }))).code).toBe("ORDER_NOT_DELIVERED");
+
+    const down = await createNextInstallmentPayment(orderId, { actorId: buyer.id }, 0);
+    await settlePayment({ id: down.paymentId }, "SUCCESS", { source: "MANUAL" });
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe("PARTIALLY_PAID");
+    expect((await listMyOrders(buyer.id)).find((o) => o.id === orderId)?.canReveal).toBe(true);
+    expect((await getMyOrder(orderId, buyer.id)).canReveal).toBe(true);
+    await expect(revealCredentials(orderId, { actorId: buyer.id })).resolves.toMatchObject({ email: expect.any(String), password: expect.any(String) });
+    await expect(requestVerificationCode(orderId, { actorId: buyer.id })).resolves.toBeTruthy();
+    const note = await prisma.notification.findFirst({ where: { userId: buyer.id, title: { startsWith: "Apport confirmé" } } });
+    expect(note?.message).toContain("identifiants");
   });
 
   it("apport seul (0 mois), puis 2 mois ensemble", async () => {

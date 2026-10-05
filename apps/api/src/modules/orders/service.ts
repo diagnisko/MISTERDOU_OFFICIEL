@@ -18,6 +18,15 @@ import { reviewForOrder } from "../reviews/service.js";
 /** Statuts où le compte est entre les mains du client (livré, puis réception confirmée). */
 const ACCESS_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
 
+/**
+ * Accès au compte acheté. Comptant : une fois la commande livrée. Mensualités :
+ * dès que l'apport est validé (commande PARTIALLY_PAID) — c'est le contrat :
+ * le client reçoit les identifiants au départ et paie au fur et à mesure.
+ */
+export function hasAccountAccess(order: { status: string; paymentMode: string }): boolean {
+  return ACCESS_STATUSES.has(order.status) || (order.paymentMode === "INSTALLMENTS" && order.status === "PARTIALLY_PAID");
+}
+
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 export interface OrderActor {
@@ -157,8 +166,8 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
           create: {
             userId: ctx.actorId,
             paymentNumber: `PAY-${orderNumber}`,
-            // En tranches, le premier règlement est l'APPORT : il ouvre le
-            // dossier mais ne donne aucun accès au compte.
+            // En tranches, le premier règlement est l'APPORT : une fois validé,
+            // il ouvre l'accès au compte (identifiants, codes de vérification).
             type: split ? "INITIAL_INSTALLMENT" : "ORDER_PAYMENT",
             amount: split ? downPayment : totalAmount,
             currency: "XOF",
@@ -339,7 +348,7 @@ export async function listMyOrders(userId: string): Promise<OrderSummary[]> {
     createdAt: o.createdAt.toISOString(),
     deliveredAt: o.deliveredAt ? o.deliveredAt.toISOString() : null,
     receivedAt: o.receivedAt ? o.receivedAt.toISOString() : null,
-    canReveal: ACCESS_STATUSES.has(o.status),
+    canReveal: hasAccountAccess(o),
   }));
 }
 
@@ -391,7 +400,7 @@ export async function getMyOrder(orderId: string, userId: string) {
     },
   });
   if (!order) throw notFound("Commande introuvable");
-  const hasAccess = ACCESS_STATUSES.has(order.status);
+  const hasAccess = hasAccountAccess(order);
   const [schedule, verificationCode, holdDays, review] = await Promise.all([
     order.paymentMode === "INSTALLMENTS" ? getSchedule(order.id) : Promise.resolve(null),
     hasAccess ? latestCodeForOrder(order.id) : Promise.resolve(null),
@@ -442,6 +451,7 @@ export async function revealCredentials(orderId: string, ctx: OrderActor) {
       orderNumber: true,
       buyerId: true,
       status: true,
+      paymentMode: true,
       items: {
         select: {
           title: true,
@@ -453,7 +463,7 @@ export async function revealCredentials(orderId: string, ctx: OrderActor) {
   if (!order) throw notFound("Commande introuvable");
   if (order.buyerId !== ctx.actorId) throw notFound("Commande introuvable");
   if (order.status === "REFUNDED") throw conflict("ORDER_REFUNDED", "Accès révoqué : cette commande a été remboursée.");
-  if (!ACCESS_STATUSES.has(order.status)) {
+  if (!hasAccountAccess(order)) {
     throw badRequest("ORDER_NOT_DELIVERED", "La livraison n'est pas encore confirmée.");
   }
 

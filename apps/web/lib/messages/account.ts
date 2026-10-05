@@ -185,6 +185,7 @@ export const fr = {
   "plan.addMonths": "Touchez des mois pour les payer en même temps que l’apport.",
   "plan.payDown": "Payer l’apport",
   "plan.payDownPlus": "Payer l’apport + {n} mois",
+  "creds.monthlyRule": "Mensualités en cours : ne modifiez ni l’e-mail ni le mot de passe du compte avant la dernière mensualité. Pour vous connecter, demandez le code de vérification ci-dessus. Une fois tout réglé, le compte est entièrement à vous.",
 } as const;
 
 export const en: Translations<typeof fr> = {
@@ -364,6 +365,7 @@ export const en: Translations<typeof fr> = {
   "plan.addMonths": "Tap months to pay them together with the down payment.",
   "plan.payDown": "Pay the down payment",
   "plan.payDownPlus": "Pay down payment + {n} month(s)",
+  "creds.monthlyRule": "Instalments in progress: don’t change the account’s email or password before the last instalment. To log in, request the verification code above. Once everything is paid, the account is fully yours.",
 };
 
 export const ar: Translations<typeof fr> = {
@@ -543,4 +545,5 @@ export const ar: Translations<typeof fr> = {
   "plan.addMonths": "اضغط على الأشهر لدفعها مع الدفعة الأولى.",
   "plan.payDown": "دفع الدفعة الأولى",
   "plan.payDownPlus": "دفع الدفعة الأولى + {n} شهر",
+  "creds.monthlyRule": "الأقساط جارية: لا تغيّر البريد الإلكتروني ولا كلمة مرور الحساب قبل القسط الأخير. لتسجيل الدخول، اطلب رمز التحقق أعلاه. بعد سداد كل شيء يصبح الحساب ملكك بالكامل.",
 };

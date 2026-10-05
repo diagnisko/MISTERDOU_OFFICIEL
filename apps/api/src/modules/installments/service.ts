@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // P7 — Paiement en tranches (« Prêt ou prestation »).
 //
-// Décision commerciale actée : le compte n'est livré qu'une fois l'échéancier
-// ENTIÈREMENT soldé. L'apport initial ouvre le dossier financier, il ne donne
-// aucun accès. C'est ce qui protège la place : aucun vendeur ne livre « dans le
-// vide » face à un client qui stoppe ses mensualités.
+// Décision du propriétaire (2026-10-05) : comme le contrat de mensualités, le
+// client reçoit les identifiants dès que l'apport est validé, puis paie au fur
+// et à mesure (codes de vérification fournis par l'équipe). Une fois tout
+// payé, le compte est à lui (il peut en changer l'e-mail et le mot de passe).
 //
 // Montants (entiers FCFA, aucun centime) :
 //   apport        = Product.installmentDownPayment (posé par l'admin)
@@ -214,8 +214,8 @@ export async function getSchedule(orderId: string): Promise<Schedule | null> {
 
 /**
  * Encaisse une échéance. Appelée DANS la transaction de settlePayment.
- * L'apport initial n'ouvre aucun accès ; c'est la solde totale qui déclenche la
- * livraison. Idempotent : une échéance déjà SOLDEE est ignorée.
+ * L'apport validé ouvre l'accès au compte (commande PARTIALLY_PAID) ; le solde
+ * total passe la commande en « livrée ». Idempotent : une échéance déjà SOLDÉE est ignorée.
  */
 export async function applyDownPayment(tx: Tx, payment: Payment): Promise<{ counted: boolean; settled: boolean }> {
   // Verrou sur le plan (V-10) : deux apports validés en même temps pour le
