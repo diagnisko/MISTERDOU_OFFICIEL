@@ -14,7 +14,7 @@ export function r2(): S3Client {
       credentials: { accessKeyId: env.R2_ACCESS_KEY_ID!, secretAccessKey: env.R2_SECRET_ACCESS_KEY! },
       // Connexion muette > 2 min = échec, puis nouvel essai (5 au total) : un
       // transfert ne reste jamais figé indéfiniment sur une connexion lente.
-      requestHandler: { connectionTimeout: 15_000, requestTimeout: 120_000 },
+      requestHandler: { connectionTimeout: 15_000, requestTimeout: 120_000, throwOnRequestTimeout: true },
       maxAttempts: 5,
     });
   }

@@ -72,7 +72,7 @@ async function fixVideos() {
     if (codec === "h264") continue;
     log(`Vidéo ${v.product.title} (${(v.sizeBytes / 1048576).toFixed(1)} Mo, ${codec ?? "illisible"}) : ${apply ? "conversion en H.264…" : "à convertir"}`);
     if (!apply) continue;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(600_000) });
     if (!res.ok) {
       log(`  impossible de la relire (${res.status}) : ignorée`);
       continue;
