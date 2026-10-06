@@ -155,7 +155,10 @@ export async function loginWithGoogle(
   }
   const { OAuth2Client } = await import("google-auth-library");
   const client = new OAuth2Client(env.GOOGLE_OAUTH_CLIENT_ID);
-  const ticket = await client.verifyIdToken({ idToken, audience: env.GOOGLE_OAUTH_CLIENT_ID });
+  // Jeton mal formé, expiré ou émis pour une autre application : refus propre, jamais d'erreur 500.
+  const ticket = await client.verifyIdToken({ idToken, audience: env.GOOGLE_OAUTH_CLIENT_ID }).catch(() => {
+    throw badRequest("INVALID_CREDENTIALS", "Connexion Google refusée : réessayez.");
+  });
   const payload = ticket.getPayload();
   if (!payload?.sub || !payload.email) throw badRequest("INVALID_CREDENTIALS", "Jeton Google invalide");
 

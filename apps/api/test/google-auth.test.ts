@@ -91,9 +91,10 @@ describe("Connexion Google", () => {
       message: "Jeton Google invalide",
     });
 
-    await expect(loginWithGoogle(tokenFor({ __fail: 1, sub: "x", email: "y@z" }), {})).rejects.toThrow(
-      "invalid_grant",
-    );
+    // Jeton rejeté par Google : refus propre (400), jamais une erreur 500.
+    await expect(loginWithGoogle(tokenFor({ __fail: 1, sub: "x", email: "y@z" }), {})).rejects.toMatchObject({
+      code: "INVALID_CREDENTIALS",
+    });
 
     const staff = await createUser(t, { role: "STAFF" });
     await expect(

@@ -187,7 +187,8 @@ describe("Connexion Google (§39 — connexion Google)", () => {
   });
 
   it("refuse un jeton Google invalide", async () => {
-    await expect(loginWithGoogle("invalid-google-token", {})).rejects.toThrow("token invalide");
+    // Refus propre (400 INVALID_CREDENTIALS), plus d'erreur brute de la bibliothèque Google.
+    await expect(loginWithGoogle("invalid-google-token", {})).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
   });
 
   it("refuse un compte non CLIENT (ex. STAFF) sur le flux Google", async () => {
