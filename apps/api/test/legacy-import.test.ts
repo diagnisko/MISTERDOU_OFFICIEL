@@ -26,6 +26,7 @@ const { targetHost } = await import("../src/legacy/config.js");
 const { keyFromUrl } = await import("../src/legacy/files.js");
 const { readVanta } = await import("../src/legacy/vanta-read.js");
 const { copyVanta, toLegacyUser } = await import("../src/legacy/vanta-copy.js");
+const { settlePayment } = await import("../src/modules/payments/service.js");
 const { FOLLOW_OLD_SITE_KEY } = await import("../src/legacy/follow.js");
 const map = await import("../src/legacy/vanta-map.js");
 const installments = await import("../src/modules/installments/service.js");
@@ -410,6 +411,8 @@ describe("Copie de l'ancien site (faux Vanta sur la base locale)", () => {
     const plan = await planFor(id("plan1"));
     expect(plan).toMatchObject({ totalPaid: 45000 + plan.installments[0]!.amountDue, paidCount: 1 });
     expect(plan.installments[0]).toMatchObject({ status: "PAID", paidAt: new Date("2026-10-10T15:00:00Z") });
+    // Le mois payé là-bas est aussi un paiement enregistré (base du total payé).
+    expect(plan.order.payments.filter((p) => p.status === "SUCCESS").map((p) => p.amount).sort((a, b) => b - a)).toEqual([45000, plan.installments[0]!.amountDue]);
   });
 
   it("bascule : offres encore en vente publiées, mensualités rendues au nouveau site", async () => {
@@ -430,5 +433,17 @@ describe("Copie de l'ancien site (faux Vanta sur la base locale)", () => {
     const plan = await planFor(id("plan1"));
     // Le mois 1 a été payé sur l'ancien site ; le mois 2 est échu ; le mois 3 pas encore.
     expect(plan.installments.filter((i) => i.status === "OVERDUE").map((i) => i.index)).toEqual([2]);
+
+    // Le client règle maintenant les mois 2 et 3 sur le nouveau site, en un seul paiement Wave.
+    const ticket = await installments.createNextInstallmentPayment(plan.orderId, { actorId: plan.order.buyerId }, 2);
+    const due = plan.installments[1]!.amountDue + plan.installments[2]!.amountDue;
+    expect(ticket.amount).toBe(due);
+    const payment = await prisma.payment.findFirstOrThrow({ where: { transactionToken: ticket.token } });
+    await settlePayment({ id: payment.id }, "SUCCESS", { source: "MANUAL" });
+    const after = await planFor(id("plan1"));
+    // Rien n'est oublié : apport + mois 1 (ancien site) + mois 2 et 3 (nouveau site).
+    expect(after.totalPaid).toBe(45000 + plan.installments[0]!.amountDue + due);
+    expect(after.installments.slice(0, 3).every((i) => i.status === "PAID")).toBe(true);
+    expect(after.installments[3]!.status).not.toBe("PAID");
   });
 });

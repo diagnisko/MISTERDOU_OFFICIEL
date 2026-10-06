@@ -491,6 +491,16 @@ async function copyPlan(
         installmentPlanId: newPlan.id,
       },
     });
+    // Mois déjà payés sur l'ancien site : un paiement chacun, pour que le total payé
+    // (recalculé à partir des paiements à chaque nouveau versement) les compte.
+    if (paidLines.length > 0) {
+      const lines = await tx.installment.findMany({ where: { planId: newPlan.id }, select: { id: true, index: true } });
+      for (const { s, amount } of paidLines) {
+        await tx.payment.create({
+          data: oldSiteMonthPayment({ planId: plan.id, newPlanId: newPlan.id, orderId: order.id, orderNumber, buyerId, index: s.installmentNumber, amount, paidAt: s.paidAt ?? s.dueDate, installmentId: lines.find((l) => l.index === s.installmentNumber)?.id ?? null }),
+        });
+      }
+    }
     await tx.product.update({ where: { id: productId }, data: { status: "SOLD" } });
     await tx.legacyRef.createMany({
       data: [
@@ -504,12 +514,40 @@ async function copyPlan(
   return true;
 }
 
+/** Paiement « encaissé sur l'ancien site » d'une mensualité (tracé, sans prestataire ici). */
+function oldSiteMonthPayment(p: {
+  planId: string;
+  newPlanId: string;
+  orderId: string;
+  orderNumber: string;
+  buyerId: string;
+  index: number;
+  amount: number;
+  paidAt: Date;
+  installmentId: string | null;
+}) {
+  return {
+    paymentNumber: `PAY-${p.orderNumber}-M${p.index}`,
+    userId: p.buyerId,
+    orderId: p.orderId,
+    type: "INSTALLMENT" as const,
+    amount: p.amount,
+    provider: "SYSTEM" as const,
+    providerReference: `vanta:${p.planId}:mois${p.index}`,
+    status: "SUCCESS" as const,
+    paidAt: p.paidAt,
+    verifiedAt: p.paidAt,
+    installmentPlanId: p.newPlanId,
+    installmentId: p.installmentId,
+  };
+}
+
 /** Nouveau passage : reporte les mensualités payées sur l'ancien site depuis la copie. */
 async function syncPlan(plan: VantaPlan, planId: string, ctx: Ctx): Promise<boolean> {
   const line = { step: "mensualités" as const, ref: plan.id, newId: planId };
   const current = await prisma.installmentPlan.findUnique({
     where: { id: planId },
-    include: { installments: true, order: { select: { id: true, status: true } } },
+    include: { installments: true, order: { select: { id: true, status: true, orderNumber: true, buyerId: true } } },
   });
   if (!current) {
     ctx.lines.push({ ...line, outcome: "ignoré", reason: "échéancier repris puis supprimé sur le nouveau site" });
@@ -533,6 +571,19 @@ async function syncPlan(plan: VantaPlan, planId: string, ctx: Ctx): Promise<bool
         await tx.installment.update({
           where: { id: mine.id },
           data: { status: "PAID", amountPaid: mine.amountDue, paidAt: s.paidAt ?? ctx.now },
+        });
+        await tx.payment.create({
+          data: oldSiteMonthPayment({
+            planId: plan.id,
+            newPlanId: planId,
+            orderId: current.order.id,
+            orderNumber: current.order.orderNumber,
+            buyerId: current.order.buyerId,
+            index: s.installmentNumber,
+            amount: mine.amountDue,
+            paidAt: s.paidAt ?? ctx.now,
+            installmentId: mine.id,
+          }),
         });
       }
       await tx.installmentPlan.update({
