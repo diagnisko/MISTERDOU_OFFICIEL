@@ -29,7 +29,9 @@ const envSchema = z.object({
   R2_PUBLIC_BUCKET: z.string().optional(),
   R2_PUBLIC_BASE_URL: z.string().url().optional(),
   MEDIA_MAX_IMAGE_MB: z.coerce.number().positive().max(20).default(8),
-  MEDIA_MAX_VIDEO_MB: z.coerce.number().positive().max(200).default(60),
+  // Vidéos : convertie dans le navigateur, une minute d'écran pèse ~20 Mo ; l'original
+  // (navigateur sans conversion) peut dépasser 100 Mo, d'où une marge large.
+  MEDIA_MAX_VIDEO_MB: z.coerce.number().positive().max(500).default(200),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL requise"),
 

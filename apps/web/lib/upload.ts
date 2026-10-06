@@ -8,7 +8,7 @@ function csrfHeader(): Record<string, string> {
 
 export function putFile(
   url: string,
-  file: File,
+  file: Blob,
   headers: Record<string, string>,
   onProgress?: (fraction: number) => void,
 ): Promise<void> {

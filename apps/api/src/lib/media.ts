@@ -20,6 +20,9 @@ export const MEDIA_TYPES: Record<string, { kind: MediaKind; ext: string }> = {
   "image/webp": { kind: "image", ext: "webp" },
   "video/mp4": { kind: "video", ext: "mp4" },
   "video/webm": { kind: "video", ext: "webm" },
+  // MOV d'iPhone : normalement converti en MP4 par le navigateur avant l'envoi
+  // (lib/media-prepare côté site) ; accepté tel quel si le navigateur ne sait pas convertir.
+  "video/quicktime": { kind: "video", ext: "mov" },
 };
 
 export const MEDIA_LIMITS = { image: 10, video: 2 } as const;
@@ -35,7 +38,7 @@ export function maxBytes(kind: MediaKind): number {
 }
 
 function localPath(key: string): string {
-  if (!/^(products|avatars)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|webm)$/.test(key)) {
+  if (!/^(products|avatars)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|webm|mov)$/.test(key)) {
     throw badRequest("FILE_ACCESS_DENIED", "Clé média invalide");
   }
   return path.join(env.STORAGE_DIR, "public", ...key.split("/"));
@@ -99,7 +102,7 @@ export async function createUpload(keyPrefix: string, mime: string, size: number
   const type = MEDIA_TYPES[mime];
   if (!type || (rules?.kinds && !rules.kinds.includes(type.kind))) {
     const imagesOnly = rules?.kinds?.length === 1 && rules.kinds[0] === "image";
-    throw badRequest("FILE_TYPE_INVALID", imagesOnly ? "Formats acceptés : JPEG, PNG, WebP." : "Formats acceptés : JPEG, PNG, WebP, MP4, WebM.");
+    throw badRequest("FILE_TYPE_INVALID", imagesOnly ? "Formats acceptés : JPEG, PNG, WebP." : "Formats acceptés : JPEG, PNG, WebP, MP4, WebM, MOV.");
   }
   const limit = limitFor(type.kind, rules);
   if (!Number.isInteger(size) || size <= 0 || size > limit) {
@@ -141,6 +144,9 @@ function magicMatches(mime: string, head: Buffer): boolean {
       return head.toString("ascii", 4, 8) === "ftyp";
     case "video/webm":
       return head.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    case "video/quicktime":
+      // QuickTime : première boîte « ftyp » (iPhone), ou une boîte de tête classique.
+      return ["ftyp", "moov", "mdat", "wide", "free", "skip", "pnot"].includes(head.toString("ascii", 4, 8));
     default:
       return false;
   }

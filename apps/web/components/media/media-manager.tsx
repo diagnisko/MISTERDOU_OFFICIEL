@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiClientError, request } from "@/lib/api";
 import { putFile } from "@/lib/upload";
+import { isVideoFile, prepareImage, prepareVideo } from "@/lib/media-prepare";
 import { useT } from "@/lib/i18n";
 import { documentLocale, translate } from "@/lib/i18n-core";
 import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
-// Médias publics d'une offre (captures, vidéos). Envoi direct vers le bucket
-// public par URL signée, puis confirmation par l'API (qui vérifie le fichier).
+// Médias publics d'une offre (captures, vidéos). Tous les formats sont
+// acceptés : chaque fichier est d'abord préparé dans le navigateur (vidéo
+// convertie en MP4 lisible partout et allégée, photo réduite), puis envoyé
+// directement au stockage par URL signée, deux à la fois ; l'API vérifie
+// ensuite le fichier reçu.
 // ---------------------------------------------------------------------------
 
 type Media = {
@@ -23,9 +27,12 @@ type Media = {
 
 type Limits = { image: number; video: number; imageBytes: number; videoBytes: number };
 
-type Upload = { name: string; progress: number; error?: string };
+type Upload = { name: string; stage: "prepare" | "send"; progress: number; done?: boolean; error?: string };
 
-const ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
+// Toutes les photos et vidéos (le téléphone propose aussi les vidéos MOV/HEVC).
+const ACCEPT = "image/*,video/*,.mov,.heic,.heif";
+// Envois simultanés : plus rapide qu'un par un, sans saturer une connexion mobile.
+const PARALLEL = 2;
 
 function mb(bytes: number) {
   return translate(documentLocale(), "media.mb", { n: Math.round(bytes / 1024 / 1024) });
@@ -58,19 +65,25 @@ export function MediaManager({ productId, team = false }: { productId: string; t
     const update = (patch: Partial<Upload>) =>
       setUploads((list) => list.map((u, i) => (i === slot ? { ...u, ...patch } : u)));
     try {
-      const kind = file.type.startsWith("video/") ? "video" : "image";
-      const max = kind === "video" ? limits?.videoBytes : limits?.imageBytes;
-      if (max && file.size > max) throw new Error(t("media.tooBig", { max: mb(max) }));
+      const video = isVideoFile(file);
+      if (!video && !file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name)) throw new Error(t("media.notMedia"));
+      // 1. Préparation dans le navigateur (conversion vidéo, réduction photo).
+      const ready = video ? await prepareVideo(file, (p) => update({ progress: p })) : await prepareImage(file);
+      const max = video ? limits?.videoBytes : limits?.imageBytes;
+      if (max && ready.blob.size > max) throw new Error(t("media.tooBig", { max: mb(max) }));
+      // 2. Envoi direct vers le stockage.
+      update({ stage: "send", progress: 0 });
       const ticket = await request<{ key: string; uploadUrl: string; headers: Record<string, string> }>(
         `/api/v1/products/${productId}/media/upload-url`,
-        { method: "POST", body: JSON.stringify({ mimeType: file.type, sizeBytes: file.size }) },
+        { method: "POST", body: JSON.stringify({ mimeType: ready.mime, sizeBytes: ready.blob.size }) },
       );
-      await putFile(ticket.uploadUrl, file, ticket.headers, (p) => update({ progress: p }));
+      await putFile(ticket.uploadUrl, ready.blob, ticket.headers, (p) => update({ progress: p }));
+      // 3. Vérification et enregistrement par l'API.
       await request(`/api/v1/products/${productId}/media`, {
         method: "POST",
-        body: JSON.stringify({ key: ticket.key, mimeType: file.type }),
+        body: JSON.stringify({ key: ticket.key, mimeType: ready.mime }),
       });
-      update({ progress: 1 });
+      update({ progress: 1, done: true });
     } catch (err) {
       update({ error: err instanceof ApiClientError || err instanceof Error ? err.message : t("media.sendFailed") });
     }
@@ -81,8 +94,16 @@ export function MediaManager({ productId, team = false }: { productId: string; t
     setError(null);
     const list = Array.from(files);
     const base = uploads.length;
-    setUploads((prev) => [...prev, ...list.map((f) => ({ name: f.name, progress: 0 }))]);
-    for (let i = 0; i < list.length; i++) await sendOne(list[i]!, base + i);
+    setUploads((prev) => [...prev, ...list.map((f) => ({ name: f.name, stage: "prepare" as const, progress: 0 }))]);
+    // Deux fichiers à la fois ; chacun garde sa ligne de progression.
+    let next = 0;
+    const worker = async () => {
+      while (next < list.length) {
+        const i = next++;
+        await sendOne(list[i]!, base + i);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PARALLEL, list.length) }, worker));
     await load();
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -124,7 +145,7 @@ export function MediaManager({ productId, team = false }: { productId: string; t
   const images = items.filter((m) => m.kind === "image").length;
   const videos = items.filter((m) => m.kind === "video").length;
   const full = limits ? images >= limits.image && videos >= limits.video : false;
-  const pending = uploads.filter((u) => u.progress < 1 && !u.error);
+  const pending = uploads.filter((u) => !u.done && !u.error);
 
   return (
     <div>
@@ -160,8 +181,12 @@ export function MediaManager({ productId, team = false }: { productId: string; t
             <li key={`${u.name}-${i}`} className="rounded-xl border border-[rgba(255,236,229,0.08)] px-3 py-2 text-[12px]">
               <div className="flex items-center justify-between gap-3">
                 <span className="truncate text-stone-200">{u.name}</span>
-                <span className={u.error ? "text-[#fca5a5]" : u.progress >= 1 ? "text-[#86efac]" : "text-[#b8a6a1]"}>
-                  {u.error ? t("media.failed") : u.progress >= 1 ? t("media.added") : `${Math.round(u.progress * 100)} %`}
+                <span className={u.error ? "text-[#fca5a5]" : u.done ? "text-[#86efac]" : "text-[#b8a6a1]"}>
+                  {u.error
+                    ? t("media.failed")
+                    : u.done
+                      ? t("media.added")
+                      : t(u.stage === "prepare" ? "media.preparing" : "media.sending", { pct: Math.round(u.progress * 100) })}
                 </span>
               </div>
               {u.error ? (
