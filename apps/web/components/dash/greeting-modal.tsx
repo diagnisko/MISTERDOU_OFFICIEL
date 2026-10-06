@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { GREETING_EVENT, takeGreeting, type Greeting } from "@/lib/greeting";
 import { useT, type MessageKey } from "@/lib/i18n";
-import { IconClose } from "./dash-icons";
+import { IconBadgeCheck, IconCalendar, IconChat, IconClock, IconClose, IconTag } from "./dash-icons";
 
 const LONG_ABSENCE_DAYS = 30;
 
@@ -64,10 +64,45 @@ function Confetti() {
   );
 }
 
-const SHORTCUTS: Array<{ href: string; emoji: string; label: MessageKey }> = [
-  { href: "/offres", emoji: "🔥", label: "greet.actOffers" },
-  { href: "/account/orders", emoji: "📦", label: "greet.actOrders" },
-  { href: "/pret-ou-prestation", emoji: "📅", label: "greet.actMonthly" },
+type IconProps = { size?: number; className?: string };
+
+// Icônes au trait, comme la cloche et les messages de l'en-tête.
+const IconBox = ({ size = 20, className }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={className}>
+    <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
+    <path d="m3 8 9 5 9-5M12 13v8" />
+  </svg>
+);
+const IconLock = ({ size = 20, className }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={className}>
+    <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3M12 14.5v2.5" />
+  </svg>
+);
+const IconArrow = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={className}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+);
+
+/** Pastille d'icône : fond discret, bord fin, teinte braise. */
+function IconTile({ children, small = false }: { children: React.ReactNode; small?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`grid shrink-0 place-items-center rounded-xl border border-[rgba(255,160,112,0.22)] bg-[linear-gradient(160deg,rgba(255,106,50,0.14),rgba(255,255,255,0.02))] text-[#ffb08a] transition-colors duration-300 group-hover:border-[rgba(255,160,112,0.5)] group-hover:text-white ${
+        small ? "h-8 w-8" : "h-11 w-11"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const SHORTCUTS: Array<{ href: string; Icon: (p: IconProps) => React.ReactNode; label: MessageKey }> = [
+  { href: "/offres", Icon: IconTag, label: "greet.actOffers" },
+  { href: "/account/orders", Icon: IconBox, label: "greet.actOrders" },
+  { href: "/pret-ou-prestation", Icon: IconCalendar, label: "greet.actMonthly" },
 ];
 
 // Accueil affiché une fois après inscription ou connexion.
@@ -112,15 +147,15 @@ export function GreetingModal({ fallbackName }: { fallbackName?: string | null }
         <p className="mt-2 text-[14.5px] leading-relaxed text-[#d9c7c0]">{t("greet.ready")}</p>
         <ul className="mt-5 space-y-2.5 text-start">
           {[
-            { emoji: "🪪", text: t("greet.tipKyc") },
-            { emoji: "🔐", text: t("greet.tipCreds") },
-            { emoji: "💬", text: t("greet.tipPassword") },
-          ].map(({ emoji, text }) => (
-            <li key={text} className="flex gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-3 text-[13px] leading-relaxed text-[#eadbd4]">
-              <span aria-hidden className="text-[18px] leading-none">
-                {emoji}
-              </span>
-              <span>{text}</span>
+            { Icon: IconBadgeCheck, text: t("greet.tipKyc") },
+            { Icon: IconLock, text: t("greet.tipCreds") },
+            { Icon: IconChat, text: t("greet.tipPassword") },
+          ].map(({ Icon, text }) => (
+            <li key={text} className="flex items-start gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-3 text-[13px] leading-relaxed text-[#eadbd4]">
+              <IconTile small>
+                <Icon size={16} />
+              </IconTile>
+              <span className="pt-1">{text}</span>
             </li>
           ))}
         </ul>
@@ -151,26 +186,27 @@ export function GreetingModal({ fallbackName }: { fallbackName?: string | null }
               key={s.href}
               href={s.href}
               onClick={close}
-              className="group flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-2 py-3.5 text-center text-[12px] font-medium text-[#eadbd4] transition hover:-translate-y-0.5 hover:border-[rgba(255,106,50,0.45)] hover:bg-[rgba(255,106,50,0.08)] hover:text-white"
+              className="group flex flex-col items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-2 py-3.5 text-center text-[12px] font-medium text-[#eadbd4] transition hover:-translate-y-0.5 hover:border-[rgba(255,106,50,0.45)] hover:bg-[rgba(255,106,50,0.08)] hover:text-white"
             >
-              <span aria-hidden className="text-[22px] leading-none transition-transform duration-300 group-hover:scale-110">
-                {s.emoji}
-              </span>
+              <IconTile>
+                <s.Icon size={20} />
+              </IconTile>
               {t(s.label)}
             </Link>
           ))}
         </div>
         {visit && (
-          <p className="mt-4 text-[12px] text-[#8f7d77]">
-            <span aria-hidden>🕒 </span>
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-[12px] text-[#8f7d77]">
+            <IconClock size={13} />
             {t("greet.lastVisit", { when: visit.when })}
           </p>
         )}
       </>
     );
     actions = (
-      <button ref={(el) => { primaryRef.current = el; }} type="button" onClick={close} className="dash-btn dash-btn-primary flex-1">
+      <button ref={(el) => { primaryRef.current = el; }} type="button" onClick={close} className="dash-btn dash-btn-primary group flex-1">
         {t("greet.letsGo")}
+        <IconArrow className="transition-transform duration-300 group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
       </button>
     );
   }

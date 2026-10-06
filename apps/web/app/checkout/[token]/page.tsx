@@ -27,7 +27,7 @@ const REVIEW_POLL_MS = 15_000;
 
 // Page de retour selon le motif du paiement.
 function backHref(state: { type: string; orderId: string | null }) {
-  if (state.type === "SELLER_REGISTRATION_FEE") return "/account/devenir-vendeur";
+  if (state.type === "SELLER_REGISTRATION_FEE" || state.type === "SELLER_CONTRACT") return "/account/devenir-vendeur";
   if (state.type === "FEATURED") return "/seller";
   return state.orderId ? `/account/orders/${state.orderId}` : "/account/orders";
 }
@@ -76,7 +76,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     // Retour sur la commande payée (identifiants, mensualités), sinon la liste.
     if (state?.status === "SUCCESS") {
-      if (state.type === "SELLER_REGISTRATION_FEE") {
+      if (state.type === "SELLER_REGISTRATION_FEE" || state.type === "SELLER_CONTRACT") {
         // Le compte vient de passer vendeur : le menu du profil doit le savoir.
         void refreshAccount().then(() => router.replace("/seller"));
         return;
@@ -130,7 +130,7 @@ export default function CheckoutPage() {
 
   if (!state) return null;
 
-  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND", "SELLER_REGISTRATION_FEE", "FEATURED"].includes(state.type)
+  const typeLabel = ["ORDER_PAYMENT", "INITIAL_INSTALLMENT", "INSTALLMENT", "REFUND", "SELLER_REGISTRATION_FEE", "FEATURED", "SELLER_CONTRACT"].includes(state.type)
     ? t(`pay.type${state.type}` as MessageKey)
     : t("pay.kicker");
 

@@ -76,6 +76,7 @@ export default async function CguPage() {
             "Chaque offre (et chaque modification) est vérifiée par l’équipe avant d’apparaître sur le site ; une offre refusée est renvoyée au vendeur avec le motif.",
             "Le vendeur répond lui-même à ses clients dans la messagerie du site et leur fournit les codes de vérification du jeu. L’administration peut relire ces échanges en cas de litige.",
             `Sur chaque vente, une commission de ${info.commissionPercent} % est prélevée. Le reste revient au vendeur et devient disponible quand le client confirme la réception, ou ${info.payoutHoldDays} jours après la livraison sans signalement.`,
+            `Contrat revendeur (pour qui revend des comptes qu’il ne possède pas) : un forfait payé d’avance — ${fcfa(info.contractPrices.six)} pour 6 mois, ${fcfa(info.contractPrices.twelve)} pour 1 an, ${fcfa(info.contractPrices.eighteen)} pour 18 mois — remplace la commission : 0 % sur les ventes pendant la durée du contrat, adhésion incluse. Le revendeur déclare avoir l’accord du propriétaire de chaque compte qu’il met en vente et en reste responsable. À la fin du contrat, la commission habituelle s’applique de nouveau.`,
             `Les retraits se font uniquement par Wave, à partir de ${fcfa(info.minWithdrawal)}. L’équipe envoie l’argent et joint la capture de l’envoi ; le vendeur confirme ensuite la réception.`,
             "La vente d’un compte volé, piraté ou obtenu frauduleusement entraîne la suspension du vendeur, l’annulation de ses gains et le remboursement de l’acheteur.",
           ]}

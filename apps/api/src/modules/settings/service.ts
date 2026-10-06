@@ -42,6 +42,9 @@ const DEFAULT_SETTINGS = [
   { key: "supportWhatsapp", value: "+12272254876", valueType: "string", group: "support", description: "Numéro WhatsApp du support (vide = bouton masqué)" },
   { key: "supportEmail", value: "", valueType: "string", group: "support", description: "E-mail du support (vide = bouton masqué)" },
   { key: "sellerRegistrationFee", value: 1000, valueType: "int", group: "sellers", description: "Frais d'adhésion pour devenir vendeur (FCFA)" },
+  { key: "resellerContract6Price", value: 5000, valueType: "int", group: "sellers", description: "Contrat revendeur 6 mois, sans commission (FCFA)" },
+  { key: "resellerContract12Price", value: 8000, valueType: "int", group: "sellers", description: "Contrat revendeur 1 an, sans commission (FCFA)" },
+  { key: "resellerContract18Price", value: 10000, valueType: "int", group: "sellers", description: "Contrat revendeur 18 mois, sans commission (FCFA)" },
   { key: "legalEntityName", value: "", valueType: "string", group: "legal", description: "Pages légales : nom de l'entreprise ou de l'exploitant" },
   { key: "legalAddress", value: "", valueType: "string", group: "legal", description: "Pages légales : adresse du siège" },
   { key: "legalRegistration", value: "", valueType: "string", group: "legal", description: "Pages légales : NINEA / RCCM" },
@@ -125,6 +128,9 @@ export async function getLegalInfo() {
     "unpaidOrderExpiryHours",
     "sellerRegistrationFee",
     "minWithdrawalAmount",
+    "resellerContract6Price",
+    "resellerContract12Price",
+    "resellerContract18Price",
   ] as const;
   const rows = await prisma.settings.findMany({ where: { key: { in: [...KEYS] } }, select: { key: true, value: true } });
   const byKey = new Map(rows.map((r) => [r.key, r.value as SettingValue | undefined]));
@@ -149,5 +155,10 @@ export async function getLegalInfo() {
     unpaidOrderExpiryHours: int("unpaidOrderExpiryHours", 24),
     sellerRegistrationFee: int("sellerRegistrationFee", 1000),
     minWithdrawal: int("minWithdrawalAmount", 1000),
+    contractPrices: {
+      six: int("resellerContract6Price", 5000),
+      twelve: int("resellerContract12Price", 8000),
+      eighteen: int("resellerContract18Price", 10000),
+    },
   };
 }

@@ -37,6 +37,21 @@ export const SETTING_LABELS: Record<string, SettingLabel> = {
     help: "Ce qu'un client paie une seule fois pour ouvrir son compte vendeur.",
     unit: "FCFA",
   },
+  resellerContract6Price: {
+    label: "Contrat revendeur — 6 mois",
+    help: "Prix du contrat sans commission pour 6 mois (adhésion vendeur incluse).",
+    unit: "FCFA",
+  },
+  resellerContract12Price: {
+    label: "Contrat revendeur — 1 an",
+    help: "Prix du contrat sans commission pour 12 mois (adhésion vendeur incluse).",
+    unit: "FCFA",
+  },
+  resellerContract18Price: {
+    label: "Contrat revendeur — 18 mois",
+    help: "Prix du contrat sans commission pour 18 mois (adhésion vendeur incluse).",
+    unit: "FCFA",
+  },
   payoutHoldDays: {
     label: "Délai avant de libérer l'argent du vendeur",
     help: "Si l'acheteur ne clique pas sur « Reçu », l'argent de la vente est rendu disponible au vendeur après ce nombre de jours (sauf signalement en cours).",

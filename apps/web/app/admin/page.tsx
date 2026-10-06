@@ -163,7 +163,7 @@ function TeamHome() {
                   <span className="block text-[15px] font-semibold text-stone-50">{s.label}</span>
                   <span className="mt-1 block text-[12.5px] text-[#8f7d77]">{s.hint}</span>
                 </span>
-                <IconChevron size={16} className="shrink-0 text-[#ff8a5c]" />
+                <IconChevron size={16} className="shrink-0 -rotate-90 text-[#ff8a5c] rtl:rotate-90" />
               </Link>
             </li>
           ))}

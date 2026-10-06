@@ -155,6 +155,8 @@ export async function cleanup(t: Tracked): Promise<void> {
     where: { OR: [{ sellerId: { in: t.sellerIds } }, { id: { in: t.withdrawalIds } }] },
   });
 
+  // Contrats revendeur (→ User / Payment).
+  await prisma.sellerContract.deleteMany({ where: { OR: [{ userId: { in: t.userIds } }, { paymentId: { in: t.paymentIds } }] } });
   // Preuves de paiement Wave (PaymentProof → Payment / User RESTRICT).
   await prisma.paymentProof.deleteMany({
     where: { OR: [{ userId: { in: t.userIds } }, { paymentId: { in: t.paymentIds } }, { payment: { userId: { in: t.userIds } } }] },

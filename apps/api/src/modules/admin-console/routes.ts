@@ -220,7 +220,9 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
       SELECT s.id, s.status, s."registrationFee", s."sellerSince", s."createdAt",
              u.id AS "userId", u.email, u."phoneNumber", u."firstName", u."lastName", u."kycStatus",
              COALESCE(b."balancePending", 0) AS "balancePending",
-             COALESCE(b."balanceAvailable", 0) AS "balanceAvailable"
+             COALESCE(b."balanceAvailable", 0) AS "balanceAvailable",
+             (SELECT max(c."endsAt") FROM "SellerContract" c
+               WHERE c."userId" = u.id AND c.status = 'ACTIVE' AND c."startsAt" <= NOW() AND c."endsAt" > NOW()) AS "contractUntil"
       FROM "Seller" s
       JOIN "User" u ON u.id = s."userId"
       LEFT JOIN "SellerBalance" b ON b."sellerId" = s.id

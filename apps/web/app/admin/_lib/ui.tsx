@@ -492,6 +492,7 @@ export const PAYMENT_TYPE_LABELS: Record<string, string> = {
   INITIAL_INSTALLMENT: "Apport",
   INSTALLMENT: "Mensualité",
   SELLER_REGISTRATION_FEE: "Frais vendeur",
+  SELLER_CONTRACT: "Contrat revendeur",
   FEATURED: "Mise en avant",
   REFUND: "Remboursement",
 };

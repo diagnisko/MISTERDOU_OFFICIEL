@@ -1,4 +1,5 @@
 import { prisma } from "@misterdou/db";
+import { runningContract } from "../seller/contract.js";
 import type { Prisma } from "@misterdou/db";
 import { logger } from "../../lib/logger.js";
 import { logAudit } from "../../lib/audit.js";
@@ -144,12 +145,16 @@ export async function recordSellerSale(tx: Tx, orderId: string): Promise<Array<{
   for (const item of order.items) {
     const sellerId = item.sellerId ?? item.product.sellerId;
     if (!sellerId || item.commission) continue;
+    const seller = await tx.seller.findUnique({ where: { id: sellerId }, select: { userId: true } });
+    // Contrat revendeur en cours : aucune commission sur la vente.
+    const contract = seller ? await runningContract(tx, seller.userId) : null;
+    const itemRate = contract ? 0 : rate;
     const amount = item.unitPrice * item.quantity;
-    const commissionAmount = Math.round((amount * rate) / 100);
+    const commissionAmount = Math.round((amount * itemRate) / 100);
     const net = amount - commissionAmount;
 
     await tx.commission.create({
-      data: { orderItemId: item.id, sellerId, orderAmount: amount, commissionRate: rate, commissionAmount, netToSeller: net },
+      data: { orderItemId: item.id, sellerId, orderAmount: amount, commissionRate: itemRate, commissionAmount, netToSeller: net },
     });
     await tx.sellerBalance.upsert({
       where: { sellerId },
@@ -163,7 +168,6 @@ export async function recordSellerSale(tx: Tx, orderId: string): Promise<Array<{
     await tx.pendingCredit.create({ data: { sellerId, orderId, amount: net, reference: order.orderNumber } });
     if (!item.sellerId) await tx.orderItem.update({ where: { id: item.id }, data: { sellerId } });
 
-    const seller = await tx.seller.findUnique({ where: { id: sellerId }, select: { userId: true } });
     if (seller) credited.push({ sellerUserId: seller.userId, net, title: item.title });
   }
   return credited;

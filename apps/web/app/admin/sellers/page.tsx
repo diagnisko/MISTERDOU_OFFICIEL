@@ -47,6 +47,7 @@ const COLUMNS = [
   { key: "firstName", label: "Vendeur" },
   { key: "email", label: "E-mail" },
   { key: "status", label: "Statut" },
+  { key: "contractUntil", label: "Formule" },
   { key: "balanceAvailable", label: "Disponible" },
   { key: "balancePending", label: "En attente" },
   { key: "kycStatus", label: "Identité" },
@@ -123,7 +124,17 @@ export default function SellersPage() {
                 <tr key={row.id} className="transition hover:bg-white/[0.025]">
                   {COLUMNS.map((column) => (
                     <td key={column.key} className="px-4 py-3.5 text-stone-300">
-                      {formatCell(data[column.key], column.key)}
+                      {column.key === "contractUntil" ? (
+                        data.contractUntil ? (
+                          <span className="whitespace-nowrap text-[#bbf7d0]">
+                            Contrat · jusqu’au {new Date(String(data.contractUntil)).toLocaleDateString("fr-FR")}
+                          </span>
+                        ) : (
+                          <span className="text-stone-400">Commission</span>
+                        )
+                      ) : (
+                        formatCell(data[column.key], column.key)
+                      )}
                     </td>
                   ))}
                   <td className="flex gap-2 px-4 py-3.5">

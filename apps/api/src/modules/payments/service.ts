@@ -5,6 +5,7 @@ import { deliverOrderAfterSuccess } from "../../modules/orders/service.js";
 import { applyDownPayment, applyInstallmentPayment } from "../../modules/installments/service.js";
 import { activateFeatured } from "../../modules/promotions/service.js";
 import { activateSeller } from "../../modules/seller/join.js";
+import { activateContract } from "../../modules/seller/contract.js";
 import { notifyUser } from "../../lib/notify.js";
 import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
@@ -139,6 +140,10 @@ export async function settlePayment(
         case "SELLER_REGISTRATION_FEE":
           // Frais d'adhésion : le compte passe vendeur aussitôt.
           await activateSeller(tx, payment);
+          break;
+        case "SELLER_CONTRACT":
+          // Contrat revendeur : vendeur (adhésion incluse) et 0 % de commission pendant la durée payée.
+          await activateContract(tx, payment);
           break;
       }
     }

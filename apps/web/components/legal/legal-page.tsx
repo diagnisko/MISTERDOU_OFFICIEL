@@ -24,6 +24,8 @@ export type LegalInfo = {
   unpaidOrderExpiryHours: number;
   sellerRegistrationFee: number;
   minWithdrawal: number;
+  /** Contrat revendeur : prix des forfaits 6, 12 et 18 mois. */
+  contractPrices: { six: number; twelve: number; eighteen: number };
 };
 
 const FALLBACK: LegalInfo = {
@@ -39,13 +41,15 @@ const FALLBACK: LegalInfo = {
   unpaidOrderExpiryHours: 24,
   sellerRegistrationFee: 1000,
   minWithdrawal: 1000,
+  contractPrices: { six: 5000, twelve: 8000, eighteen: 10000 },
 };
 
 export async function fetchLegalInfo(): Promise<LegalInfo> {
   try {
     const res = await serverApiFetch("/api/v1/legal", { headers: { Accept: "application/json" }, cache: "no-store" });
     const payload = (await res.json()) as { ok: boolean; data?: LegalInfo };
-    return payload.ok && payload.data ? payload.data : FALLBACK;
+    // Fusion avec les valeurs par défaut : un champ absent (API plus ancienne) ne casse pas la page.
+    return payload.ok && payload.data ? { ...FALLBACK, ...payload.data } : FALLBACK;
   } catch {
     return FALLBACK;
   }

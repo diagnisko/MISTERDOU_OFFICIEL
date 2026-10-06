@@ -38,6 +38,7 @@ const PAYMENT_LABELS: Record<PaymentType, string> = {
   REFUND: "Remboursement",
   FEATURED: "Mise en avant d’une offre",
   SELLER_REGISTRATION_FEE: "Frais d’adhésion vendeur",
+  SELLER_CONTRACT: "Contrat revendeur",
 };
 
 function describe(type: PaymentType, title: string | null | undefined, days?: number | null): string {

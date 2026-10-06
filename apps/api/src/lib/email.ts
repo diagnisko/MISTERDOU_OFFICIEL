@@ -2,6 +2,7 @@ import type { NotificationType } from "@misterdou/db";
 import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../env.js";
 import { logger } from "./logger.js";
+import { renderEmailHtml } from "./email-layout.js";
 
 // ---------------------------------------------------------------------------
 // Envoi d'e-mails — transport SMTP réel via nodemailer quand SMTP_URL est
@@ -51,6 +52,8 @@ export async function sendEmail(input: EmailInput): Promise<{ queued: boolean }>
       to: input.to,
       subject: input.subject,
       text: input.text,
+      // Version mise en page (la version texte reste pour les messageries simples).
+      html: renderEmailHtml(input.subject, input.text),
     });
     logger.info({ to: input.to, subject: input.subject, template: input.template }, "[email] envoyé");
     return { queued: true };

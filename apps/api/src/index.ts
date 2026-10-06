@@ -8,6 +8,7 @@ import { startPromotionJobs } from "./modules/promotions/service.js";
 import { startSellerPayoutJobs } from "./modules/orders/fulfillment.js";
 import { ensureDefaultSettings } from "./modules/settings/service.js";
 import { startProofCleanupJob } from "./modules/payments/proofs.js";
+import { startContractJobs } from "./modules/seller/contract.js";
 
 async function main() {
   await ensureDefaultSettings();
@@ -31,6 +32,9 @@ async function main() {
 
   // Captures de paiement et d'envoi : supprimées une fois devenues inutiles.
   startProofCleanupJob();
+
+  // Contrats revendeur : rappel 7 jours avant la fin, puis retour à la commission.
+  startContractJobs();
 
   // Réglages manquants qui rendent une fonction inopérante en production.
   if (env.NODE_ENV === "production") {

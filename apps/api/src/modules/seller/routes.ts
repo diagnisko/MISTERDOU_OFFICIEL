@@ -12,6 +12,7 @@ import { getWithdrawalProofFile } from "../admin-ops/service.js";
 import { featuredDailyRate } from "../promotions/service.js";
 import { getIntSetting } from "../settings/service.js";
 import { requestSellerJoin, sellerJoinState } from "./join.js";
+import { contractRequestSchema, contractState, requestContract } from "./contract.js";
 
 const withdrawalBody = z.object({
   amount: z.number().int().positive(),
@@ -42,6 +43,19 @@ export async function registerSellerRoutes(app: FastifyInstance) {
   app.post("/seller/join", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const auth = requireAuth(request);
     return sendOk(reply, await requestSellerJoin({ actorId: auth.user.id, ip: request.ip }));
+  });
+
+  // --- Contrat revendeur : forfait sans commission (6, 12 ou 18 mois) ---
+  app.get("/seller/contract", async (request, reply) => {
+    const auth = requireAuth(request);
+    return sendOk(reply, await contractState(auth.user.id));
+  });
+
+  app.post("/seller/contract", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const auth = requireAuth(request);
+    const input = contractRequestSchema.safeParse(request.body);
+    if (!input.success) throw badRequest("VALIDATION_ERROR", "Durée de contrat invalide (6, 12 ou 18 mois).");
+    return sendOk(reply, await requestContract(input.data.months, { actorId: auth.user.id, ip: request.ip }));
   });
 
   // --- Cette offre est-elle la mienne ? (fiche produit : pas de bouton d'achat) ---
@@ -129,7 +143,9 @@ export async function registerSellerRoutes(app: FastifyInstance) {
         };
       });
 
+      const contract = await contractState(auth.user.id);
       return sendOk(reply, {
+        contract: { current: contract.current, coveredUntil: contract.coveredUntil, commissionPercent: contract.commissionPercent },
         salesByMonth,
         recentSales: sales.slice(0, 8).map((s) => ({
           id: s.id,

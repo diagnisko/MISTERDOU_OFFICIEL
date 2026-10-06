@@ -21,6 +21,11 @@ import { WithdrawalsPanel, type SellerWithdrawal } from "@/components/seller/wit
 // ---------------------------------------------------------------------------
 
 type Dashboard = {
+  contract: {
+    current: { months: number; startsAt: string; endsAt: string } | null;
+    coveredUntil: string | null;
+    commissionPercent: number;
+  };
   seller: {
     id: string;
     status: string;
@@ -230,6 +235,31 @@ export default function SellerPage() {
           </Link>
         }
       />
+
+      {dash?.contract && (
+        <div
+          className={`mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-[13px] ${
+            dash.contract.current
+              ? "border-[rgba(134,239,172,0.3)] bg-[rgba(134,239,172,0.06)] text-[#bbf7d0]"
+              : "border-white/[0.08] bg-white/[0.02] text-[#cdbab3]"
+          }`}
+        >
+          <span>
+            {dash.contract.current
+              ? t("seller.contractOn", {
+                  date: new Date(dash.contract.coveredUntil ?? dash.contract.current.endsAt).toLocaleDateString(t.intl, {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  }),
+                })
+              : t("seller.contractOff", { rate: dash.contract.commissionPercent })}
+          </span>
+          <Link href="/account/devenir-vendeur" className="dash-btn dash-btn-ghost !min-h-[34px] !text-[12px]">
+            {dash.contract.current ? t("seller.contractRenew") : t("seller.contractCta")}
+          </Link>
+        </div>
+      )}
 
       {error && !modalProduct && (
         <div className="mt-5">
