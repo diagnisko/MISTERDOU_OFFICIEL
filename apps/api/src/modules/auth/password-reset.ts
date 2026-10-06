@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { env } from "../../env.js";
-import { badRequest, notFound } from "../../lib/errors.js";
+import { ApiError, badRequest, notFound } from "../../lib/errors.js";
 import { hashPassword } from "../../lib/password.js";
 import { sendEmail } from "../../lib/email.js";
 import { logAudit } from "../../lib/audit.js";
@@ -60,13 +60,23 @@ function codeHash(userId: string, code: string): string {
   return createHmac("sha256", CODE_KEY).update(`${userId}|${code}`).digest("base64url");
 }
 
-/** Envoie un code si le compte existe ; la réponse ne dit jamais s'il existe. */
+/**
+ * Envoie un code au titulaire du compte. Décision du 2026-10-06 : un e-mail
+ * inconnu est signalé tout de suite (« pas enregistré ») au lieu d'un faux
+ * « code envoyé ». Un compte administrateur est traité comme inconnu (il se
+ * réinitialise avec admin:reset) ; la route reste limitée à 3 demandes par minute.
+ */
 export async function requestPasswordReset(email: string, ctx: ResetActor): Promise<{ sent: true }> {
   const user = await prisma.user.findFirst({
-    where: { email: email.trim().toLowerCase(), deletedAt: null, status: "ACTIVE", role: { name: { not: "ADMIN" } } },
-    select: { id: true, email: true, firstName: true },
+    where: { email: { equals: email.trim(), mode: "insensitive" }, deletedAt: null, role: { name: { not: "ADMIN" } } },
+    select: { id: true, email: true, firstName: true, status: true },
   });
-  if (!user?.email) return { sent: true };
+  if (!user?.email) {
+    throw new ApiError("EMAIL_NOT_REGISTERED", 404, "Cet e-mail n’est enregistré sur aucun compte MISTERDOU. Vérifiez l’adresse ou créez un compte.");
+  }
+  if (user.status !== "ACTIVE") {
+    throw new ApiError("ACCOUNT_SUSPENDED", 403, "Ce compte est suspendu : contactez le support pour le réactiver.");
+  }
 
   // Anti-abus : un code par minute, cinq par heure (sans le dire au demandeur).
   const now = Date.now();

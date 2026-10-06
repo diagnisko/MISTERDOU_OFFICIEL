@@ -301,6 +301,7 @@ export const API_ERROR_CODES = [
   "LEGACY_PLAN",
   "ALREADY_TEAM_MEMBER",
   "SELLER_CANNOT_BE_MANAGER",
+  "EMAIL_NOT_REGISTERED",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 

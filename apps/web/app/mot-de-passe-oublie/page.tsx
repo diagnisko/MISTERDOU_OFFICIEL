@@ -7,8 +7,8 @@ import { request, ApiClientError } from "@/lib/api";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 
 // Mot de passe oublié, en deux temps sur la même page :
-// 1. l'e-mail → un code à 6 chiffres part (réponse identique que le compte
-//    existe ou non : aucune information divulguée) ;
+// 1. l'e-mail → un code à 6 chiffres part ; un e-mail inconnu est signalé
+//    tout de suite (avec un lien pour créer un compte) ;
 // 2. le code + le nouveau mot de passe → toutes les sessions sont fermées.
 const RESEND_SECONDS = 60;
 
@@ -22,6 +22,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [unknownEmail, setUnknownEmail] = useState(false);
   const [wait, setWait] = useState(0);
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function ForgotPasswordPage() {
   async function sendCode(resend = false) {
     setError(null);
     setNotice(null);
+    setUnknownEmail(false);
     setLoading(true);
     try {
       await request("/api/v1/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: email.trim() }) });
@@ -40,7 +42,14 @@ export default function ForgotPasswordPage() {
       setWait(RESEND_SECONDS);
       if (resend) setNotice(t("reset.resent"));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+      if (err instanceof ApiClientError && err.code === "EMAIL_NOT_REGISTERED") {
+        setUnknownEmail(true);
+        setError(t("reset.notRegistered"));
+      } else if (err instanceof ApiClientError && err.code === "ACCOUNT_SUSPENDED") {
+        setError(t("reset.suspended"));
+      } else {
+        setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+      }
     } finally {
       setLoading(false);
     }
@@ -103,12 +112,26 @@ export default function ForgotPasswordPage() {
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (unknownEmail) {
+                  setUnknownEmail(false);
+                  setError(null);
+                }
+              }}
               className={inputClass}
               placeholder="vous@exemple.com"
             />
           </label>
           {errorBox}
+          {unknownEmail && (
+            <Link
+              href="/register"
+              className="block text-center text-[13px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline"
+            >
+              {t("reset.createAccount")}
+            </Link>
+          )}
           <button type="submit" disabled={loading} className="lux-btn lux-btn-gold w-full disabled:cursor-not-allowed disabled:opacity-60" aria-busy={loading}>
             {loading ? t("reset.sending") : t("reset.send")}
           </button>

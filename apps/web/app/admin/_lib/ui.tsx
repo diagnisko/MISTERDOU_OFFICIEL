@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Badge, Button, Spinner, StatusBadge, TextInput } from "@/components/ui";
 import { DashHeading } from "@/components/dash/dash-ui";
 import { errorMessage, formatXof, isPermissionError, type PageMeta } from "./api";
@@ -51,6 +51,13 @@ export function NoticeAlert({ notice }: { notice: string | null }) {
 }
 
 /** Barre de recherche (motif identique à la console). */
+/** Pause de frappe avant de relancer la recherche (une requête par pause, pas par touche). */
+const LIVE_SEARCH_DELAY_MS = 300;
+
+/**
+ * Barre de recherche des listes de la console : les résultats suivent la
+ * frappe (après une courte pause) ; Entrée ou la flèche cherchent tout de suite.
+ */
 export function SearchBar({
   placeholder,
   onSearch,
@@ -62,11 +69,28 @@ export function SearchBar({
   initial?: string;
 }) {
   const [draft, setDraft] = useState(initial);
+  // Dernière recherche lancée, et rappel toujours à jour (sans relancer le minuteur).
+  const sent = useRef(initial.trim());
+  const callback = useRef(onSearch);
+  callback.current = onSearch;
+
+  function run(query: string) {
+    if (query === sent.current) return;
+    sent.current = query;
+    callback.current(query);
+  }
+
+  useEffect(() => {
+    const query = draft.trim();
+    const timer = setTimeout(() => run(query), LIVE_SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draft]);
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSearch(draft.trim());
+        run(draft.trim());
       }}
       role="search"
       className="relative w-full sm:w-72"

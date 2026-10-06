@@ -166,6 +166,9 @@ export const fr = {
   "reset.resendIn": "Renvoyer le code dans {s} s",
   "reset.resent": "Nouveau code envoyé : seul le dernier est valable.",
   "reset.changeEmail": "Changer d’e-mail",
+  "reset.notRegistered": "Cet e-mail n’est enregistré sur aucun compte MISTERDOU. Vérifiez l’adresse saisie.",
+  "reset.createAccount": "Créer un compte",
+  "reset.suspended": "Ce compte est suspendu : contactez le support pour le réactiver.",
   "reset.spamHint": "Rien reçu ? Regardez dans les courriers indésirables.",
 } as const;
 
@@ -319,6 +322,9 @@ export const en: Translations<typeof fr> = {
   "reset.resendIn": "Resend the code in {s} s",
   "reset.resent": "New code sent: only the latest one works.",
   "reset.changeEmail": "Use another email",
+  "reset.notRegistered": "This email is not registered on any MISTERDOU account. Check the address you entered.",
+  "reset.createAccount": "Create an account",
+  "reset.suspended": "This account is suspended: contact support to reactivate it.",
   "reset.spamHint": "Nothing received? Check your spam folder.",
 };
 
@@ -472,5 +478,8 @@ export const ar: Translations<typeof fr> = {
   "reset.resendIn": "إعادة الإرسال بعد {s} ث",
   "reset.resent": "أُرسل رمز جديد: الأخير فقط صالح.",
   "reset.changeEmail": "تغيير البريد",
+  "reset.notRegistered": "هذا البريد الإلكتروني غير مسجّل في أي حساب على MISTERDOU. تحقّق من العنوان.",
+  "reset.createAccount": "إنشاء حساب",
+  "reset.suspended": "هذا الحساب موقوف: تواصل مع الدعم لإعادة تفعيله.",
   "reset.spamHint": "لم يصلك شيء؟ تحقق من الرسائل غير المرغوب فيها.",
 };

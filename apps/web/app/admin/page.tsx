@@ -199,6 +199,17 @@ function FinanceOverview({ seeStats, seePayments }: { seeStats: boolean; seePaym
     }
   }, [seeStats]);
 
+  // La liste suit la frappe (courte pause) ; Entrée cherche tout de suite.
+  useEffect(() => {
+    const next = query.trim();
+    if (next === search) return;
+    const timer = setTimeout(() => {
+      setSearch(next);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, search]);
+
   const loadReceivables = useCallback(async () => {
     if (!seePayments) return;
     try {

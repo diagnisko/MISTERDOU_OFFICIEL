@@ -127,8 +127,10 @@ describe("Remboursement d'une vente", () => {
 });
 
 describe("Mot de passe oublié", () => {
-  it("ne révèle jamais si un compte existe", async () => {
-    await expect(requestPasswordReset("personne-p13@example.com", {})).resolves.toEqual({ sent: true });
+  it("signale un e-mail inconnu ou un compte suspendu ; envoie le code sinon", async () => {
+    await expect(requestPasswordReset("personne-p13@example.com", {})).rejects.toMatchObject({ code: "EMAIL_NOT_REGISTERED", statusCode: 404 });
+    const suspended = await createUser(t, { status: "SUSPENDED" });
+    await expect(requestPasswordReset(suspended.email, {})).rejects.toMatchObject({ code: "ACCOUNT_SUSPENDED" });
     const user = await createUser(t);
     await expect(requestPasswordReset(user.email.toUpperCase(), {})).resolves.toEqual({ sent: true });
     expect(await prisma.auditLog.count({ where: { action: "PASSWORD_RESET_REQUESTED", resourceId: user.id } })).toBe(1);
@@ -165,14 +167,15 @@ describe("Mot de passe oublié", () => {
     await expect(adminPasswordResetLink(suspended.id, { actorId: admin.user.id })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 
-  it("routes publiques : e-mail invalide refusé, réponse identique sinon", async () => {
+  it("routes publiques : e-mail invalide refusé, e-mail inconnu signalé", async () => {
     const app = await buildMiniApp({ auth: null }, async (instance) => {
       await instance.register(registerAuthRoutes, { prefix: "/api/v1" });
     });
     const bad = await app.inject({ method: "POST", url: "/api/v1/auth/password/forgot", payload: { email: "pas-un-email" } });
     expect(bad.statusCode).toBe(400);
-    const ok = await app.inject({ method: "POST", url: "/api/v1/auth/password/forgot", payload: { email: "inconnu-p13@example.com" } });
-    expect(ok.statusCode).toBe(200);
+    const unknown = await app.inject({ method: "POST", url: "/api/v1/auth/password/forgot", payload: { email: "inconnu-p13@example.com" } });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json().error.code).toBe("EMAIL_NOT_REGISTERED");
     const weak = await app.inject({ method: "POST", url: "/api/v1/auth/password/reset", payload: { token: "x".repeat(30), password: "court" } });
     expect(weak.statusCode).toBe(400);
     await app.close();

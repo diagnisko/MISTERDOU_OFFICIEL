@@ -1,4 +1,5 @@
 import { prisma } from "@misterdou/db";
+import { logAudit } from "../../lib/audit.js";
 
 export type SettingValue = number | string | boolean | Record<string, unknown>;
 
@@ -67,6 +68,33 @@ const DEFAULT_SETTINGS = [
 
 export async function ensureDefaultSettings(): Promise<void> {
   await prisma.settings.createMany({ data: DEFAULT_SETTINGS, skipDuplicates: true });
+  await restoreCommissionOnce();
+}
+
+const COMMISSION_FIX_ACTION = "SETTING_COMMISSION_RESTORED_15";
+
+/**
+ * Correction unique (2026-10-06, demande du propriétaire) : la commission en
+ * ligne était passée à 10 % ; elle revient à 15 %. Faite une seule fois (trace
+ * dans le journal d'audit) : un changement ultérieur dans Paramètres est respecté.
+ */
+export async function restoreCommissionOnce(): Promise<boolean> {
+  const done = await prisma.auditLog.count({ where: { action: COMMISSION_FIX_ACTION } });
+  if (done > 0) return false;
+  const row = await prisma.settings.findUnique({ where: { key: "sellerCommissionPercent" }, select: { value: true } });
+  await prisma.settings.upsert({
+    where: { key: "sellerCommissionPercent" },
+    create: { key: "sellerCommissionPercent", value: 15, valueType: "int", group: "sellers", description: "Commission de la plateforme sur chaque vente vendeur (%)" },
+    update: { value: 15 },
+  });
+  await logAudit({
+    action: COMMISSION_FIX_ACTION,
+    resourceType: "Settings",
+    resourceId: "sellerCommissionPercent",
+    metadata: { before: row?.value ?? null, after: 15 },
+    severity: "WARNING",
+  });
+  return true;
 }
 
 /** Moyens de contact du support affichés sur la page « Aide et support ». */

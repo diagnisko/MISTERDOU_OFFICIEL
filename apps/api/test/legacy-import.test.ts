@@ -115,9 +115,9 @@ describe("Mot de passe oublié par code e-mail", () => {
     await expect(resetPasswordWithCode({ email: user.email, code: fresh, password: "NouveauMotDePasse1" }, {})).resolves.toEqual({ reset: true });
 
     const sent = outbox.length;
-    await requestPasswordReset("personne-ancien-site@example.com", {});
+    await expect(requestPasswordReset("personne-ancien-site@example.com", {})).rejects.toMatchObject({ code: "EMAIL_NOT_REGISTERED" });
     const admin = await createUser(t, { role: "ADMIN" });
-    await requestPasswordReset(admin.email, {});
+    await expect(requestPasswordReset(admin.email, {})).rejects.toMatchObject({ code: "EMAIL_NOT_REGISTERED" });
     expect(outbox.length).toBe(sent);
   });
 
