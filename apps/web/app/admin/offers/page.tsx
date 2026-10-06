@@ -25,6 +25,8 @@ import {
   formatCell,
 } from "../_lib/ui";
 import { OfferReviewModal } from "./offer-review";
+import { CredentialKeyButton } from "../_lib/credential-key";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
 // Offres — port de la vue « offerings » de la console (modération du catalogue).
@@ -46,6 +48,7 @@ type OfferingRow = {
   featuredPriceOverride: number | null;
   rejectedReason: string | null;
   sellerName: string | null;
+  hasCredentials: boolean;
   createdAt: string;
 };
 
@@ -57,7 +60,6 @@ const COLUMNS = [
   { key: "basePrice", label: "Prix" },
   { key: "paymentMode", label: "Paiement" },
   { key: "status", label: "Statut" },
-  { key: "slug", label: "Identifiant" },
 ];
 
 export default function OffersPage() {
@@ -72,6 +74,7 @@ function OffersView() {
   const params = useSearchParams();
   const [status, setStatus] = useState<StatusFilter>((params.get("status") as StatusFilter | null) ?? "all");
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<OfferingRow | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
@@ -178,24 +181,29 @@ function OffersView() {
                       )}
                     </td>
                   ))}
-                  <td className="flex gap-2 px-4 py-3.5">
-                    {status === "PENDING_REVIEW" && <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />}
-                    {row.sellerId === null && rowStatus !== "SOLD" && (
-                      <Link href={`/admin/offers/${row.id}`} className="whitespace-nowrap rounded-full border border-current/20 px-2.5 py-1 text-[12px] font-medium text-[#ff8a5c] transition hover:bg-white/[0.04]">
-                        Modifier
-                      </Link>
-                    )}
-                    <RowAction label="Médias" tone="muted" onClick={() => setMedia(row)} />
-                    {rowStatus !== "PENDING_REVIEW" && (
-                      <RowAction
-                        label={rowStatus === "ACTIVE" ? "Désactiver" : "Publier"}
-                        busy={busy === row.id}
-                        onClick={() => setTarget({ row, next: rowStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })}
-                      />
-                    )}
-                    {rowStatus === "PENDING_REVIEW" && status !== "PENDING_REVIEW" && (
-                      <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />
-                    )}
+                  <td className="px-4 py-3.5">
+                    <div className="flex min-w-[260px] flex-wrap gap-2">
+                      {status === "PENDING_REVIEW" && <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />}
+                      {row.sellerId === null && rowStatus !== "SOLD" && (
+                        <Link href={`/admin/offers/${row.id}`} className="whitespace-nowrap rounded-full border border-current/20 px-2.5 py-1 text-[12px] font-medium text-[#ff8a5c] transition hover:bg-white/[0.04]">
+                          Modifier
+                        </Link>
+                      )}
+                      <RowAction label="Médias" tone="muted" onClick={() => setMedia(row)} />
+                      <CredentialKeyButton productId={row.id} missing={!row.hasCredentials} />
+                      {/* Un compte vendu ne se remet jamais en vente d'ici. */}
+                      {rowStatus !== "PENDING_REVIEW" && rowStatus !== "SOLD" && (
+                        <RowAction
+                          label={rowStatus === "ACTIVE" ? "Désactiver" : "Publier"}
+                          busy={busy === row.id}
+                          onClick={() => setTarget({ row, next: rowStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })}
+                        />
+                      )}
+                      {rowStatus === "PENDING_REVIEW" && status !== "PENDING_REVIEW" && (
+                        <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />
+                      )}
+                      {rowStatus !== "SOLD" && <RowAction label="Supprimer" tone="danger" onClick={() => setDeleting(row)} />}
+                    </div>
                   </td>
                 </tr>
               );
@@ -212,6 +220,25 @@ function OffersView() {
           setPage(1);
         }}
       />
+
+      {deleting && (
+        <PasswordConfirmDialog
+          title="Supprimer cette offre"
+          message={
+            <>
+              <strong className="text-stone-100">{deleting.title}</strong> disparaît du site (l’historique est conservé).
+              {deleting.sellerName ? " Le vendeur est prévenu." : ""} Impossible si un achat est en cours sur ce compte.
+            </>
+          }
+          confirmLabel="Supprimer l’offre"
+          onClose={() => setDeleting(null)}
+          onConfirm={async (password) => {
+            await request(`/api/v1/admin/offerings/${deleting.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
+            setDeleting(null);
+            await list.refresh("Offre supprimée du site.");
+          }}
+        />
+      )}
 
       {reviewing && (
         <OfferReviewModal

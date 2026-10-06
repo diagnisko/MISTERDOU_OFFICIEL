@@ -42,13 +42,16 @@ const credentialsFields = {
 };
 
 export const createOfferSchema = z.object({ ...baseFields, credentials: z.object(credentialsFields) });
+/** Clé d'accès seule (saisie ou remplacement, à tout moment). */
+export const credentialSchema = z.object(credentialsFields);
 // Modification : identifiants facultatifs (les anciens restent s'ils sont absents).
 export const updateOfferSchema = z.object({ ...baseFields, credentials: z.object(credentialsFields).optional() });
 
 export type CreateOfferInput = z.infer<typeof createOfferSchema>;
 export type UpdateOfferInput = z.infer<typeof updateOfferSchema>;
 
-export type OfferOwner = { kind: "seller"; sellerId: string } | { kind: "team" };
+// seller : ses offres ; team : offres MISTERDOU ; moderator : toute offre (suppression par l'équipe).
+export type OfferOwner = { kind: "seller"; sellerId: string } | { kind: "team" } | { kind: "moderator" };
 
 export interface OfferActor {
   actorId: string;
@@ -159,10 +162,11 @@ async function askForReview(title: string, edited: boolean) {
 async function editable(productId: string, owner: OfferOwner) {
   const product = await prisma.product.findFirst({
     where: { id: productId, deletedAt: null },
-    select: { id: true, slug: true, status: true, sellerId: true },
+    select: { id: true, slug: true, status: true, sellerId: true, title: true, seller: { select: { userId: true } } },
   });
   if (!product) throw notFound("Offre introuvable.");
-  const mine = owner.kind === "seller" ? product.sellerId === owner.sellerId : product.sellerId === null;
+  const mine =
+    owner.kind === "moderator" ? true : owner.kind === "seller" ? product.sellerId === owner.sellerId : product.sellerId === null;
   if (!mine) throw forbidden("Cette offre ne vous appartient pas.");
   if (product.status === "SOLD") throw conflict("INVALID_STATE", "Cette offre est vendue : elle ne peut plus être modifiée.");
   // Bloquent la modification : un achat en tranches ouvert, ou une commande qui
@@ -342,9 +346,74 @@ export async function removeOffer(productId: string, owner: OfferOwner, actor: O
     action: "OFFER_REMOVED",
     resourceType: "Product",
     resourceId: product.id,
+    metadata: { by: owner.kind },
     severity: "WARNING",
   });
+  // Offre d'un vendeur supprimée par l'équipe : il est prévenu.
+  if (owner.kind === "moderator" && product.seller) {
+    await notifyUser(product.seller.userId, "SYSTEM", {
+      title: "Offre retirée par l’équipe",
+      message: `« ${product.title} » a été retirée du site par l’équipe MISTERDOU. Contactez le support pour en savoir plus.`,
+      actionUrl: "/seller",
+      priority: "NORMAL",
+    });
+  }
   return { id: product.id, removed: true };
+}
+
+/**
+ * Saisit ou remplace la clé d'accès (identifiants) d'une offre, à TOUT moment :
+ * y compris vendue ou en mensualités (le reste de l'offre, lui, ne bouge plus
+ * pendant un achat). L'acheteur qui a déjà accès au compte la voit aussitôt
+ * dans sa commande et en est prévenu.
+ */
+export async function setOfferCredential(
+  productId: string,
+  input: z.infer<typeof credentialSchema>,
+  owner: Exclude<OfferOwner, { kind: "team" }> | { kind: "team" },
+  actor: OfferActor,
+) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, deletedAt: null },
+    select: { id: true, title: true, sellerId: true, credential: { select: { id: true } } },
+  });
+  if (!product) throw notFound("Offre introuvable.");
+  if (owner.kind === "seller" && product.sellerId !== owner.sellerId) throw forbidden("Cette offre ne vous appartient pas.");
+
+  const replaced = product.credential !== null;
+  await prisma.productCredential.upsert({
+    where: { productId: product.id },
+    create: { productId: product.id, ...encryptedCredentials(input) },
+    update: encryptedCredentials(input),
+  });
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: replaced ? "PRODUCT_CREDENTIAL_REPLACED" : "PRODUCT_CREDENTIAL_SET",
+    resourceType: "Product",
+    resourceId: product.id,
+    metadata: { by: owner.kind },
+    severity: "WARNING",
+  });
+
+  // Acheteurs qui ont déjà accès (livré, ou apport validé en mensualités).
+  const orders = await prisma.order.findMany({
+    where: {
+      items: { some: { productId: product.id } },
+      OR: [{ status: { in: ["PAID", "DELIVERED", "COMPLETED"] } }, { status: "PARTIALLY_PAID", paymentMode: "INSTALLMENTS" }],
+    },
+    select: { id: true, buyerId: true },
+  });
+  for (const order of orders) {
+    await notifyUser(order.buyerId, "SYSTEM", {
+      title: replaced ? "Identifiants du compte mis à jour" : "Identifiants du compte disponibles",
+      message: `Les identifiants de « ${product.title} » sont ${replaced ? "mis à jour" : "disponibles"} : ouvrez votre commande et touchez « Afficher les identifiants ».`,
+      actionUrl: `/account/orders/${order.id}`,
+      priority: "CRITICAL",
+    });
+  }
+  return { id: product.id, replaced, notifiedBuyers: orders.length };
 }
 
 /**

@@ -5,7 +5,7 @@ import type { Payment, RoleName } from "@misterdou/db";
 import { badRequest, forbidden, notFound, conflict, unauthorized, ApiError } from "../../lib/errors.js";
 import { decryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyUser } from "../../lib/notify.js";
+import { notifyUser, notifyTeam } from "../../lib/notify.js";
 import { logger } from "../../lib/logger.js";
 import { assertSplittable, createInstallmentPlan } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
@@ -376,7 +376,7 @@ export async function getMyOrder(orderId: string, userId: string) {
           unitPrice: true,
           quantity: true,
           productId: true,
-          product: { select: { slug: true, ownerType: true, sellerId: true } },
+          product: { select: { slug: true, ownerType: true, sellerId: true, credential: { select: { id: true } } } },
         },
       },
       supportTicket: {
@@ -428,6 +428,8 @@ export async function getMyOrder(orderId: string, userId: string) {
     autoConfirmAt:
       order.deliveredAt && !order.receivedAt ? new Date(order.deliveredAt.getTime() + holdDays * 86_400_000).toISOString() : null,
     canReveal: hasAccess,
+    // Accès ouvert mais clé d'accès pas encore saisie par l'équipe ou le vendeur.
+    credentialsPending: hasAccess && !order.items[0]?.product.credential,
     canConfirmReceipt: order.status === "DELIVERED" && !order.receivedAt,
     // Avis possible une fois la réception confirmée, une seule fois.
     review,
@@ -469,7 +471,21 @@ export async function revealCredentials(orderId: string, ctx: OrderActor) {
 
   const item = order.items[0];
   const credential = item?.product.credential;
-  if (!item || !credential) throw notFound("Aucun accès à livrer pour cette commande");
+  if (!item || !credential) {
+    // Clé d'accès pas encore saisie : l'équipe est prévenue (une fois par heure au plus).
+    const recent = await prisma.notification.count({
+      where: { title: "Clé d’accès attendue par un client", message: { contains: order.orderNumber }, createdAt: { gt: new Date(Date.now() - 3_600_000) } },
+    });
+    if (recent === 0) {
+      await notifyTeam("PRODUCTS", "ADMIN_ALERT", {
+        title: "Clé d’accès attendue par un client",
+        message: `Commande ${order.orderNumber} (« ${item?.title ?? "compte"} ») : le client attend les identifiants. Ajoutez-les : Commandes → « Ajouter la clé d’accès ».`,
+        actionUrl: "/admin/orders",
+        priority: "CRITICAL",
+      });
+    }
+    throw notFound("Les identifiants de ce compte n’ont pas encore été ajoutés. L’équipe est prévenue : vous recevrez une notification dès qu’ils sont disponibles.");
+  }
 
   let email: string;
   let password: string;

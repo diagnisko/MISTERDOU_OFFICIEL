@@ -124,7 +124,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
 
       {order.canReveal && (
         <div className="grid gap-5 md:grid-cols-2">
-          <CredentialsCard orderId={order.id} />
+          <CredentialsCard orderId={order.id} pending={order.credentialsPending} />
           <VerificationCodeCard orderId={order.id} code={order.verificationCode} onChange={load} />
         </div>
       )}
@@ -212,7 +212,7 @@ function Progress({ order }: { order: OrderDetail }) {
 
 // --- Identifiants du compte ------------------------------------------------
 
-function CredentialsCard({ orderId }: { orderId: string }) {
+function CredentialsCard({ orderId, pending = false }: { orderId: string; pending?: boolean }) {
   const t = useT();
   const [creds, setCreds] = useState<RevealedCredentials | null>(null);
   const [busy, setBusy] = useState(false);
@@ -239,7 +239,11 @@ function CredentialsCard({ orderId }: { orderId: string }) {
           <Alert tone="danger">{error}</Alert>
         </div>
       )}
-      {creds ? (
+      {pending && !creds ? (
+        <div className="mt-3">
+          <Alert tone="info">{t("creds.pending")}</Alert>
+        </div>
+      ) : creds ? (
         <dl className="mt-4 space-y-3">
           <CopyRow label={t("creds.email")} value={creds.email} />
           <CopyRow label={t("creds.password")} value={creds.password} />

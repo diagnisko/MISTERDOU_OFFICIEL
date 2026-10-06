@@ -107,6 +107,7 @@ export async function registerSellerRoutes(app: FastifyInstance) {
               slug: true,
               status: true,
               rejectedReason: true,
+              credential: { select: { id: true } },
               basePrice: true,
               paymentMode: true,
               featuredUntil: true,
@@ -167,8 +168,9 @@ export async function registerSellerRoutes(app: FastifyInstance) {
             }
           : null,
         balance: seller?.sellerBalance ?? null,
-        products: products.map(({ featuredProduct: featured, ...p }) => ({
+        products: products.map(({ featuredProduct: featured, credential, ...p }) => ({
           ...p,
+          hasCredentials: credential !== null,
           featuredUntil: p.featuredUntil?.toISOString() ?? null,
           isFeatured: p.featuredUntil !== null && p.featuredUntil > now,
           // Payée (solde ou preuve Wave envoyée) : en attente de validation par l'équipe.

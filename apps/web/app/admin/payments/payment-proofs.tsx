@@ -31,7 +31,7 @@ type Proof = {
   label: string;
   payment: { id: string; paymentNumber: string; type: string; status: string };
   orderNumber: string | null;
-  warnings: { productSold: boolean; referenceReusedBy: string[]; amountChanged: boolean };
+  warnings: { productSold: boolean; referenceReusedBy: string[]; amountChanged: boolean; missingCredentials?: boolean };
 };
 
 type ProofList = { pendingCount: number; items: Proof[] };
@@ -182,6 +182,11 @@ export function PaymentProofsPanel({ onReviewed }: { onReviewed: () => void }) {
                 )}
                 {proof.warnings.amountChanged && (
                   <p className="mt-2 text-[12px] text-[#fbbf24]">Le montant de ce paiement a changé depuis l’envoi de la preuve.</p>
+                )}
+                {proof.warnings.missingCredentials && (
+                  <p className="mt-2 text-[12px] text-[#fbbf24]">
+                    Clé d’accès manquante pour ce compte : ajoutez-la (Offres ou Commandes → « Ajouter la clé d’accès ») pour que le client la voie.
+                  </p>
                 )}
 
                 {proof.status === "PENDING" ? (

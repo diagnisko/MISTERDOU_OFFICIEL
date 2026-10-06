@@ -55,7 +55,7 @@ type PlanRow = {
     totalAmount: number;
     paymentMode: string;
     buyer: { id: string; email: string; firstName: string | null; lastName: string | null };
-    items?: Array<{ productId: string; title: string }>;
+    items?: Array<{ productId: string; title: string; hasCredentials?: boolean }>;
   };
   installments: Installment[];
 };
@@ -88,6 +88,7 @@ export default function PlansPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [collectTarget, setCollectTarget] = useState<{ plan: PlanRow; installment: Installment } | null>(null);
   const [settleTarget, setSettleTarget] = useState<PlanRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<PlanRow | null>(null);
 
   const list = useAdminList<PlanRow>(
     `/api/v1/admin/plans${buildQuery({
@@ -122,14 +123,21 @@ export default function PlansPage() {
     if (ok) setCollectTarget(null);
   }
 
-  async function settle(row: PlanRow, reference?: string) {
+  async function settle(row: PlanRow, reference: string | undefined, password: string) {
     const ok = await runAction(async () => {
       await request("/api/v1/admin/plans/settle", {
         method: "POST",
-        body: JSON.stringify({ planId: row.id, ...(reference ? { reference } : {}) }),
+        body: JSON.stringify({ planId: row.id, password, ...(reference ? { reference } : {}) }),
       });
     }, "Plan soldé et journalisé.");
     if (ok) setSettleTarget(null);
+  }
+
+  async function cancelContract(row: PlanRow, reason: string, password: string) {
+    const ok = await runAction(async () => {
+      await request(`/api/v1/admin/plans/${row.id}/cancel`, { method: "POST", body: JSON.stringify({ reason, password }) });
+    }, `Contrat ${row.order.orderNumber} annulé : accès du client fermé, offre désactivée.`);
+    if (ok) setCancelTarget(null);
   }
 
   function canCollect(plan: PlanRow, installment: Installment): boolean {
@@ -225,10 +233,13 @@ export default function PlansPage() {
                           label={open ? "Masquer" : "Échéances"}
                           onClick={() => setExpanded(open ? null : plan.id)}
                         />
-                        {plan.order.items?.[0] && <CredentialKeyButton productId={plan.order.items[0].productId} />}
+                        {plan.order.items?.[0] && (
+                          <CredentialKeyButton productId={plan.order.items[0].productId} missing={plan.order.items[0].hasCredentials === false} />
+                        )}
                         {active && (
                           <RowAction label="Solder le plan" tone="danger" onClick={() => setSettleTarget(plan)} />
                         )}
+                        {active && <RowAction label="Annuler le contrat" tone="danger" onClick={() => setCancelTarget(plan)} />}
                       </span>
                     </td>
                   </tr>
@@ -313,6 +324,7 @@ export default function PlansPage() {
       )}
 
       {settleTarget && <SettleModal plan={settleTarget} onClose={() => setSettleTarget(null)} onSubmit={settle} />}
+      {cancelTarget && <CancelModal plan={cancelTarget} onClose={() => setCancelTarget(null)} onSubmit={cancelContract} />}
     </>
   );
 }
@@ -412,9 +424,10 @@ function SettleModal({
 }: {
   plan: PlanRow;
   onClose: () => void;
-  onSubmit: (plan: PlanRow, reference?: string) => Promise<void>;
+  onSubmit: (plan: PlanRow, reference: string | undefined, password: string) => Promise<void>;
 }) {
   const [reference, setReference] = useState("");
+  const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -423,7 +436,7 @@ function SettleModal({
     setError(null);
     setPending(true);
     try {
-      await onSubmit(plan, reference.trim() || undefined);
+      await onSubmit(plan, reference.trim() || undefined, password);
     } catch (err) {
       setError(err);
     } finally {
@@ -452,6 +465,13 @@ function SettleModal({
           />
         </label>
 
+        <label className="block">
+          <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+            Votre mot de passe (confirmation)
+          </span>
+          <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+        </label>
+
         {error ? <ErrorAlert error={error} /> : null}
 
         <div className="flex flex-wrap justify-end gap-2">
@@ -460,6 +480,66 @@ function SettleModal({
           </Button>
           <Button variant="danger" type="submit" loading={pending}>
             Solder le plan
+          </Button>
+        </div>
+      </form>
+    </AdminModal>
+  );
+}
+
+/** Annulation d'un contrat de mensualités : motif + mot de passe de la personne connectée. */
+function CancelModal({
+  plan,
+  onClose,
+  onSubmit,
+}: {
+  plan: PlanRow;
+  onClose: () => void;
+  onSubmit: (plan: PlanRow, reason: string, password: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [password, setPassword] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setPending(true);
+    try {
+      await onSubmit(plan, reason.trim(), password);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <AdminModal title="Annuler le contrat de mensualités" onClose={onClose}>
+      <form onSubmit={(event) => void submit(event)} className="space-y-4">
+        <Alert tone="warning">
+          Contrat {plan.order.orderNumber} : l’échéancier et la commande sont annulés, l’accès du client au compte est fermé
+          et il est prévenu. L’offre est désactivée : <strong>changez le mot de passe du compte</strong> avant de la remettre en
+          vente. Déjà versé par le client : <strong>{formatXof(Number(plan.totalPaid))}</strong> (non remboursé automatiquement).
+        </Alert>
+        <label className="block">
+          <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">Motif (envoyé au client)</span>
+          <TextInput value={reason} onChange={(event) => setReason(event.target.value)} maxLength={300} placeholder="ex. mensualités impayées depuis 2 mois" required minLength={5} />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+            Votre mot de passe (confirmation)
+          </span>
+          <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+        </label>
+        {error ? <ErrorAlert error={error} /> : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={pending}>
+            Retour
+          </Button>
+          <Button variant="danger" type="submit" loading={pending} disabled={reason.trim().length < 5 || !password}>
+            Annuler le contrat
           </Button>
         </div>
       </form>

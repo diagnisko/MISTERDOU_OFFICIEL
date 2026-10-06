@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { SellerCredentialDialog } from "@/components/offers/seller-credential-dialog";
 import { CodeQueue } from "@/components/codes/code-queue";
 import { sellerNav } from "@/components/seller/seller-nav";
 import Link from "next/link";
@@ -46,6 +47,8 @@ type Dashboard = {
     status: string;
     /** Refusée par l'équipe : motif à corriger. */
     rejectedReason: string | null;
+    /** Clé d'accès enregistrée (sinon l'acheteur ne peut rien voir). */
+    hasCredentials: boolean;
     basePrice: number;
     paymentMode: string;
     featuredUntil: string | null;
@@ -101,6 +104,8 @@ export default function SellerPage() {
   const [days, setDays] = useState(DAY_PRESETS[0]!);
   const [paying, setPaying] = useState<"BALANCE" | "WAVE" | null>(null);
   const [mediaProduct, setMediaProduct] = useState<Dashboard["products"][number] | null>(null);
+  const [credentialProduct, setCredentialProduct] = useState<Dashboard["products"][number] | null>(null);
+  const [credentialNotice, setCredentialNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -363,6 +368,7 @@ export default function SellerPage() {
               {t("seller.offersLead", { rate: formatXof(rate) })}
             </p>
             <p className="mt-0.5 text-[12px] text-[#8f7d77]">{t("seller.reviewHint")}</p>
+            {credentialNotice && <p className="mt-2 text-[12.5px] text-[#86efac]" role="status">{credentialNotice}</p>}
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[12px] text-[#8f7d77]">
@@ -434,6 +440,13 @@ export default function SellerPage() {
                     )}
                     <button
                       type="button"
+                      onClick={() => setCredentialProduct(product)}
+                      className={`dash-btn dash-btn-ghost mr-2 !min-h-[34px] !text-[12px] ${product.hasCredentials ? "" : "!border-[rgba(239,68,68,0.5)] !text-[#fca5a5]"}`}
+                    >
+                      {product.hasCredentials ? t("seller.credentials") : t("seller.credentialsMissing")}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setMediaProduct(product)}
                       className="dash-btn dash-btn-ghost mr-2 !min-h-[34px] !text-[12px]"
                     >
@@ -457,6 +470,20 @@ export default function SellerPage() {
           </table>
         </div>
       </section>
+
+      {credentialProduct && (
+        <SellerCredentialDialog
+          productId={credentialProduct.id}
+          title={credentialProduct.title}
+          hasCredentials={credentialProduct.hasCredentials}
+          onClose={() => setCredentialProduct(null)}
+          onSaved={(message) => {
+            setCredentialProduct(null);
+            setCredentialNotice(message);
+            void load();
+          }}
+        />
+      )}
 
       {mediaProduct && (
         <div

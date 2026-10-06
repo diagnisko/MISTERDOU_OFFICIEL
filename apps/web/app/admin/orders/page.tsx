@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui";
 import { buildQuery } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
+import { CredentialKeyButton } from "../_lib/credential-key";
 import {
   AdminPageHead,
   DataTable,
@@ -19,8 +20,8 @@ import {
 
 // ---------------------------------------------------------------------------
 // Commandes — port de la vue « orders » de la console.
-// GET /admin/orders { page, perPage, q } — aucune route d'action admin n'existe
-// sur ce module : la colonne d'action reste en lecture seule.
+// GET /admin/orders { page, perPage, q } — action : « Clé d'accès » du compte
+// acheté (afficher, saisir ou remplacer ; l'acheteur la voit aussitôt).
 // ---------------------------------------------------------------------------
 
 type OrderRow = {
@@ -32,6 +33,7 @@ type OrderRow = {
   createdAt: string;
   buyer: { id: string; email: string; firstName: string | null; lastName: string | null };
   payments: { status: string; amount: number; type: string }[];
+  item: { productId: string; title: string; hasCredentials: boolean } | null;
 };
 
 const COLUMNS = [
@@ -99,7 +101,11 @@ export default function AdminOrdersPage() {
                     </td>
                   ))}
                   <td className="px-4 py-3.5">
-                    <span className="text-stone-600">Lecture</span>
+                    {row.item ? (
+                      <CredentialKeyButton productId={row.item.productId} missing={!row.item.hasCredentials} />
+                    ) : (
+                      <span className="text-stone-600">—</span>
+                    )}
                   </td>
                 </tr>
               );

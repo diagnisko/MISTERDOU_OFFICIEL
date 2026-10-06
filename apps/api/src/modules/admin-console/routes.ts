@@ -274,6 +274,7 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
           id: true, slug: true, title: true, status: true, ownerType: true, sellerId: true, basePrice: true, paymentMode: true,
           featuredPriceOverride: true, rejectedReason: true, createdAt: true, updatedAt: true,
           seller: { select: { user: { select: { firstName: true, lastName: true } } } },
+          credential: { select: { id: true } },
         },
       }),
       prisma.product.count({ where }),
@@ -282,7 +283,11 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     await audit(request, "ADMIN_OFFERINGS_LISTED", "Product", undefined, { total, page, status });
     return sendOk(
       reply,
-      items.map(({ seller, ...row }) => ({ ...row, sellerName: seller ? [seller.user.firstName, seller.user.lastName].filter(Boolean).join(" ") || "Vendeur" : null })),
+      items.map(({ seller, credential, ...row }) => ({
+        ...row,
+        hasCredentials: credential !== null,
+        sellerName: seller ? [seller.user.firstName, seller.user.lastName].filter(Boolean).join(" ") || "Vendeur" : null,
+      })),
       { page, perPage, total, pendingReview },
     );
   });
@@ -292,8 +297,13 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const input = productStatusSchema.safeParse(request.body);
     if (!input.success) throw badRequest("VALIDATION_ERROR", "Statut ou motif invalide.");
-    const result = await prisma.product.updateMany({ where: { id, deletedAt: null }, data: { status: input.data.status, ...(input.data.status === "ACTIVE" ? { publishedAt: new Date() } : {}) } });
-    if (result.count !== 1) throw notFound("Offre introuvable.");
+    // Un compte vendu ne change plus de statut (le remettre « en ligne » le revendrait).
+    const result = await prisma.product.updateMany({ where: { id, deletedAt: null, status: { not: "SOLD" } }, data: { status: input.data.status, ...(input.data.status === "ACTIVE" ? { publishedAt: new Date() } : {}) } });
+    if (result.count !== 1) {
+      const sold = await prisma.product.count({ where: { id, deletedAt: null, status: "SOLD" } });
+      if (sold) throw conflict("INVALID_STATE", "Ce compte est vendu : il ne peut pas être remis en vente ni désactivé.");
+      throw notFound("Offre introuvable.");
+    }
     await audit(request, "ADMIN_OFFER_STATUS_CHANGED", "Product", id, { status: input.data.status, reason: input.data.reason });
     return sendOk(reply, { id, status: input.data.status });
   });
@@ -303,11 +313,18 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const { page, perPage, q } = pageArgs(request.query);
     const where = q ? { OR: [{ orderNumber: { contains: q, mode: "insensitive" as const } }, { buyer: { email: { contains: q, mode: "insensitive" as const } } }] } : {};
     const [items, total] = await Promise.all([
-      prisma.order.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, orderNumber: true, status: true, paymentMode: true, totalAmount: true, createdAt: true, buyer: { select: { id: true, email: true, firstName: true, lastName: true } }, payments: { select: { status: true, amount: true, type: true } } } }),
+      prisma.order.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, orderNumber: true, status: true, paymentMode: true, totalAmount: true, createdAt: true, buyer: { select: { id: true, email: true, firstName: true, lastName: true } }, payments: { select: { status: true, amount: true, type: true } }, items: { take: 1, select: { productId: true, title: true, product: { select: { credential: { select: { id: true } } } } } } } }),
       prisma.order.count({ where }),
     ]);
     await audit(request, "ADMIN_ORDERS_LISTED", "Order", undefined, { total, page });
-    return sendOk(reply, items, { page, perPage, total });
+    return sendOk(
+      reply,
+      items.map(({ items: lines, ...row }) => ({
+        ...row,
+        item: lines[0] ? { productId: lines[0].productId, title: lines[0].title, hasCredentials: lines[0].product.credential !== null } : null,
+      })),
+      { page, perPage, total },
+    );
   });
 
   app.get("/admin/payments", async (request, reply) => {

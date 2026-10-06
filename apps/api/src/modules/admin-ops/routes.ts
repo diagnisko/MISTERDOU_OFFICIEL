@@ -20,6 +20,8 @@ import {
   rejectWithdrawal,
   startWithdrawalProcessing,
   WITHDRAWAL_ETAS,
+  cancelPlan,
+  planCancelSchema,
   settlePlan,
   updateManager,
   updateSetting,
@@ -267,8 +269,10 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
 
   app.post(
     "/admin/plans/settle",
-    { preHandler: permissionGuard("PAYMENTS"), schema: secured("Solder un échéancier (apport + mensualités)") },
+    { preHandler: permissionGuard("PAYMENTS"), schema: secured("Solder un échéancier (apport + mensualités) — mot de passe exigé") },
     async (request, reply) => {
+      // Action définitive : le mot de passe de la personne connectée est exigé.
+      await requireTeamPassword(request);
       const input = planSettleSchema.safeParse(request.body ?? {});
       if (!input.success) throw badRequest("VALIDATION_ERROR", "Référence de règlement invalide.");
       const query = planIdQuery.parse(request.query ?? {});
@@ -276,6 +280,18 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
       const planId = query.planId ?? (typeof body.planId === "string" ? body.planId.trim() : undefined);
       if (!planId) throw badRequest("VALIDATION_ERROR", "Identifiant d'échéancier manquant.");
       return sendOk(reply, await settlePlan(planId, input.data.reference, actor(request)));
+    },
+  );
+
+  app.post(
+    "/admin/plans/:id/cancel",
+    { preHandler: permissionGuard("PAYMENTS"), schema: secured("Annuler un contrat de mensualités — mot de passe exigé") },
+    async (request, reply) => {
+      await requireTeamPassword(request);
+      const input = planCancelSchema.safeParse(request.body ?? {});
+      if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Motif invalide.");
+      const { id } = request.params as { id: string };
+      return sendOk(reply, await cancelPlan(id, input.data.reason, actor(request)));
     },
   );
 

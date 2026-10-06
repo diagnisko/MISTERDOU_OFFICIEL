@@ -39,6 +39,8 @@ export type OrderDetail = {
   receivedAt: string | null;
   autoConfirmAt: string | null;
   canReveal: boolean;
+  /** Accès ouvert, identifiants pas encore saisis. */
+  credentialsPending?: boolean;
   canConfirmReceipt: boolean;
   /** Règlement ouvert à reprendre (page de paiement). */
   checkoutUrl: string | null;

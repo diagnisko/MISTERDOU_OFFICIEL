@@ -78,6 +78,7 @@ export const fr = {
   "creds.show": "Afficher les identifiants",
   "creds.copy": "Copier",
   "creds.copied": "Copié",
+  "creds.pending": "Les identifiants de ce compte sont en cours d’ajout par l’équipe. Vous recevrez une notification dès qu’ils sont disponibles ici.",
 
   "code.title": "Code de vérification",
   "code.lead": "Le jeu vous demande un code à la connexion ? Demandez-le ici : il vous est envoyé en quelques minutes.",
@@ -281,6 +282,7 @@ export const en: Translations<typeof fr> = {
   "creds.show": "Show credentials",
   "creds.copy": "Copy",
   "creds.copied": "Copied",
+  "creds.pending": "The team is adding this account’s credentials. You will be notified as soon as they are available here.",
   "code.title": "Verification code",
   "code.lead": "Is the game asking for a code at login? Request it here: it’s sent to you within minutes.",
   "code.failed": "Request failed.",
@@ -480,6 +482,7 @@ export const ar: Translations<typeof fr> = {
   "creds.show": "إظهار بيانات الدخول",
   "creds.copy": "نسخ",
   "creds.copied": "تم النسخ",
+  "creds.pending": "يضيف الفريق بيانات دخول هذا الحساب. ستصلك رسالة فور توفرها هنا.",
   "code.title": "رمز التحقق",
   "code.lead": "هل تطلب اللعبة رمزًا عند الدخول؟ اطلبه هنا: يصلك خلال دقائق.",
   "code.failed": "تعذّر الطلب.",

@@ -190,7 +190,7 @@ export async function listPaymentProofs(status: PaymentProofStatus) {
             select: {
               orderNumber: true,
               status: true,
-              items: { take: 1, select: { title: true, product: { select: { status: true } } } },
+              items: { take: 1, select: { title: true, product: { select: { status: true, credential: { select: { id: true } } } } } },
             },
           },
           featuredPurchases: FEATURED_SELECT,
@@ -237,6 +237,8 @@ export async function listPaymentProofs(status: PaymentProofStatus) {
           productSold: Boolean(item && item.product.status === "SOLD" && r.payment.order?.status === "PENDING_PAYMENT"),
           referenceReusedBy: reusedBy,
           amountChanged: r.amount !== r.payment.amount,
+          // Achat d'un compte sans clé d'accès : rien à remettre au client une fois validé.
+          missingCredentials: Boolean(item && !item.product.credential),
         },
       };
     }),

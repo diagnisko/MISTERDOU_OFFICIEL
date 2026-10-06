@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { randomInt } from "node:crypto";
+import { z } from "zod";
 import { prisma, Prisma } from "@misterdou/db";
 import type { AuditSeverity, PlanStatus, RoleName, WithdrawalStatus } from "@misterdou/db";
 import type { ManagerCreateInput, ManagerUpdateInput, PlanCollectInput } from "@misterdou/shared";
@@ -660,8 +661,8 @@ export async function listPlans(args: PlanListArgs) {
             totalAmount: true,
             paymentMode: true,
             buyer: { select: { id: true, email: true, firstName: true, lastName: true } },
-            // Le compte acheté (« Clé d'accès » depuis la liste).
-            items: { take: 1, select: { productId: true, title: true } },
+            // Le compte acheté (« Clé d'accès » depuis la liste ; signalée si absente).
+            items: { take: 1, select: { productId: true, title: true, product: { select: { credential: { select: { id: true } } } } } },
           },
         },
         installments: {
@@ -675,6 +676,10 @@ export async function listPlans(args: PlanListArgs) {
   return {
     items: rows.map((r) => ({
       ...r,
+      order: {
+        ...r.order,
+        items: r.order.items.map(({ product, ...item }) => ({ ...item, hasCredentials: product.credential !== null })),
+      },
       installments: r.installments.map((i) => ({ ...i, dueDate: i.dueDate.toISOString(), paidAt: i.paidAt ? i.paidAt.toISOString() : null })),
     })),
     total,
@@ -759,6 +764,64 @@ export async function collectInstallment(input: PlanCollectInput, actor: OpsActo
     totalPaid,
     settled: plan !== null && totalPaid >= plan.totalAmount,
   };
+}
+
+export const planCancelSchema = z.object({ reason: z.string().trim().min(5, "Motif : 5 caractères minimum").max(300) });
+
+/**
+ * Annule un contrat de mensualités : l'échéancier, ses échéances restantes et
+ * la commande sont annulés, l'accès du client au compte est coupé, les
+ * paiements en attente sont clos (preuve Wave en vérification refusée avec le
+ * motif). L'offre est désactivée : changez le mot de passe du compte avant de
+ * la remettre en vente (le client l'a connu). Les sommes déjà versées ne sont
+ * pas remboursées automatiquement : elles sont indiquées pour un éventuel
+ * remboursement manuel.
+ */
+export async function cancelPlan(planId: string, reason: string, actor: OpsActor) {
+  const plan = await prisma.installmentPlan.findUnique({
+    where: { id: planId },
+    select: {
+      id: true,
+      status: true,
+      totalPaid: true,
+      order: { select: { id: true, orderNumber: true, buyerId: true, items: { take: 1, select: { productId: true, title: true } } } },
+    },
+  });
+  if (!plan) throw notFound("Échéancier introuvable.");
+  if (plan.status === "CANCELLED") throw conflict("INVALID_STATE", "Cet échéancier est déjà annulé.");
+  if (plan.status === "COMPLETED") throw conflict("INVALID_STATE", "Cet échéancier est soldé : le compte appartient au client, il ne peut plus être annulé.");
+
+  const now = new Date();
+  const item = plan.order.items[0];
+  await prisma.$transaction(async (tx) => {
+    await tx.installmentPlan.update({ where: { id: plan.id }, data: { status: "CANCELLED" } });
+    await tx.installment.updateMany({ where: { planId: plan.id, status: { in: ["PENDING", "OVERDUE"] } }, data: { status: "CANCELLED" } });
+    await tx.paymentProof.updateMany({
+      where: { status: "PENDING", payment: { installmentPlanId: plan.id } },
+      data: { status: "REJECTED", reviewedById: actor.actorId, reviewedAt: now, rejectionReason: `Échéancier annulé : ${reason}` },
+    });
+    await tx.payment.updateMany({
+      where: { installmentPlanId: plan.id, status: { in: ["PENDING", "PROCESSING"] } },
+      data: { status: "CANCELLED", failureReason: "Échéancier annulé" },
+    });
+    await tx.order.update({ where: { id: plan.order.id }, data: { status: "CANCELLED" } });
+    // Le client a connu les identifiants : l'offre est désactivée, pas remise en vente d'office.
+    if (item) await tx.product.update({ where: { id: item.productId }, data: { status: "SUSPENDED", featuredUntil: null } });
+  });
+
+  await audit(actor, "INSTALLMENT_PLAN_CANCELLED", {
+    resourceType: "InstallmentPlan",
+    resourceId: plan.id,
+    metadata: { orderNumber: plan.order.orderNumber, reason, alreadyPaid: plan.totalPaid },
+    severity: "CRITICAL",
+  });
+  await notifyUser(plan.order.buyerId, "SYSTEM", {
+    title: "Paiement en plusieurs fois annulé",
+    message: `Votre paiement en plusieurs fois pour « ${item?.title ?? "votre compte"} » (commande ${plan.order.orderNumber}) a été annulé par l’équipe. Motif : « ${reason} ». L’accès au compte est fermé. Contactez le support pour toute question.`,
+    actionUrl: `/account/orders/${plan.order.id}`,
+    priority: "CRITICAL",
+  });
+  return { id: plan.id, status: "CANCELLED" as const, alreadyPaid: plan.totalPaid };
 }
 
 export async function settlePlan(planId: string, reference: string | undefined, actor: OpsActor) {

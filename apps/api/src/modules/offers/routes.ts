@@ -6,6 +6,7 @@ import {
   activeSellerId,
   createOffer,
   createOfferSchema,
+  credentialSchema,
   getOfferForEdit,
   getOfferForReview,
   parseOffer,
@@ -13,6 +14,7 @@ import {
   reviewOffer,
   removeOffer,
   revealOfferCredential,
+  setOfferCredential,
   updateOffer,
   updateOfferSchema,
   type OfferActor,
@@ -46,6 +48,13 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const owner = await sellerOwner(request);
     return sendOk(reply, await updateOffer(id, parseOffer(updateOfferSchema, request.body), owner, actor(request)));
+  });
+
+  // Clé d'accès du vendeur : saisie ou remplacement à tout moment (même vendue).
+  app.put("/seller/offers/:id/credential", limited, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const owner = await sellerOwner(request);
+    return sendOk(reply, await setOfferCredential(id, parseOffer(credentialSchema, request.body), owner, actor(request)));
   });
 
   app.delete("/seller/offers/:id", limited, async (request, reply) => {
@@ -88,6 +97,13 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     return sendOk(reply, await revealOfferCredential(id, actor(request)));
   });
 
+  // Saisie ou remplacement de la clé d'accès (toute offre, à tout moment).
+  app.put("/admin/offerings/:id/credential", limited, async (request, reply) => {
+    await requirePermission(request, "PRODUCTS");
+    const { id } = request.params as { id: string };
+    return sendOk(reply, await setOfferCredential(id, parseOffer(credentialSchema, request.body), { kind: "moderator" }, actor(request)));
+  });
+
   app.put("/admin/offerings/:id", limited, async (request, reply) => {
     await requirePermission(request, "PRODUCTS");
     const { id } = request.params as { id: string };
@@ -98,6 +114,7 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     await requirePermission(request, "PRODUCTS");
     await requireTeamPassword(request);
     const { id } = request.params as { id: string };
-    return sendOk(reply, await removeOffer(id, team, actor(request)));
+    // Toute offre (MISTERDOU ou vendeur), sauf vendue ou en cours d'achat.
+    return sendOk(reply, await removeOffer(id, { kind: "moderator" }, actor(request)));
   });
 }
