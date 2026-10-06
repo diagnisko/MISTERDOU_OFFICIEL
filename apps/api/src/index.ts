@@ -15,6 +15,8 @@ async function main() {
 
   await app.listen({ host: env.API_HOST, port: env.API_PORT });
   logger.info(`API MISTERDOU démarrée sur ${env.API_PUBLIC_URL}`);
+  // Services facultatifs : visibles au démarrage (et dans /api/v1/health).
+  logger.info({ email: Boolean(env.SMTP_URL), google: Boolean(env.GOOGLE_OAUTH_CLIENT_ID) }, "Services facultatifs");
   logger.info(`Docs OpenAPI : ${env.API_PUBLIC_URL}/docs`);
 
   // Échéanciers : retards (OVERDUE) + rappels J-3 (idempotents, anti-doublon).
