@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAdminAccess } from "../_lib/access";
 import { Alert, Badge, Button, SelectInput, StatusBadge, TextInput } from "@/components/ui";
 import { errorMessage as envelopeMessage, request, requestPaged, buildQuery } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
@@ -205,6 +206,8 @@ function TicketDetailModal({
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }) {
+  // La liste de l'équipe relève du module « Paramètres & équipe » : sans lui, pas de réassignation.
+  const canAssign = useAdminAccess().can("SETTINGS");
   const [managers, setManagers] = useState<ManagerRow[] | null>(null);
   const [managersError, setManagersError] = useState<string | null>(null);
   const [status, setStatus] = useState(ticket.status);
@@ -214,6 +217,7 @@ function TicketDetailModal({
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
+    if (!canAssign) return;
     let active = true;
     requestPaged<ManagerRow>("/api/v1/admin/managers")
       .then((result) => {
@@ -228,7 +232,7 @@ function TicketDetailModal({
     return () => {
       active = false;
     };
-  }, []);
+  }, [canAssign]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -332,6 +336,7 @@ function TicketDetailModal({
             </SelectInput>
           </label>
 
+          {canAssign && (
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
               Assigner à
@@ -355,6 +360,7 @@ function TicketDetailModal({
               ))}
             </SelectInput>
           </label>
+          )}
         </div>
 
         <label className="block">

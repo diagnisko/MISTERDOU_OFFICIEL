@@ -436,6 +436,12 @@ function DetailHub() {
               <IconShield className="h-4 w-4 text-[var(--lux-gold)]" aria-hidden />
               {t("product.finalize")}
             </p>
+            {!own && !team && (
+              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-[#f5d9a8]">
+                <IconShield className="mt-px h-4 w-4 shrink-0 text-[#fbbf24]" aria-hidden />
+                {t("product.offsite")}
+              </p>
+            )}
           </div>
         </div>
 

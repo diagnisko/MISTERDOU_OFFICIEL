@@ -17,6 +17,7 @@ import {
 import { buildQuery, errorMessage } from "./_lib/api";
 import { useAdminList } from "./_lib/hooks";
 import { AdminModal, ErrorAlert, PAYMENT_TYPE_LABELS } from "./_lib/ui";
+import { PAGE_REQUIREMENTS, useAdminAccess } from "./_lib/access";
 
 // ---------------------------------------------------------------------------
 // Vue d'ensemble — GET /admin/finance (STATS) + GET /admin/receivables
@@ -119,7 +120,60 @@ function deltaOf(current: number, previous: number) {
   return { value: text, positive: pct >= 0 };
 }
 
+// Raccourcis de l'accueil d'un manager : seulement ses modules.
+const SHORTCUTS: Array<{ href: string; label: string; hint: string }> = [
+  { href: "/admin/payments", label: "Paiements", hint: "Vérifier les paiements Wave" },
+  { href: "/admin/plans", label: "Paiements échelonnés", hint: "Suivre les mensualités" },
+  { href: "/admin/orders", label: "Commandes", hint: "Suivre les commandes" },
+  { href: "/admin/codes", label: "Codes de vérification", hint: "Répondre aux demandes de code" },
+  { href: "/admin/withdrawals", label: "Retraits vendeurs", hint: "Traiter les retraits" },
+  { href: "/admin/clients", label: "Clients", hint: "Fiches et comptes clients" },
+  { href: "/admin/sellers", label: "Vendeurs", hint: "Fiches vendeurs et statut" },
+  { href: "/admin/verifications", label: "Vérifications", hint: "Pièces d’identité à contrôler" },
+  { href: "/admin/offers", label: "Offres", hint: "Valider et gérer les offres" },
+  { href: "/admin/promotions", label: "Promotions", hint: "Mises en avant et promotions" },
+  { href: "/admin/support", label: "Support", hint: "Demandes des clients" },
+  { href: "/admin/team", label: "Équipe", hint: "Managers et permissions" },
+  { href: "/admin/settings", label: "Paramètres", hint: "Réglages de la plateforme" },
+];
+
 export default function AdminOverviewPage() {
+  const { can } = useAdminAccess();
+  const seeStats = can("STATS");
+  const seePayments = can("PAYMENTS");
+  if (!seeStats && !seePayments) return <TeamHome />;
+  return <FinanceOverview seeStats={seeStats} seePayments={seePayments} />;
+}
+
+/** Accueil d'un manager sans accès aux chiffres : ses modules, rien d'autre. */
+function TeamHome() {
+  const { can, access } = useAdminAccess();
+  const mine = SHORTCUTS.filter((s) => can(PAGE_REQUIREMENTS.find((p) => p.prefix === s.href)?.need ?? null));
+  return (
+    <>
+      <DashHeading greeting={access?.title ?? "Espace manager"} title="Mon espace" />
+      {mine.length === 0 ? (
+        <p className="mt-6 text-[14px] text-[#b8a6a1]">Aucun module ne vous est encore attribué. Un administrateur peut vous en donner.</p>
+      ) : (
+        <ul className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {mine.map((s) => (
+            <li key={s.href}>
+              <Link href={s.href} className="dash-card flex items-center justify-between gap-3 p-5 transition hover:border-[rgba(255,106,50,0.4)]">
+                <span>
+                  <span className="block text-[15px] font-semibold text-stone-50">{s.label}</span>
+                  <span className="mt-1 block text-[12.5px] text-[#8f7d77]">{s.hint}</span>
+                </span>
+                <IconChevron size={16} className="shrink-0 text-[#ff8a5c]" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function FinanceOverview({ seeStats, seePayments }: { seeStats: boolean; seePayments: boolean }) {
   const [finance, setFinance] = useState<Finance | null>(null);
   const [financeError, setFinanceError] = useState<unknown>(null);
   const [recv, setRecv] = useState<ReceivablePage | null>(null);
@@ -133,18 +187,20 @@ export default function AdminOverviewPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const payments = useAdminList<PaymentRow>(`/api/v1/admin/payments${buildQuery({ page: 1, perPage: 6 })}`);
+  const payments = useAdminList<PaymentRow>(seePayments ? `/api/v1/admin/payments${buildQuery({ page: 1, perPage: 6 })}` : null);
 
   const loadFinance = useCallback(async () => {
+    if (!seeStats) return;
     try {
       setFinance(await request<Finance>("/api/v1/admin/finance"));
       setFinanceError(null);
     } catch (err) {
       setFinanceError(err);
     }
-  }, []);
+  }, [seeStats]);
 
   const loadReceivables = useCallback(async () => {
+    if (!seePayments) return;
     try {
       const data = await request<ReceivablePage>(
         `/api/v1/admin/receivables${buildQuery({ status: filter, q: search || undefined, page, perPage: PER_PAGE })}`,
@@ -154,7 +210,7 @@ export default function AdminOverviewPage() {
     } catch (err) {
       setRecvError(err);
     }
-  }, [filter, search, page]);
+  }, [filter, search, page, seePayments]);
 
   useEffect(() => {
     void loadFinance();
@@ -181,7 +237,7 @@ export default function AdminOverviewPage() {
   );
   const counts = recv?.counts;
   const totalPages = Math.max(1, Math.ceil((recv?.total ?? 0) / PER_PAGE));
-  const loadingFinance = !finance && !financeError;
+  const loadingFinance = seeStats && !finance && !financeError;
 
   return (
     <>
@@ -199,9 +255,11 @@ export default function AdminOverviewPage() {
             >
               <IconRefresh size={16} className={refreshing ? "animate-spin" : undefined} />
             </button>
-            <a href="#a-recevoir" className="dash-btn dash-btn-primary">
-              Voir les comptes à recevoir
-            </a>
+            {seePayments && (
+              <a href="#a-recevoir" className="dash-btn dash-btn-primary">
+                Voir les comptes à recevoir
+              </a>
+            )}
           </>
         }
       />
@@ -209,58 +267,62 @@ export default function AdminOverviewPage() {
       <ErrorAlert error={financeError} />
       {notice && <p className="mt-4 text-[13px] text-[#86efac]" role="status">{notice}</p>}
 
-      <section aria-label="Indicateurs financiers" className="mt-7 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <KpiCard
-          hero
-          icon={IconCoins}
-          label="Chiffre d’affaires"
-          value={formatXof(finance?.revenueTotal ?? 0)}
-          hint="Tous les paiements confirmés"
-          loading={loadingFinance}
-        />
-        <KpiCard
-          icon={IconWallet}
-          label="Encaissé ce mois"
-          value={formatXof(finance?.collectedThisMonth ?? 0)}
-          delta={finance ? deltaOf(finance.collectedThisMonth, finance.collectedLastMonth) : null}
-          hint={finance ? `Mois dernier : ${formatXof(finance.collectedLastMonth)}` : undefined}
-          loading={loadingFinance}
-        />
-        <KpiCard
-          icon={IconCalendar}
-          label="Montant à recevoir"
-          value={formatXof(finance?.receivable.amount ?? 0)}
-          hint={
-            finance
-              ? `${finance.receivable.plans} compte${finance.receivable.plans > 1 ? "s" : ""} en cours de paiement`
-              : undefined
-          }
-          href="#a-recevoir"
-          loading={loadingFinance}
-        />
-        <KpiCard
-          icon={IconAlert}
-          label="En retard"
-          value={formatXof(finance?.overdue.amount ?? 0)}
-          hint={
-            finance
-              ? finance.overdue.count === 0
-                ? "Aucune échéance en retard"
-                : `${finance.overdue.count} échéance${finance.overdue.count > 1 ? "s" : ""} · ${finance.overdue.plans} compte${finance.overdue.plans > 1 ? "s" : ""}`
-              : undefined
-          }
-          loading={loadingFinance}
-        />
-      </section>
+      {seeStats && (
+        <section aria-label="Indicateurs financiers" className="mt-7 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <KpiCard
+            hero
+            icon={IconCoins}
+            label="Chiffre d’affaires"
+            value={formatXof(finance?.revenueTotal ?? 0)}
+            hint="Tous les paiements confirmés"
+            loading={loadingFinance}
+          />
+          <KpiCard
+            icon={IconWallet}
+            label="Encaissé ce mois"
+            value={formatXof(finance?.collectedThisMonth ?? 0)}
+            delta={finance ? deltaOf(finance.collectedThisMonth, finance.collectedLastMonth) : null}
+            hint={finance ? `Mois dernier : ${formatXof(finance.collectedLastMonth)}` : undefined}
+            loading={loadingFinance}
+          />
+          <KpiCard
+            icon={IconCalendar}
+            label="Montant à recevoir"
+            value={formatXof(finance?.receivable.amount ?? 0)}
+            hint={
+              finance
+                ? `${finance.receivable.plans} compte${finance.receivable.plans > 1 ? "s" : ""} en cours de paiement`
+                : undefined
+            }
+            href="#a-recevoir"
+            loading={loadingFinance}
+          />
+          <KpiCard
+            icon={IconAlert}
+            label="En retard"
+            value={formatXof(finance?.overdue.amount ?? 0)}
+            hint={
+              finance
+                ? finance.overdue.count === 0
+                  ? "Aucune échéance en retard"
+                  : `${finance.overdue.count} échéance${finance.overdue.count > 1 ? "s" : ""} · ${finance.overdue.plans} compte${finance.overdue.plans > 1 ? "s" : ""}`
+                : undefined
+            }
+            loading={loadingFinance}
+          />
+        </section>
+      )}
 
-      <section className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-        <Panel title="Encaissements sur 12 mois">
-          {finance ? (
-            <AreaChart data={chart} primaryLabel="Encaissé" secondaryLabel="Échéances attendues" format={formatXof} />
-          ) : (
-            <div className="lux-skeleton h-[240px] w-full" aria-label="Chargement du graphique" />
-          )}
-        </Panel>
+      <section className={`mt-4 grid gap-4 ${seeStats ? "xl:grid-cols-[1.65fr_1fr]" : ""}`}>
+        {seeStats && (
+          <Panel title="Encaissements sur 12 mois">
+            {finance ? (
+              <AreaChart data={chart} primaryLabel="Encaissé" secondaryLabel="Échéances attendues" format={formatXof} />
+            ) : (
+              <div className="lux-skeleton h-[240px] w-full" aria-label="Chargement du graphique" />
+            )}
+          </Panel>
+        )}
 
         <Panel title="Ce mois-ci">
           {finance && (
@@ -328,215 +390,219 @@ export default function AdminOverviewPage() {
         </Panel>
       </section>
 
-      <section id="a-recevoir" className="dash-card mt-4 scroll-mt-24 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[15px] font-semibold text-stone-100">Comptes en cours de paiement</h2>
-            <p className="mt-0.5 text-[12px] text-[#8f7d77]">
-              Montant restant, mois restants et état de la mensualité du mois. Dépliez une ligne pour voir chaque mois.
-            </p>
+      {seePayments && (
+        <section id="a-recevoir" className="dash-card mt-4 scroll-mt-24 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-stone-100">Comptes en cours de paiement</h2>
+              <p className="mt-0.5 text-[12px] text-[#8f7d77]">
+                Montant restant, mois restants et état de la mensualité du mois. Dépliez une ligne pour voir chaque mois.
+              </p>
+            </div>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSearch(query.trim());
+                setPage(1);
+              }}
+              className="relative w-full sm:w-72"
+              role="search"
+            >
+              <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a7771]" size={16} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Client, compte ou n° de commande"
+                aria-label="Rechercher un compte"
+                className="dash-input"
+              />
+            </form>
           </div>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              setSearch(query.trim());
-              setPage(1);
-            }}
-            className="relative w-full sm:w-72"
-            role="search"
-          >
-            <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a7771]" size={16} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Client, compte ou n° de commande"
-              aria-label="Rechercher un compte"
-              className="dash-input"
+
+          <div className="mt-4">
+            <Segmented<Filter>
+              label="Filtrer par état du mois"
+              value={filter}
+              onChange={(value) => {
+                setFilter(value);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "Tous", count: counts?.all },
+                { value: "OVERDUE", label: "En retard", count: counts?.OVERDUE },
+                { value: "DUE", label: "À payer", count: counts?.DUE },
+                { value: "PAID", label: "Payé ce mois", count: counts?.PAID },
+                { value: "NONE", label: "Rien ce mois", count: counts?.NONE },
+              ]}
             />
-          </form>
-        </div>
+          </div>
 
-        <div className="mt-4">
-          <Segmented<Filter>
-            label="Filtrer par état du mois"
-            value={filter}
-            onChange={(value) => {
-              setFilter(value);
-              setPage(1);
-            }}
-            options={[
-              { value: "all", label: "Tous", count: counts?.all },
-              { value: "OVERDUE", label: "En retard", count: counts?.OVERDUE },
-              { value: "DUE", label: "À payer", count: counts?.DUE },
-              { value: "PAID", label: "Payé ce mois", count: counts?.PAID },
-              { value: "NONE", label: "Rien ce mois", count: counts?.NONE },
-            ]}
-          />
-        </div>
+          <ErrorAlert error={recvError} />
 
-        <ErrorAlert error={recvError} />
-
-        <div className="dash-scroll -mx-5 mt-4 overflow-x-auto">
-          <table className="dash-table w-full min-w-[900px] border-collapse">
-            <thead>
-              <tr>
-                <th className="pl-5">Client</th>
-                <th>Compte</th>
-                <th>Payé</th>
-                <th>Reste à recevoir</th>
-                <th>Mois restants</th>
-                <th>Prochaine échéance</th>
-                <th>Ce mois</th>
-                <th className="pr-5"><span className="sr-only">Détail</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {!recv && !recvError && (
+          <div className="dash-scroll -mx-5 mt-4 overflow-x-auto">
+            <table className="dash-table w-full min-w-[900px] border-collapse">
+              <thead>
                 <tr>
-                  <td colSpan={8} className="pl-5 text-[#8f7d77]">Chargement des comptes…</td>
+                  <th className="pl-5">Client</th>
+                  <th>Compte</th>
+                  <th>Payé</th>
+                  <th>Reste à recevoir</th>
+                  <th>Mois restants</th>
+                  <th>Prochaine échéance</th>
+                  <th>Ce mois</th>
+                  <th className="pr-5"><span className="sr-only">Détail</span></th>
                 </tr>
-              )}
-              {recv && recv.items.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="pl-5 text-[#8f7d77]">
-                    {search ? "Aucun compte ne correspond à cette recherche." : "Aucun compte dans cette catégorie."}
-                  </td>
-                </tr>
-              )}
-              {recv?.items.map((row) => {
-                const expanded = open === row.planId;
-                const paidPct = row.totalAmount > 0 ? Math.min(100, (row.totalPaid / row.totalAmount) * 100) : 0;
-                return (
-                  <Fragment key={row.planId}>
-                    <tr className={expanded ? "bg-white/[0.02]" : undefined}>
-                      <td className="pl-5">
-                        <p className="font-medium text-white">{personName(row.client)}</p>
-                        <p className="max-w-[200px] truncate text-[11px] text-[#8f7d77]">{row.client.email}</p>
-                      </td>
-                      <td>
-                        <p className="max-w-[190px] truncate">{row.product ?? "Compte eFootball"}</p>
-                        <p className="text-[11px] text-[#8f7d77]">{row.orderNumber}</p>
-                      </td>
-                      <td className="min-w-[150px]">
-                        <p className="tabular-nums">
-                          {formatXof(row.totalPaid)} <span className="text-[#8f7d77]">/ {formatXof(row.totalAmount)}</span>
-                        </p>
-                        <div className="dash-progress mt-1.5" aria-hidden>
-                          <span style={{ width: `${paidPct}%` }} />
-                        </div>
-                      </td>
-                      <td className="font-semibold tabular-nums text-white">{formatXof(row.remaining)}</td>
-                      <td className="tabular-nums">
-                        {row.monthsRemaining} <span className="text-[#8f7d77]">/ {row.monthCount}</span>
-                      </td>
-                      <td>
-                        {row.nextDue ? (
-                          <>
-                            <p className="tabular-nums">{formatXof(row.nextDue.amount)}</p>
-                            <p className="text-[11px] text-[#8f7d77]">{shortDate(row.nextDue.dueDate)}</p>
-                          </>
-                        ) : (
-                          <span className="text-[#8f7d77]">—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`dash-pill ${STATE_PILL[row.monthState]}`}>
-                          {row.monthState === "OVERDUE" && row.overdueCount > 1
-                            ? `${row.overdueCount} mois en retard`
-                            : STATE_LABEL[row.monthState]}
-                        </span>
-                      </td>
-                      <td className="pr-5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setOpen(expanded ? null : row.planId)}
-                          aria-expanded={expanded}
-                          aria-label={expanded ? "Masquer l’échéancier" : "Voir l’échéancier"}
-                          className="dash-btn dash-btn-ghost dash-btn-round !min-h-[34px] !w-[34px]"
-                        >
-                          <IconChevron size={16} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
-                        </button>
-                      </td>
-                    </tr>
-                    {expanded && (
-                      <tr>
-                        <td colSpan={8} className="px-5 pb-5 pt-1">
-                          <MonthStrip row={row} onCollect={(item) => setCollecting({ row, item })} />
+              </thead>
+              <tbody>
+                {!recv && !recvError && (
+                  <tr>
+                    <td colSpan={8} className="pl-5 text-[#8f7d77]">Chargement des comptes…</td>
+                  </tr>
+                )}
+                {recv && recv.items.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="pl-5 text-[#8f7d77]">
+                      {search ? "Aucun compte ne correspond à cette recherche." : "Aucun compte dans cette catégorie."}
+                    </td>
+                  </tr>
+                )}
+                {recv?.items.map((row) => {
+                  const expanded = open === row.planId;
+                  const paidPct = row.totalAmount > 0 ? Math.min(100, (row.totalPaid / row.totalAmount) * 100) : 0;
+                  return (
+                    <Fragment key={row.planId}>
+                      <tr className={expanded ? "bg-white/[0.02]" : undefined}>
+                        <td className="pl-5">
+                          <p className="font-medium text-white">{personName(row.client)}</p>
+                          <p className="max-w-[200px] truncate text-[11px] text-[#8f7d77]">{row.client.email}</p>
+                        </td>
+                        <td>
+                          <p className="max-w-[190px] truncate">{row.product ?? "Compte eFootball"}</p>
+                          <p className="text-[11px] text-[#8f7d77]">{row.orderNumber}</p>
+                        </td>
+                        <td className="min-w-[150px]">
+                          <p className="tabular-nums">
+                            {formatXof(row.totalPaid)} <span className="text-[#8f7d77]">/ {formatXof(row.totalAmount)}</span>
+                          </p>
+                          <div className="dash-progress mt-1.5" aria-hidden>
+                            <span style={{ width: `${paidPct}%` }} />
+                          </div>
+                        </td>
+                        <td className="font-semibold tabular-nums text-white">{formatXof(row.remaining)}</td>
+                        <td className="tabular-nums">
+                          {row.monthsRemaining} <span className="text-[#8f7d77]">/ {row.monthCount}</span>
+                        </td>
+                        <td>
+                          {row.nextDue ? (
+                            <>
+                              <p className="tabular-nums">{formatXof(row.nextDue.amount)}</p>
+                              <p className="text-[11px] text-[#8f7d77]">{shortDate(row.nextDue.dueDate)}</p>
+                            </>
+                          ) : (
+                            <span className="text-[#8f7d77]">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={`dash-pill ${STATE_PILL[row.monthState]}`}>
+                            {row.monthState === "OVERDUE" && row.overdueCount > 1
+                              ? `${row.overdueCount} mois en retard`
+                              : STATE_LABEL[row.monthState]}
+                          </span>
+                        </td>
+                        <td className="pr-5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setOpen(expanded ? null : row.planId)}
+                            aria-expanded={expanded}
+                            aria-label={expanded ? "Masquer l’échéancier" : "Voir l’échéancier"}
+                            className="dash-btn dash-btn-ghost dash-btn-round !min-h-[34px] !w-[34px]"
+                          >
+                            <IconChevron size={16} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+                          </button>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {recv && recv.total > PER_PAGE && (
-          <div className="mt-4 flex items-center justify-between text-[12px] text-[#b8a6a1]">
-            <span className="tabular-nums">
-              {(page - 1) * PER_PAGE + 1}–{Math.min(recv.total, page * PER_PAGE)} sur {recv.total}
-            </span>
-            <div className="flex gap-2">
-              <button type="button" className="dash-btn dash-btn-ghost !min-h-[34px]" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                Précédent
-              </button>
-              <button type="button" className="dash-btn dash-btn-ghost !min-h-[34px]" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-                Suivant
-              </button>
-            </div>
+                      {expanded && (
+                        <tr>
+                          <td colSpan={8} className="px-5 pb-5 pt-1">
+                            <MonthStrip row={row} onCollect={(item) => setCollecting({ row, item })} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </section>
 
-      <section className="dash-card mt-4 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[15px] font-semibold text-stone-100">Derniers paiements</h2>
-          <Link href="/admin/payments" className="text-[12px] text-[#ff8a5c] hover:underline">
-            Tout voir
-          </Link>
-        </div>
-        <ErrorAlert error={payments.error} />
-        <div className="dash-scroll -mx-5 mt-3 overflow-x-auto">
-          <table className="dash-table w-full min-w-[640px] border-collapse">
-            <thead>
-              <tr>
-                <th className="pl-5">Date</th>
-                <th>Transaction</th>
-                <th>Type</th>
-                <th>Montant</th>
-                <th className="pr-5">État</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.loading && (
+          {recv && recv.total > PER_PAGE && (
+            <div className="mt-4 flex items-center justify-between text-[12px] text-[#b8a6a1]">
+              <span className="tabular-nums">
+                {(page - 1) * PER_PAGE + 1}–{Math.min(recv.total, page * PER_PAGE)} sur {recv.total}
+              </span>
+              <div className="flex gap-2">
+                <button type="button" className="dash-btn dash-btn-ghost !min-h-[34px]" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                  Précédent
+                </button>
+                <button type="button" className="dash-btn dash-btn-ghost !min-h-[34px]" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                  Suivant
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {seePayments && (
+        <section className="dash-card mt-4 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[15px] font-semibold text-stone-100">Derniers paiements</h2>
+            <Link href="/admin/payments" className="text-[12px] text-[#ff8a5c] hover:underline">
+              Tout voir
+            </Link>
+          </div>
+          <ErrorAlert error={payments.error} />
+          <div className="dash-scroll -mx-5 mt-3 overflow-x-auto">
+            <table className="dash-table w-full min-w-[640px] border-collapse">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="pl-5 text-[#8f7d77]">Chargement…</td>
+                  <th className="pl-5">Date</th>
+                  <th>Transaction</th>
+                  <th>Type</th>
+                  <th>Montant</th>
+                  <th className="pr-5">État</th>
                 </tr>
-              )}
-              {!payments.loading && payments.items.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="pl-5 text-[#8f7d77]">Aucun paiement enregistré.</td>
-                </tr>
-              )}
-              {payments.items.map((p) => (
-                <tr key={p.id}>
-                  <td className="whitespace-nowrap pl-5 tabular-nums">{new Date(p.paidAt ?? p.createdAt).toLocaleDateString("fr-FR")}</td>
-                  <td>
-                    <p>{p.user ? personName({ ...p.user }) : "—"}</p>
-                    <p className="text-[11px] text-[#8f7d77]">{p.paymentNumber}</p>
-                  </td>
-                  <td>{PAYMENT_TYPE[p.type] ?? p.type}</td>
-                  <td className="whitespace-nowrap font-semibold tabular-nums text-white">{formatXof(p.amount)}</td>
-                  <td className="pr-5">
-                    <StatusBadge status={p.status} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {payments.loading && (
+                  <tr>
+                    <td colSpan={5} className="pl-5 text-[#8f7d77]">Chargement…</td>
+                  </tr>
+                )}
+                {!payments.loading && payments.items.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="pl-5 text-[#8f7d77]">Aucun paiement enregistré.</td>
+                  </tr>
+                )}
+                {payments.items.map((p) => (
+                  <tr key={p.id}>
+                    <td className="whitespace-nowrap pl-5 tabular-nums">{new Date(p.paidAt ?? p.createdAt).toLocaleDateString("fr-FR")}</td>
+                    <td>
+                      <p>{p.user ? personName({ ...p.user }) : "—"}</p>
+                      <p className="text-[11px] text-[#8f7d77]">{p.paymentNumber}</p>
+                    </td>
+                    <td>{PAYMENT_TYPE[p.type] ?? p.type}</td>
+                    <td className="whitespace-nowrap font-semibold tabular-nums text-white">{formatXof(p.amount)}</td>
+                    <td className="pr-5">
+                      <StatusBadge status={p.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {collecting && (
         <CollectModal

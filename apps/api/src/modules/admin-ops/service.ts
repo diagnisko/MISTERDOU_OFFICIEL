@@ -176,6 +176,7 @@ export async function listManagers() {
       id: true,
       title: true,
       permissions: true,
+      previousRole: true,
       createdAt: true,
       user: { select: { id: true, email: true, firstName: true, lastName: true, status: true, twoFactorEnabled: true, createdAt: true } },
       managerShift: { orderBy: { day: "asc" }, select: { id: true, day: true, startMinute: true, endMinute: true } },
@@ -184,12 +185,63 @@ export async function listManagers() {
   return rows.map(({ managerShift, ...rest }) => ({ ...rest, shifts: managerShift }));
 }
 
+/**
+ * Nouveau manager. Si l'e-mail appartient déjà à un client, ce compte rejoint
+ * l'équipe (même e-mail, même mot de passe, historique conservé) : à sa
+ * prochaine connexion il arrive dans la console. Supprimé de l'équipe, il
+ * redevient client. Un vendeur ne peut pas être manager (il validerait ses
+ * propres offres et retraits).
+ */
 export async function createManager(input: ManagerCreateInput, actor: OpsActor) {
-  let created: { id: string; userId: string; email: string | null };
+  let created: { id: string; userId: string; email: string | null; promoted: boolean };
   try {
     created = await prisma.$transaction(async (tx) => {
       const role = await tx.role.findFirst({ where: { name: "STAFF" }, select: { id: true } });
       if (!role) throw badRequest("VALIDATION_ERROR", "Rôle STAFF introuvable.");
+      const existing = await tx.user.findFirst({
+        where: { email: { equals: input.email, mode: "insensitive" }, deletedAt: null },
+        select: { id: true, email: true, firstName: true, lastName: true, passwordHash: true, status: true, role: { select: { name: true } } },
+      });
+
+      if (existing) {
+        const current = existing.role.name;
+        if (current === "STAFF" || current === "ADMIN") {
+          throw conflict("ALREADY_TEAM_MEMBER", "Ce compte fait déjà partie de l'équipe.");
+        }
+        if (current === "VENDOR") {
+          throw conflict("SELLER_CANNOT_BE_MANAGER", "Ce compte est vendeur : il ne peut pas être manager en même temps.");
+        }
+        if (existing.status !== "ACTIVE") {
+          throw conflict("INVALID_STATE", "Ce compte est suspendu : réactivez-le d'abord dans « Clients ».");
+        }
+        // Compte Google sans mot de passe : celui saisi devient le sien (la connexion Google est réservée aux clients).
+        if (!existing.passwordHash && !input.password) {
+          throw badRequest("PASSWORD_REQUIRED", "Ce compte n'a pas de mot de passe (inscription Google) : choisissez-en un pour sa connexion.");
+        }
+        await tx.user.update({
+          where: { id: existing.id },
+          data: {
+            roleId: role.id,
+            firstName: existing.firstName || input.firstName,
+            lastName: existing.lastName || input.lastName,
+            ...(!existing.passwordHash && input.password ? { passwordHash: await hashPassword(input.password) } : {}),
+          },
+        });
+        const profile = await tx.managerProfile.create({
+          data: {
+            userId: existing.id,
+            title: input.title ?? null,
+            permissions: input.permissions,
+            previousRole: current,
+            createdById: actor.actorId,
+            managerShift: { create: input.shifts ?? [] },
+          },
+          select: { id: true },
+        });
+        return { id: profile.id, userId: existing.id, email: existing.email, promoted: true };
+      }
+
+      if (!input.password) throw badRequest("PASSWORD_REQUIRED", "Choisissez un mot de passe pour ce nouveau compte.");
       const user = await tx.user.create({
         data: {
           roleId: role.id,
@@ -211,19 +263,27 @@ export async function createManager(input: ManagerCreateInput, actor: OpsActor) 
         },
         select: { id: true },
       });
-      return { id: profile.id, userId: user.id, email: user.email };
+      return { id: profile.id, userId: user.id, email: user.email, promoted: false };
     });
   } catch (err) {
     if (isPrismaCode(err, "P2002")) throw conflict("EMAIL_ALREADY_REGISTERED", "Cet e-mail est déjà enregistré.");
     throw err;
   }
-  await audit(actor, "MANAGER_CREATED", {
+  await audit(actor, created.promoted ? "MANAGER_PROMOTED" : "MANAGER_CREATED", {
     resourceType: "ManagerProfile",
     resourceId: created.id,
-    metadata: { email: created.email, permissions: input.permissions },
+    metadata: { email: created.email, permissions: input.permissions, promoted: created.promoted },
     severity: "WARNING",
   });
-  return { id: created.id, userId: created.userId };
+  if (created.promoted) {
+    await notifyUser(created.userId, "SYSTEM", {
+      title: "Bienvenue dans l’équipe MISTERDOU",
+      message: "Votre compte a rejoint l’équipe. Connectez-vous avec vos identifiants habituels pour ouvrir votre espace manager.",
+      actionUrl: "/admin",
+      priority: "NORMAL",
+    });
+  }
+  return { id: created.id, userId: created.userId, promoted: created.promoted };
 }
 
 export async function updateManager(id: string, input: ManagerUpdateInput, actor: OpsActor) {
@@ -290,28 +350,41 @@ export async function updateManager(id: string, input: ManagerUpdateInput, actor
   return { id };
 }
 
+/**
+ * Retrait de l'équipe. Un client promu redevient client (compte, commandes et
+ * mot de passe intacts, sessions coupées) ; un compte créé pour l'équipe est
+ * désactivé.
+ */
 export async function deleteManager(id: string, actor: OpsActor) {
   const profile = await prisma.managerProfile.findUnique({
     where: { id },
-    select: { id: true, userId: true, user: { select: { email: true } } },
+    select: { id: true, userId: true, previousRole: true, user: { select: { email: true } } },
   });
   if (!profile) throw notFound("Manager introuvable.");
   if (profile.userId === actor.actorId && actor.actorRole !== "ADMIN") {
     throw forbidden("Impossible de supprimer son propre accès : contactez un administrateur.");
   }
 
+  const restore = profile.previousRole === "CLIENT" || profile.previousRole === "VENDOR" ? profile.previousRole : null;
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: profile.userId }, data: { status: "SUSPENDED", deletedAt: new Date() } });
+    if (restore) {
+      const role = await tx.role.findUniqueOrThrow({ where: { name: restore }, select: { id: true } });
+      await tx.user.update({ where: { id: profile.userId }, data: { roleId: role.id } });
+      // Plus aucun accès à la console : il se reconnecte en client.
+      await tx.session.deleteMany({ where: { userId: profile.userId } });
+    } else {
+      await tx.user.update({ where: { id: profile.userId }, data: { status: "SUSPENDED", deletedAt: new Date() } });
+    }
     await tx.managerProfile.delete({ where: { id } });
   });
 
   await audit(actor, "MANAGER_DELETED", {
     resourceType: "ManagerProfile",
     resourceId: id,
-    metadata: { email: profile.user.email },
+    metadata: { email: profile.user.email, restoredRole: restore },
     severity: "WARNING",
   });
-  return { id };
+  return { id, restoredRole: restore };
 }
 
 // ---------------------------------------------------------------------------

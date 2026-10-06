@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { errorMessage, request } from "@/lib/api";
 import { Alert, Button } from "@/components/ui";
 import { buildQuery } from "../_lib/api";
@@ -13,6 +14,7 @@ import {
   DataTable,
   ErrorAlert,
   FieldModal,
+  FilterTabs,
   NoticeAlert,
   Pagination,
   RowAction,
@@ -26,7 +28,7 @@ import {
 // ---------------------------------------------------------------------------
 // Clients — port de la vue « clients » de la console (colones + action
 // suspendre/réactiver) avec pagination et recherche pilotées par l'API.
-// GET  /admin/clients            { page, perPage, q }
+// GET  /admin/clients            { page, perPage, q, kyc } (inscrits récents d'abord)
 // PATCH /admin/clients/:id/status { status, reason }
 // POST  /admin/clients/:id/password-reset-link  (ADMIN : lien à transmettre au client)
 // ---------------------------------------------------------------------------
@@ -40,11 +42,23 @@ type ClientRow = {
   status: string;
   kycStatus: string;
   createdAt: string;
+  role: string;
   _count: { orders: number };
 };
 
+type KycFilter = "all" | "verified" | "pending" | "rejected" | "none";
+
+const KYC_TABS: Array<{ value: KycFilter; label: string }> = [
+  { value: "all", label: "Tous" },
+  { value: "verified", label: "Vérifiés" },
+  { value: "pending", label: "En attente" },
+  { value: "rejected", label: "Refusés" },
+  { value: "none", label: "Non vérifiés" },
+];
+
 const COLUMNS = [
   { key: "firstName", label: "Client" },
+  { key: "createdAt", label: "Inscrit le" },
   { key: "email", label: "E-mail" },
   { key: "phoneNumber", label: "Téléphone" },
   { key: "kycStatus", label: "Identité" },
@@ -53,11 +67,22 @@ const COLUMNS = [
 ];
 
 export default function ClientsPage() {
-  const [search, setSearch] = useState("");
+  return (
+    <Suspense>
+      <ClientsView />
+    </Suspense>
+  );
+}
+
+function ClientsView() {
+  // Recherche lancée depuis l'en-tête de la console : ?q=… (et ?view=id pour ouvrir la fiche).
+  const params = useSearchParams();
+  const [search, setSearch] = useState(params.get("q") ?? "");
+  const [kyc, setKyc] = useState<KycFilter>("all");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [busy, setBusy] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(params.get("view"));
   const [target, setTarget] = useState<{ row: ClientRow; next: string } | null>(null);
   const [resetLink, setResetLink] = useState<{ email: string; link: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -86,8 +111,9 @@ export default function ClientsPage() {
   }
 
   const list = useAdminList<ClientRow>(
-    `/api/v1/admin/clients${buildQuery({ page, perPage, q: search || undefined })}`,
+    `/api/v1/admin/clients${buildQuery({ page, perPage, q: search || undefined, kyc: kyc === "all" ? undefined : kyc })}`,
   );
+  const counts = (list.extra.counts ?? null) as Record<KycFilter, number> | null;
 
   async function changeStatus(id: string, status: string, reason: string) {
     setBusy(id);
@@ -120,12 +146,24 @@ export default function ClientsPage() {
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="lux-kicker">Comptes</p>
-          <p className="mt-2 text-sm text-stone-400">Recherche par nom, email ou téléphone.</p>
+          <p className="mt-2 text-sm text-stone-400">Inscrits récemment en premier. Recherche par nom, e-mail ou téléphone.</p>
         </div>
         <SearchBar
-          placeholder="Nom ou e-mail"
+          placeholder="Nom, e-mail ou téléphone"
+          initial={search}
           onSearch={(query) => {
             setSearch(query);
+            setPage(1);
+          }}
+        />
+      </div>
+
+      <div className="mt-4">
+        <FilterTabs
+          value={kyc}
+          options={KYC_TABS.map((tab) => ({ value: tab.value, label: counts ? `${tab.label} · ${counts[tab.value] ?? 0}` : tab.label }))}
+          onChange={(value) => {
+            setKyc(value as KycFilter);
             setPage(1);
           }}
         />
@@ -153,7 +191,18 @@ export default function ClientsPage() {
                 <tr key={row.id} className="transition hover:bg-white/[0.025]">
                   {COLUMNS.map((column) => (
                     <td key={column.key} className="px-4 py-3.5 text-stone-300">
-                      {formatCell(data[column.key], column.key)}
+                      {column.key === "firstName" ? (
+                        <span className="flex items-center gap-2">
+                          <span className="max-w-[180px] truncate">{[row.firstName, row.lastName].filter(Boolean).join(" ") || "—"}</span>
+                          {row.role === "VENDOR" && (
+                            <span className="rounded-full border border-[rgba(255,160,112,0.35)] bg-[rgba(255,106,50,0.1)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#ffb08a]">
+                              Vendeur
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        formatCell(data[column.key], column.key)
+                      )}
                     </td>
                   ))}
                   <td className="flex gap-2 px-4 py-3.5">

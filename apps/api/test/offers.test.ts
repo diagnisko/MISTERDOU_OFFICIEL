@@ -1,5 +1,5 @@
-// Création et modification des offres : vendeur (publiée sans validation) et
-// équipe (offres MISTERDOU) ; promotions de l'équipe limitées à ses offres.
+// Création et modification des offres : vendeur (en ligne après validation de
+// l'équipe) et équipe (offres MISTERDOU) ; promotions de l'équipe limitées à ses offres.
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
 import { cleanup, createAdmin, createProduct, createSeller, createUser, expectApiError, track, tracker } from "./helpers.js";
@@ -10,6 +10,7 @@ import {
   getOfferForEdit,
   parseOffer,
   removeOffer,
+  reviewOffer,
   updateOffer,
   type CreateOfferInput,
 } from "../src/modules/offers/service.js";
@@ -45,14 +46,14 @@ async function activeSeller(status: "ACTIVE" | "SUSPENDED" = "ACTIVE") {
 }
 
 describe("Offre d'un vendeur", () => {
-  it("est publiée tout de suite, identifiants chiffrés", async () => {
+  it("attend la validation de l'équipe avant d'être en ligne, identifiants chiffrés", async () => {
     const { user, seller } = await activeSeller();
     const created = await createOffer(offer(), { kind: "seller", sellerId: seller.id }, { actorId: user.id });
     track(t, "productIds", created.id);
 
     const row = await prisma.product.findUniqueOrThrow({ where: { id: created.id }, include: { credential: true } });
-    expect(row).toMatchObject({ status: "ACTIVE", ownerType: "VENDOR", sellerId: seller.id, basePrice: 45_000 });
-    expect(row.publishedAt).not.toBeNull();
+    expect(row).toMatchObject({ status: "PENDING_REVIEW", ownerType: "VENDOR", sellerId: seller.id, basePrice: 45_000 });
+    expect(row.publishedAt).toBeNull();
     expect(row.slug).toMatch(/^compte-division-1-3-100-ovr-[0-9a-f]{6}$/);
     expect(row.credential?.encryptedPassword).not.toContain("secret");
     expect(decryptString(row.credential!.encryptedPassword)).toBe("secret-du-compte");
@@ -97,12 +98,16 @@ describe("Offre d'un vendeur", () => {
     const owner = { kind: "seller", sellerId: seller.id } as const;
     const created = await createOffer(offer(), owner, { actorId: user.id });
     track(t, "productIds", created.id);
+    const admin = await createAdmin(t);
+    await reviewOffer(created.id, { decision: "approve" }, { actorId: admin.user.id, actorRole: "ADMIN" });
 
-    // Modification sans nouveaux identifiants : les anciens restent.
+    // Modification sans nouveaux identifiants : les anciens restent ; l'offre repart en validation.
     await updateOffer(created.id, { ...offer({ basePrice: 40_000 }), credentials: undefined }, owner, { actorId: user.id });
     const updated = await prisma.product.findUniqueOrThrow({ where: { id: created.id }, include: { credential: true } });
     expect(updated.basePrice).toBe(40_000);
+    expect(updated.status).toBe("PENDING_REVIEW");
     expect(decryptString(updated.credential!.encryptedEmail)).toBe("joueur@example.com");
+    await reviewOffer(created.id, { decision: "approve" }, { actorId: admin.user.id, actorRole: "ADMIN" });
 
     const other = await activeSeller();
     const err = await expectApiError(() => removeOffer(created.id, { kind: "seller", sellerId: other.seller.id }, { actorId: other.user.id }));
@@ -118,6 +123,43 @@ describe("Offre d'un vendeur", () => {
     const removed = await prisma.product.findUniqueOrThrow({ where: { id: created.id } });
     expect(removed.status).toBe("ARCHIVED");
     expect(removed.deletedAt).not.toBeNull();
+  });
+});
+
+describe("Validation des offres des vendeurs", () => {
+  it("l'équipe valide (en ligne, vendeur prévenu) ou refuse avec un motif, une seule fois", async () => {
+    const { user, seller } = await activeSeller();
+    const owner = { kind: "seller", sellerId: seller.id } as const;
+    const admin = await createAdmin(t);
+    const by = { actorId: admin.user.id, actorRole: "ADMIN" as const };
+
+    const refused = await createOffer(offer(), owner, { actorId: user.id });
+    track(t, "productIds", refused.id);
+    await reviewOffer(refused.id, { decision: "reject", reason: "Photos floues, merci d'en ajouter de nettes." }, by);
+    const draft = await prisma.product.findUniqueOrThrow({ where: { id: refused.id } });
+    expect(draft).toMatchObject({ status: "DRAFT", rejectedReason: "Photos floues, merci d'en ajouter de nettes.", publishedAt: null });
+    expect((await getOfferForEdit(refused.id, owner)).rejectedReason).toContain("Photos floues");
+    // Déjà traitée : pas de seconde décision.
+    expect((await expectApiError(() => reviewOffer(refused.id, { decision: "approve" }, by))).code).toBe("ALREADY_REVIEWED");
+
+    // Le vendeur corrige : l'offre repart en validation, motif effacé, puis elle est validée.
+    await updateOffer(refused.id, { ...offer({ title: "Compte corrigé — 3 100 OVR" }), credentials: undefined }, owner, { actorId: user.id });
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: refused.id } })).toMatchObject({ status: "PENDING_REVIEW", rejectedReason: null });
+    await reviewOffer(refused.id, { decision: "approve" }, by);
+    const live = await prisma.product.findUniqueOrThrow({ where: { id: refused.id } });
+    expect(live.status).toBe("ACTIVE");
+    expect(live.publishedAt).not.toBeNull();
+
+    const notices = await prisma.notification.findMany({ where: { userId: user.id }, select: { title: true } });
+    expect(notices.map((n) => n.title)).toEqual(expect.arrayContaining(["Offre à corriger", "Offre validée 🎉"]));
+  });
+
+  it("ne concerne que les offres des vendeurs", async () => {
+    const admin = await createAdmin(t);
+    const own = await createOffer(offer(), { kind: "team" }, { actorId: admin.user.id, actorRole: "ADMIN" });
+    track(t, "productIds", own.id);
+    const err = await expectApiError(() => reviewOffer(own.id, { decision: "approve" }, { actorId: admin.user.id }));
+    expect(err.code).toBe("NOT_FOUND");
   });
 });
 

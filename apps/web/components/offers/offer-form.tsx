@@ -8,7 +8,8 @@ import { useT } from "@/lib/i18n";
 
 // Formulaire d'offre partagé : espace vendeur (/api/v1/seller/offers) et
 // console (/api/v1/admin/offerings). Après la création, on passe aux photos et
-// vidéos de l'offre, déjà publiée.
+// vidéos. L'offre d'un vendeur attend la validation de l'équipe ; celle de
+// l'équipe est publiée tout de suite.
 
 export type OfferValues = {
   title: string;
@@ -23,7 +24,7 @@ export type OfferValues = {
   installmentDownPayment: number | null;
 };
 
-export type EditableOffer = OfferValues & { id: string; slug: string; hasCredentials: boolean };
+export type EditableOffer = OfferValues & { id: string; slug: string; hasCredentials: boolean; rejectedReason?: string | null };
 
 const DIVISIONS = ["Division 1", "Division 2", "Division 3", "Division 4", "Division 5", "Legend", "Ikon", "Epic"];
 
@@ -53,6 +54,8 @@ export function OfferForm({
   doneLabel: string;
 }) {
   const t = useT();
+  // Espace vendeur : chaque envoi passe par la validation de l'équipe.
+  const reviewed = !apiBase.startsWith("/api/v1/admin");
   const [title, setTitle] = useState(offer?.title ?? "");
   const [description, setDescription] = useState(offer?.description ?? "");
   const [division, setDivision] = useState(offer?.division ?? "");
@@ -120,7 +123,7 @@ export function OfferForm({
   if (created) {
     return (
       <div className="space-y-5">
-        <Alert tone="success">{t("offer.published")}</Alert>
+        <Alert tone="success">{reviewed ? t("offer.submitted") : t("offer.published")}</Alert>
         <div className="dash-card p-5">
           <h2 className="text-[15px] font-semibold text-white">{t("offer.mediaTitle")}</h2>
           <p className="mb-4 mt-1 text-[12px] text-[#8f7d77]">{t("offer.mediaLead")}</p>
@@ -135,6 +138,13 @@ export function OfferForm({
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      {reviewed && editing && offer?.rejectedReason && (
+        <Alert tone="danger">
+          <strong className="block">{t("offer.rejectedTitle")}</strong>
+          {t("offer.rejectedLead", { reason: offer.rejectedReason })}
+        </Alert>
+      )}
+      {reviewed && editing && <p className="text-[12.5px] leading-relaxed text-[#b8a6a1]">{t("offer.reviewNote")}</p>}
       <div className="dash-card space-y-4 p-5">
         <h2 className="text-[15px] font-semibold text-white">{t("offer.sectionAccount")}</h2>
         <Field label={t("offer.title")} hint={t("offer.titleHint")}>
@@ -206,7 +216,7 @@ export function OfferForm({
       {error && <Alert tone="danger">{error}</Alert>}
 
       <button type="submit" disabled={busy} className="dash-btn dash-btn-primary disabled:opacity-60">
-        {busy && <Spinner />} {editing ? t("offer.save") : t("offer.publish")}
+        {busy && <Spinner />} {editing ? t("offer.save") : reviewed ? t("offer.submit") : t("offer.publish")}
       </button>
     </form>
   );

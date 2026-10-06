@@ -7,7 +7,7 @@ import { Alert, Spinner } from "@/components/ui";
 import { useAccount } from "@/lib/account";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { fetchProductThread, replyInThread, writeToSeller, type ThreadDetail } from "@/lib/product-chat";
-import { Composer, MessageList } from "./product-chat";
+import { Composer, MessageList, OffsiteNotice } from "./product-chat";
 import { useT } from "@/lib/i18n";
 
 // Fiche d'un compte : « Discuter avec le vendeur ». Le fil s'ouvre sur place ;
@@ -89,7 +89,8 @@ export function SellerChatBox({ productId, slug }: { productId: string; slug: st
               </p>
             )}
           </div>
-          <div className="mt-3">
+          <div className="mt-3 space-y-3">
+            <OffsiteNotice />
             <Composer
               placeholder={t("chat.writeSeller")}
               onSend={async (content) => {

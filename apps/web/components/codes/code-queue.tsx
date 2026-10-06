@@ -18,6 +18,8 @@ type CodeRequestRow = {
   providedAt: string | null;
   expiresAt: string | null;
   providedBy: string | null;
+  /** Vendeur qui doit fournir le code (null = compte MISTERDOU). */
+  sellerName: string | null;
 };
 
 const timeFr = (iso: string, locale: string) => new Date(iso).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -33,7 +35,8 @@ function waitingFor(iso: string, t: T) {
 // Premier qui répond, les autres voient la demande traitée.
 // ---------------------------------------------------------------------------
 
-export function CodeQueue({ compact = false }: { compact?: boolean }) {
+/** team : console de l'équipe (on y indique qui doit fournir chaque code). */
+export function CodeQueue({ compact = false, team = false }: { compact?: boolean; team?: boolean }) {
   const t = useT();
   const [rows, setRows] = useState<CodeRequestRow[] | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -74,13 +77,13 @@ export function CodeQueue({ compact = false }: { compact?: boolean }) {
         </p>
       )}
       <ul className={compact ? "space-y-2" : "space-y-3"}>
-        {rows?.map((row) => <CodeRow key={row.id} row={row} onDone={load} />)}
+        {rows?.map((row) => <CodeRow key={row.id} row={row} team={team} onDone={load} />)}
       </ul>
     </div>
   );
 }
 
-function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<void> }) {
+function CodeRow({ row, team, onDone }: { row: CodeRequestRow; team: boolean; onDone: () => Promise<void> }) {
   const t = useT();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -114,6 +117,11 @@ function CodeRow({ row, onDone }: { row: CodeRequestRow; onDone: () => Promise<v
           <p className="mt-0.5 text-[12px] text-stone-400">
             {row.orderNumber} · {row.buyerName} · {t("codes.requested", { ago: waitingFor(row.requestedAt, t) })}
           </p>
+          {team && row.status === "PENDING" && (
+            <p className="mt-1 text-[12px] text-[#ffb08a]">
+              {row.sellerName ? t("codes.sellerDuty", { name: row.sellerName }) : t("codes.teamDuty")}
+            </p>
+          )}
         </div>
         {row.status !== "PENDING" && (
           <p className="text-right text-[12px] text-stone-400">

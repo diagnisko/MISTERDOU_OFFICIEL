@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { request } from "@/lib/api";
 import { Button } from "@/components/ui";
 import { MediaManager } from "@/components/media/media-manager";
@@ -13,6 +14,7 @@ import {
   DataTable,
   ErrorAlert,
   FieldModal,
+  FilterTabs,
   NoticeAlert,
   Pagination,
   RowAction,
@@ -22,11 +24,13 @@ import {
   TableLoading,
   formatCell,
 } from "../_lib/ui";
+import { OfferReviewModal } from "./offer-review";
 
 // ---------------------------------------------------------------------------
 // Offres — port de la vue « offerings » de la console (modération du catalogue).
-// GET   /admin/offerings             { page, perPage, q }
+// GET   /admin/offerings             { page, perPage, q, status }
 // PATCH /admin/offerings/:id/status  { status, reason }
+// Offres des vendeurs : « À valider » → examen, puis validation ou refus motivé.
 // Création et modification : offres MISTERDOU uniquement (/admin/offers/new).
 // ---------------------------------------------------------------------------
 
@@ -40,12 +44,16 @@ type OfferingRow = {
   basePrice: number;
   paymentMode: string;
   featuredPriceOverride: number | null;
+  rejectedReason: string | null;
+  sellerName: string | null;
   createdAt: string;
 };
 
+type StatusFilter = "all" | "PENDING_REVIEW" | "ACTIVE" | "DRAFT" | "SUSPENDED" | "SOLD";
+
 const COLUMNS = [
   { key: "title", label: "Offre" },
-  { key: "ownerType", label: "Origine" },
+  { key: "sellerName", label: "Vendeur" },
   { key: "basePrice", label: "Prix" },
   { key: "paymentMode", label: "Paiement" },
   { key: "status", label: "Statut" },
@@ -53,6 +61,17 @@ const COLUMNS = [
 ];
 
 export default function OffersPage() {
+  return (
+    <Suspense>
+      <OffersView />
+    </Suspense>
+  );
+}
+
+function OffersView() {
+  const params = useSearchParams();
+  const [status, setStatus] = useState<StatusFilter>((params.get("status") as StatusFilter | null) ?? "all");
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
@@ -61,8 +80,9 @@ export default function OffersPage() {
   const [media, setMedia] = useState<OfferingRow | null>(null);
 
   const list = useAdminList<OfferingRow>(
-    `/api/v1/admin/offerings${buildQuery({ page, perPage, q: search || undefined })}`,
+    `/api/v1/admin/offerings${buildQuery({ page, perPage, q: search || undefined, status: status === "all" ? undefined : status })}`,
   );
+  const pendingReview = Number(list.extra.pendingReview ?? 0);
 
   async function changeStatus(id: string, status: string, reason: string) {
     setBusy(id);
@@ -111,6 +131,24 @@ export default function OffersPage() {
         />
       </div>
 
+      <div className="mt-4">
+        <FilterTabs
+          value={status}
+          options={[
+            { value: "all", label: "Toutes" },
+            { value: "PENDING_REVIEW", label: pendingReview > 0 ? `À valider · ${pendingReview}` : "À valider" },
+            { value: "ACTIVE", label: "En ligne" },
+            { value: "DRAFT", label: "Refusées / brouillons" },
+            { value: "SUSPENDED", label: "Désactivées" },
+            { value: "SOLD", label: "Vendues" },
+          ]}
+          onChange={(value) => {
+            setStatus(value as StatusFilter);
+            setPage(1);
+          }}
+        />
+      </div>
+
       <ErrorAlert error={list.error} />
       <NoticeAlert notice={list.notice} />
 
@@ -123,28 +161,41 @@ export default function OffersPage() {
           <DataTable columns={COLUMNS.map((column) => column.label)}>
             {list.items.map((row) => {
               const data = row as unknown as Record<string, unknown>;
-              const status = String(row.status ?? "");
+              const rowStatus = String(row.status ?? "");
               return (
                 <tr key={row.id} className="transition hover:bg-white/[0.025]">
                   {COLUMNS.map((column) => (
                     <td key={column.key} className="px-4 py-3.5 text-stone-300">
-                      {formatCell(data[column.key], column.key)}
+                      {column.key === "sellerName" ? (
+                        row.sellerName ?? <span className="text-[#ffb08a]">MISTERDOU</span>
+                      ) : column.key === "status" && status === "DRAFT" && row.rejectedReason ? (
+                        <span className="flex flex-col gap-1">
+                          {formatCell(data[column.key], column.key)}
+                          <span className="max-w-[220px] text-[11.5px] text-[#fca5a5]">Refusée : {row.rejectedReason}</span>
+                        </span>
+                      ) : (
+                        formatCell(data[column.key], column.key)
+                      )}
                     </td>
                   ))}
                   <td className="flex gap-2 px-4 py-3.5">
-                    {row.sellerId === null && status !== "SOLD" && (
+                    {status === "PENDING_REVIEW" && <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />}
+                    {row.sellerId === null && rowStatus !== "SOLD" && (
                       <Link href={`/admin/offers/${row.id}`} className="whitespace-nowrap rounded-full border border-current/20 px-2.5 py-1 text-[12px] font-medium text-[#ff8a5c] transition hover:bg-white/[0.04]">
                         Modifier
                       </Link>
                     )}
                     <RowAction label="Médias" tone="muted" onClick={() => setMedia(row)} />
-                    <RowAction
-                      label={status === "ACTIVE" ? "Désactiver" : "Publier"}
-                      busy={busy === row.id}
-                      onClick={() =>
-                        setTarget({ row, next: status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })
-                      }
-                    />
+                    {rowStatus !== "PENDING_REVIEW" && (
+                      <RowAction
+                        label={rowStatus === "ACTIVE" ? "Désactiver" : "Publier"}
+                        busy={busy === row.id}
+                        onClick={() => setTarget({ row, next: rowStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })}
+                      />
+                    )}
+                    {rowStatus === "PENDING_REVIEW" && status !== "PENDING_REVIEW" && (
+                      <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />
+                    )}
                   </td>
                 </tr>
               );
@@ -161,6 +212,17 @@ export default function OffersPage() {
           setPage(1);
         }}
       />
+
+      {reviewing && (
+        <OfferReviewModal
+          productId={reviewing}
+          onClose={() => setReviewing(null)}
+          onDone={(message) => {
+            setReviewing(null);
+            void list.refresh(message);
+          }}
+        />
+      )}
 
       {media && (
         <AdminModal title={`Médias — ${media.title}`} onClose={() => setMedia(null)} width="max-w-2xl">

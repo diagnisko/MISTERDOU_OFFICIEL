@@ -7,7 +7,10 @@ import {
   createOffer,
   createOfferSchema,
   getOfferForEdit,
+  getOfferForReview,
   parseOffer,
+  reviewDecisionSchema,
+  reviewOffer,
   removeOffer,
   revealOfferCredential,
   updateOffer,
@@ -24,7 +27,7 @@ function actor(request: FastifyRequest): OfferActor {
 const limited = { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } };
 
 export async function registerOfferRoutes(app: FastifyInstance) {
-  // --- Vendeur : ses propres offres, publiées sans validation ---------------
+  // --- Vendeur : ses propres offres, en ligne après validation de l'équipe ---
   const sellerOwner = async (request: FastifyRequest) =>
     ({ kind: "seller", sellerId: await activeSellerId(requireAuth(request).user.id) }) as const;
 
@@ -63,6 +66,19 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     await requirePermission(request, "PRODUCTS");
     const { id } = request.params as { id: string };
     return sendOk(reply, await getOfferForEdit(id, team));
+  });
+
+  // Validation des offres des vendeurs : fiche à examiner, puis décision.
+  app.get("/admin/offerings/:id/review", async (request, reply) => {
+    await requirePermission(request, "PRODUCTS");
+    const { id } = request.params as { id: string };
+    return sendOk(reply, await getOfferForReview(id));
+  });
+
+  app.post("/admin/offerings/:id/review", limited, async (request, reply) => {
+    await requirePermission(request, "PRODUCTS");
+    const { id } = request.params as { id: string };
+    return sendOk(reply, await reviewOffer(id, parseOffer(reviewDecisionSchema, request.body), actor(request)));
   });
 
   // « Clé d'accès » : identifiants du compte (affichage tracé).

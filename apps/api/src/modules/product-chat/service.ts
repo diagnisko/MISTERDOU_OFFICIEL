@@ -2,20 +2,20 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { badRequest, forbidden, notFound } from "../../lib/errors.js";
-import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
+import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { publicUrl } from "../../lib/media.js";
 
 // ---------------------------------------------------------------------------
 // Discussion à propos d'un compte en vente.
-// • Le client écrit « au vendeur ». Répondent : le vendeur du compte, les
-//   managers (permission SUPPORT) et l'administrateur.
-// • Le client ne voit jamais qui a répondu : « Vendeur » (ou « MISTERDOU »
-//   pour un compte de la plateforme).
-// • Le vendeur voit « Équipe MISTERDOU » pour les réponses de l'équipe.
+// • Compte d'un vendeur : le client discute DIRECTEMENT avec le vendeur (nom et
+//   photo du vendeur). L'administrateur peut suivre la discussion (lecture
+//   seule, côté « observer ») mais n'y écrit pas ; les managers n'y ont pas accès.
+// • Compte MISTERDOU : l'équipe répond (administrateur, managers SUPPORT) ; le
+//   client voit « MISTERDOU ».
 // • L'équipe voit l'auteur réel de chaque message.
 // ---------------------------------------------------------------------------
 
-export type ChatSide = "client" | "seller" | "team";
+export type ChatSide = "client" | "seller" | "team" | "observer";
 
 export type ChatViewer = {
   user: { id: string; role?: { name: RoleName } | null };
@@ -35,6 +35,9 @@ export async function isTeam(viewer: ChatViewer): Promise<boolean> {
   return profile?.permissions.includes("SUPPORT") ?? false;
 }
 
+/** Administrateur (session renforcée) : seul à pouvoir relire les discussions des vendeurs. */
+const isAdmin = (viewer: ChatViewer) => viewer.user.role?.name === "ADMIN" && Boolean(viewer.isAdminSession);
+
 const threadSelect = {
   id: true,
   clientId: true,
@@ -43,7 +46,7 @@ const threadSelect = {
   sellerLastReadAt: true,
   teamLastReadAt: true,
   createdAt: true,
-  client: { select: { firstName: true, lastName: true } },
+  client: { select: { firstName: true, lastName: true, avatarKey: true } },
   product: {
     select: {
       id: true,
@@ -51,7 +54,7 @@ const threadSelect = {
       slug: true,
       status: true,
       ownerType: true,
-      seller: { select: { userId: true } },
+      seller: { select: { userId: true, user: { select: { firstName: true, lastName: true, avatarKey: true } } } },
       images: { where: { mimeType: { startsWith: "image/" } }, select: { objectKey: true }, orderBy: { position: "asc" as const }, take: 1 },
     },
   },
@@ -65,33 +68,66 @@ type ThreadRow = {
   sellerLastReadAt: Date | null;
   teamLastReadAt: Date | null;
   createdAt: Date;
-  client: { firstName: string | null; lastName: string | null };
+  client: { firstName: string | null; lastName: string | null; avatarKey: string | null };
   product: {
     id: string;
     title: string;
     slug: string;
     status: string;
     ownerType: string;
-    seller: { userId: string } | null;
+    seller: { userId: string; user: { firstName: string | null; lastName: string | null; avatarKey: string | null } } | null;
     images: Array<{ objectKey: string }>;
   };
 };
+
+const platformThread = (thread: ThreadRow) => thread.product.ownerType === "ADMIN" || !thread.product.seller;
 
 /** Côté du lecteur dans un fil, ou 404 (on ne révèle pas l'existence d'un fil d'autrui). */
 async function sideIn(thread: ThreadRow, viewer: ChatViewer): Promise<ChatSide> {
   if (thread.clientId === viewer.user.id) return "client";
   if (thread.product.seller?.userId === viewer.user.id) return "seller";
-  if (await isTeam(viewer)) return "team";
+  if (platformThread(thread)) {
+    if (await isTeam(viewer)) return "team";
+  } else if (isAdmin(viewer)) {
+    return "observer";
+  }
   throw notFound("Discussion introuvable.");
 }
 
-const clientName = (c: { firstName: string | null; lastName: string | null }) =>
-  [c.firstName, c.lastName?.[0] ? `${c.lastName[0]}.` : null].filter(Boolean).join(" ") || "Client";
+/** Nom public : prénom + initiale du nom (« Moussa D. »). */
+const publicName = (c: { firstName: string | null; lastName: string | null }, fallback: string) =>
+  [c.firstName, c.lastName?.[0] ? `${c.lastName[0]}.` : null].filter(Boolean).join(" ") || fallback;
 
-const sellerLabel = (thread: ThreadRow) => (thread.product.ownerType === "ADMIN" || !thread.product.seller ? "MISTERDOU" : "Vendeur");
+const clientName = (c: { firstName: string | null; lastName: string | null }) => publicName(c, "Client");
+
+/** Ce que le client voit de l'autre côté : le vendeur (nom public) ou MISTERDOU. */
+const sellerLabel = (thread: ThreadRow) => (platformThread(thread) ? "MISTERDOU" : publicName(thread.product.seller!.user, "Vendeur"));
+
+/** Interlocuteur affiché (nom, photo, nature) selon le côté du lecteur. */
+function counterpartOf(thread: ThreadRow, side: ChatSide) {
+  if (side === "client") {
+    return platformThread(thread)
+      ? { counterpart: "MISTERDOU", counterpartKind: "platform" as const, counterpartAvatarUrl: null }
+      : {
+          counterpart: sellerLabel(thread),
+          counterpartKind: "seller" as const,
+          counterpartAvatarUrl: thread.product.seller!.user.avatarKey ? publicUrl(thread.product.seller!.user.avatarKey) : null,
+        };
+  }
+  return {
+    counterpart: clientName(thread.client),
+    counterpartKind: "client" as const,
+    counterpartAvatarUrl: thread.client.avatarKey ? publicUrl(thread.client.avatarKey) : null,
+  };
+}
 
 function lastReadFor(thread: ThreadRow, side: ChatSide): Date | null {
   return side === "client" ? thread.clientLastReadAt : side === "seller" ? thread.sellerLastReadAt : thread.teamLastReadAt;
+}
+
+/** Colonne « lu jusqu'à » du côté du lecteur (l'administrateur observateur partage celle de l'équipe). */
+function readMark(side: ChatSide, at: Date) {
+  return side === "client" ? { clientLastReadAt: at } : side === "seller" ? { sellerLastReadAt: at } : { teamLastReadAt: at };
 }
 
 async function unreadFor(thread: ThreadRow, side: ChatSide): Promise<number> {
@@ -114,7 +150,8 @@ async function lastMessage(threadId: string) {
 }
 
 async function toSummary(thread: ThreadRow, side: ChatSide) {
-  const [unread, last] = await Promise.all([unreadFor(thread, side), lastMessage(thread.id)]);
+  // L'administrateur observateur ne « doit » rien : pas de pastille de non-lus.
+  const [unread, last] = await Promise.all([side === "observer" ? 0 : unreadFor(thread, side), lastMessage(thread.id)]);
   return {
     id: thread.id,
     product: {
@@ -124,8 +161,12 @@ async function toSummary(thread: ThreadRow, side: ChatSide) {
       imageUrl: thread.product.images[0] ? publicUrl(thread.product.images[0].objectKey) : null,
       available: thread.product.status === "ACTIVE",
     },
-    // Le client voit « Vendeur » ; le côté vente voit le nom du client.
-    counterpart: side === "client" ? sellerLabel(thread) : clientName(thread.client),
+    // Le client voit le vendeur (nom, photo) ou MISTERDOU ; le côté vente voit le client.
+    ...counterpartOf(thread, side),
+    // Observateur : suit la discussion sans pouvoir y écrire.
+    readOnly: side === "observer",
+    // Pour l'équipe : vendeur du compte (null = MISTERDOU).
+    sellerName: platformThread(thread) ? null : publicName(thread.product.seller!.user, "Vendeur"),
     lastMessage: last
       ? { preview: last.content.slice(0, PREVIEW_LENGTH), fromClient: last.fromClient, createdAt: last.createdAt.toISOString() }
       : null,
@@ -170,9 +211,9 @@ export async function sendToSeller(productId: string, viewer: ChatViewer, conten
     message: content.slice(0, PREVIEW_LENGTH),
     priority: "NORMAL" as const,
   };
+  // Compte d'un vendeur : c'est à lui de répondre. Compte MISTERDOU : l'équipe.
   if (product.seller) await notifyUser(product.seller.userId, "NEW_MESSAGE", { ...notice, actionUrl: `/seller/messages?thread=${thread.id}` });
-  // L'équipe est alertée à l'ouverture d'un fil, et à chaque message sur un compte de la plateforme.
-  if (!existing || !product.seller) await notifyActiveAdmins("NEW_MESSAGE", { ...notice, actionUrl: `/admin/discussions?thread=${thread.id}` });
+  else await notifyTeam("SUPPORT", "NEW_MESSAGE", { ...notice, actionUrl: `/admin/discussions?thread=${thread.id}` });
 
   return { threadId: thread.id, messageId: message.id };
 }
@@ -198,20 +239,30 @@ export async function listMyThreads(viewer: ChatViewer): Promise<ThreadSummary[]
 
 // --- Côté vente (vendeur ou équipe) -----------------------------------------------
 
+/**
+ * Boîte de réception côté vente.
+ * • Vendeur : les fils de ses comptes.
+ * • Équipe : les fils des comptes MISTERDOU (à traiter) ; l'administrateur voit
+ *   en plus ceux des vendeurs, en lecture seule.
+ */
 export async function listInbox(viewer: ChatViewer): Promise<{ side: "seller" | "team"; items: ThreadSummary[] }> {
   const team = await isTeam(viewer);
   if (!team) {
     const seller = await prisma.seller.findUnique({ where: { userId: viewer.user.id }, select: { id: true } });
     if (!seller) throw forbidden("Réservé aux vendeurs et à l'équipe.");
   }
+  const admin = isAdmin(viewer);
   const rows = await prisma.productThread.findMany({
-    where: team ? {} : { product: { sellerId: { not: null }, seller: { userId: viewer.user.id } } },
+    where: team ? (admin ? {} : { product: { sellerId: null } }) : { product: { sellerId: { not: null }, seller: { userId: viewer.user.id } } },
     orderBy: { lastMessageAt: "desc" },
     take: 100,
     select: threadSelect,
   });
   const side = team ? "team" : "seller";
-  return { side, items: await Promise.all(rows.map((row) => toSummary(row, side))) };
+  return {
+    side,
+    items: await Promise.all(rows.map((row) => toSummary(row, team ? (platformThread(row) ? "team" : "observer") : "seller"))),
+  };
 }
 
 // --- Commun ----------------------------------------------------------------------
@@ -239,10 +290,7 @@ export async function getThread(threadId: string, viewer: ChatViewer) {
   });
 
   const now = new Date();
-  await prisma.productThread.update({
-    where: { id: threadId },
-    data: side === "client" ? { clientLastReadAt: now } : side === "seller" ? { sellerLastReadAt: now } : { teamLastReadAt: now },
-  });
+  await prisma.productThread.update({ where: { id: threadId }, data: readMark(side, now) });
 
   const sellerUserId = thread.product.seller?.userId ?? null;
   const authorLabel = (m: (typeof messages)[number]): string => {
@@ -275,6 +323,9 @@ export async function postInThread(threadId: string, viewer: ChatViewer, content
   const thread = await prisma.productThread.findUnique({ where: { id: threadId }, select: threadSelect });
   if (!thread) throw notFound("Discussion introuvable.");
   const side = await sideIn(thread, viewer);
+  if (side === "observer") {
+    throw forbidden("Vous suivez cette discussion en lecture seule : c’est au vendeur de répondre à son client.");
+  }
   const fromClient = side === "client";
   const now = new Date();
 
@@ -286,7 +337,7 @@ export async function postInThread(threadId: string, viewer: ChatViewer, content
     where: { id: threadId },
     data: {
       lastMessageAt: now,
-      ...(side === "client" ? { clientLastReadAt: now } : side === "seller" ? { sellerLastReadAt: now } : { teamLastReadAt: now }),
+      ...readMark(side, now),
     },
   });
 
@@ -301,7 +352,7 @@ export async function postInThread(threadId: string, viewer: ChatViewer, content
         priority: "NORMAL",
       });
     } else {
-      await notifyActiveAdmins("NEW_MESSAGE", {
+      await notifyTeam("SUPPORT", "NEW_MESSAGE", {
         title: `Question sur « ${thread.product.title} »`,
         message: preview,
         actionUrl: `/admin/discussions?thread=${threadId}`,

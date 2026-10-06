@@ -5,7 +5,14 @@ import { request } from "./api";
 export type ThreadSummary = {
   id: string;
   product: { id: string; title: string; slug: string; imageUrl: string | null; available: boolean };
+  /** Interlocuteur : le vendeur (côté client), le client (côté vente) ou MISTERDOU. */
   counterpart: string;
+  counterpartKind: "seller" | "client" | "platform";
+  counterpartAvatarUrl: string | null;
+  /** Administrateur qui suit une discussion de vendeur : pas de saisie. */
+  readOnly: boolean;
+  /** Pour l'équipe : vendeur du compte (null = MISTERDOU). */
+  sellerName: string | null;
   lastMessage: { preview: string; fromClient: boolean; createdAt: string } | null;
   unread: number;
   lastMessageAt: string;
@@ -13,7 +20,7 @@ export type ThreadSummary = {
 
 export type ThreadMessage = { id: string; content: string; createdAt: string; mine: boolean; ownSide: boolean; author: string };
 
-export type ThreadDetail = ThreadSummary & { side: "client" | "seller" | "team"; messages: ThreadMessage[] };
+export type ThreadDetail = ThreadSummary & { side: "client" | "seller" | "team" | "observer"; messages: ThreadMessage[] };
 
 export const fetchMyThreads = () => request<ThreadSummary[]>("/api/v1/threads/mine");
 

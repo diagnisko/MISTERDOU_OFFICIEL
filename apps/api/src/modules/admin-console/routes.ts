@@ -1,18 +1,55 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "@misterdou/db";
+import type { KycStatus, Prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAdminSession, requireAuth, requirePermission } from "../../lib/auth-context.js";
 import { adminPasswordResetLink } from "../auth/password-reset.js";
 import { deleteClientAccount } from "./delete-client.js";
 import { requireTeamPassword } from "../../lib/step-up.js";
-import { badRequest, conflict, notFound } from "../../lib/errors.js";
+import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
+import { MANAGER_PERMISSION_LABELS } from "@misterdou/shared";
 
 const pageQuery = z.object({ page: z.coerce.number().int().min(1).default(1), perPage: z.coerce.number().int().min(1).max(100).default(25), q: z.string().trim().max(120).optional() });
 const userStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]), reason: z.string().trim().min(5).max(300) });
 const sellerStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "REVOKED"]), reason: z.string().trim().min(5).max(300) });
 const productStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "ARCHIVED"]), reason: z.string().trim().min(5).max(300) });
+
+// Filtre « Identité » de la liste des clients.
+const KYC_FILTERS: Record<string, KycStatus[] | undefined> = {
+  all: undefined,
+  verified: ["VERIFIED"],
+  pending: ["PENDING", "IN_PROGRESS"],
+  rejected: ["REJECTED"],
+  none: ["NOT_SUBMITTED"],
+};
+const offeringStatusQuery = z.object({ status: z.enum(["PENDING_REVIEW", "ACTIVE", "DRAFT", "SUSPENDED", "SOLD"]).optional() });
+const clientFilterQuery = z.object({ kyc: z.enum(["all", "verified", "pending", "rejected", "none"]).default("all") });
+
+/**
+ * Recherche d'un membre : chaque mot doit se retrouver dans le prénom, le nom,
+ * l'e-mail (y compris l'e-mail Google) ou le téléphone. « abdou sow » trouve
+ * donc Abdou Sow, et un e-mail complet trouve son compte.
+ */
+function memberSearch(q: string | undefined): Prisma.UserWhereInput {
+  const words = (q ?? "").split(/\s+/).filter(Boolean).slice(0, 5);
+  if (words.length === 0) return {};
+  return {
+    AND: words.map((word) => {
+      const digits = word.replace(/[^0-9]/g, "");
+      return {
+        OR: [
+          { email: { contains: word, mode: "insensitive" as const } },
+          { googleEmail: { contains: word, mode: "insensitive" as const } },
+          { firstName: { contains: word, mode: "insensitive" as const } },
+          { lastName: { contains: word, mode: "insensitive" as const } },
+          ...(digits.length >= 3 ? [{ phoneNumber: { contains: digits } }] : []),
+        ],
+      };
+    }),
+  };
+}
 
 function pageArgs(query: unknown) {
   return pageQuery.parse(query);
@@ -59,6 +96,20 @@ async function memberDossier(userId: string) {
 }
 
 export async function registerAdminConsoleRoutes(app: FastifyInstance) {
+  // Ce que la console doit afficher : un manager ne voit que les modules qui lui sont attribués.
+  app.get("/admin/me/access", async (request, reply) => {
+    const auth = requireAuth(request);
+    const role = auth.user.role?.name;
+    if (role === "ADMIN" && auth.isAdminSession) {
+      return sendOk(reply, { role: "ADMIN" as const, permissions: Object.keys(MANAGER_PERMISSION_LABELS) });
+    }
+    if (role === "STAFF") {
+      const profile = await prisma.managerProfile.findUnique({ where: { userId: auth.user.id }, select: { permissions: true, title: true } });
+      return sendOk(reply, { role: "STAFF" as const, permissions: profile?.permissions ?? [], title: profile?.title ?? null });
+    }
+    throw forbidden();
+  });
+
   app.get("/admin/overview", async (request, reply) => {
     await requirePermission(request, "STATS");
     const [users, clients, products, orders, payments, kyc, vendors, revenue] = await Promise.all([
@@ -80,17 +131,40 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
   app.get("/admin/clients", async (request, reply) => {
     await requirePermission(request, "SUPPORT");
     const { page, perPage, q } = pageArgs(request.query);
-    const where = {
-      deletedAt: null,
-      role: { name: "CLIENT" as const },
-      ...(q ? { OR: [{ email: { contains: q, mode: "insensitive" as const } }, { firstName: { contains: q, mode: "insensitive" as const } }, { lastName: { contains: q, mode: "insensitive" as const } }, { phoneNumber: { contains: q } }] } : {}),
-    };
-    const [items, total] = await Promise.all([
-      prisma.user.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, email: true, phoneNumber: true, firstName: true, lastName: true, status: true, kycStatus: true, createdAt: true, _count: { select: { orders: true } } } }),
+    const { kyc } = clientFilterQuery.parse(request.query);
+    // Clients et vendeurs (un vendeur reste un client) ; l'équipe n'y figure pas.
+    const base = { deletedAt: null, role: { name: { in: ["CLIENT" as const, "VENDOR" as const] } }, ...memberSearch(q) };
+    const where = { ...base, ...(KYC_FILTERS[kyc] ? { kycStatus: { in: KYC_FILTERS[kyc] } } : {}) };
+    const [items, total, grouped] = await Promise.all([
+      // Inscrits récemment en premier.
+      prisma.user.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * perPage, take: perPage, select: { id: true, email: true, phoneNumber: true, firstName: true, lastName: true, status: true, kycStatus: true, createdAt: true, role: { select: { name: true } }, _count: { select: { orders: true } } } }),
       prisma.user.count({ where }),
+      prisma.user.groupBy({ by: ["kycStatus"], where: base, _count: { _all: true } }),
     ]);
-    await audit(request, "ADMIN_CLIENTS_LISTED", "User", undefined, { total, page });
-    return sendOk(reply, items, { page, perPage, total });
+    const counted = (statuses: string[]) => grouped.filter((g) => statuses.includes(g.kycStatus)).reduce((n, g) => n + g._count._all, 0);
+    const counts = {
+      all: grouped.reduce((n, g) => n + g._count._all, 0),
+      verified: counted(KYC_FILTERS.verified!),
+      pending: counted(KYC_FILTERS.pending!),
+      rejected: counted(KYC_FILTERS.rejected!),
+      none: counted(KYC_FILTERS.none!),
+    };
+    await audit(request, "ADMIN_CLIENTS_LISTED", "User", undefined, { total, page, kyc });
+    return sendOk(reply, items.map(({ role, ...row }) => ({ ...row, role: role.name })), { page, perPage, total, counts });
+  });
+
+  // Recherche rapide de l'en-tête de la console : un membre par nom, e-mail ou téléphone.
+  app.get("/admin/search/members", async (request, reply) => {
+    await requirePermission(request, "SUPPORT");
+    const { q } = pageArgs(request.query);
+    if (!q || q.length < 2) return sendOk(reply, []);
+    const items = await prisma.user.findMany({
+      where: { deletedAt: null, role: { name: { in: ["CLIENT", "VENDOR"] } }, ...memberSearch(q) },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      select: { id: true, email: true, firstName: true, lastName: true, kycStatus: true, role: { select: { name: true } } },
+    });
+    return sendOk(reply, items.map(({ role, ...row }) => ({ ...row, role: role.name })));
   });
 
   app.get("/admin/clients/:id", async (request, reply) => {
@@ -180,17 +254,35 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const { page, perPage, q } = pageArgs(request.query);
     // owner=platform : offres MISTERDOU seulement (promotions de l'équipe).
     const platformOnly = (request.query as { owner?: string }).owner === "platform";
+    const { status } = offeringStatusQuery.parse(request.query);
     const where = {
       deletedAt: null,
       ...(platformOnly ? { sellerId: null } : {}),
+      ...(status ? { status } : {}),
       ...(q ? { OR: [{ title: { contains: q, mode: "insensitive" as const } }, { slug: { contains: q, mode: "insensitive" as const } }] } : {}),
     };
-    const [items, total] = await Promise.all([
-      prisma.product.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, slug: true, title: true, status: true, ownerType: true, sellerId: true, basePrice: true, paymentMode: true, featuredPriceOverride: true, createdAt: true } }),
+    const [items, total, pendingReview] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        // À valider : les plus anciennes d'abord (premier arrivé, premier servi).
+        orderBy: { createdAt: status === "PENDING_REVIEW" ? "asc" : "desc" },
+        skip: (page - 1) * perPage,
+        take: perPage,
+        select: {
+          id: true, slug: true, title: true, status: true, ownerType: true, sellerId: true, basePrice: true, paymentMode: true,
+          featuredPriceOverride: true, rejectedReason: true, createdAt: true, updatedAt: true,
+          seller: { select: { user: { select: { firstName: true, lastName: true } } } },
+        },
+      }),
       prisma.product.count({ where }),
+      prisma.product.count({ where: { deletedAt: null, status: "PENDING_REVIEW" } }),
     ]);
-    await audit(request, "ADMIN_OFFERINGS_LISTED", "Product", undefined, { total, page });
-    return sendOk(reply, items, { page, perPage, total });
+    await audit(request, "ADMIN_OFFERINGS_LISTED", "Product", undefined, { total, page, status });
+    return sendOk(
+      reply,
+      items.map(({ seller, ...row }) => ({ ...row, sellerName: seller ? [seller.user.firstName, seller.user.lastName].filter(Boolean).join(" ") || "Vendeur" : null })),
+      { page, perPage, total, pendingReview },
+    );
   });
 
   app.patch("/admin/offerings/:id/status", async (request, reply) => {

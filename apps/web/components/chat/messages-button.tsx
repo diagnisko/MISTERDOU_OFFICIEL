@@ -8,6 +8,7 @@ import { useAccount } from "@/lib/account";
 import { formatDateTime } from "@/lib/format";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { useT } from "@/lib/i18n";
+import { ChatAvatar } from "./product-chat";
 
 // ---------------------------------------------------------------------------
 // Icône « messages » de l'en-tête, à côté de la cloche et sur le même modèle :
@@ -25,14 +26,16 @@ type RecentItem = {
   at: string;
   unread: number;
   href: string;
+  /** Photo de l'interlocuteur (vendeur ou client) ; sinon initiale, ou monogramme MISTERDOU. */
   imageUrl: string | null;
+  counterpartKind?: "seller" | "client" | "platform";
 };
 type Recent = { total: number; href: string; items: RecentItem[] };
 
 // Dernières discussions gardées d'une page à l'autre : la pastille ne repart pas de zéro.
 let lastRecent: Recent | null = null;
 
-export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
+export function MessagesButton() {
   const account = useAccount();
   const t = useT();
   const router = useRouter();
@@ -40,9 +43,9 @@ export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const team = account.status === "member" && (account.user.role === "ADMIN" || account.user.role === "STAFF");
-  // Boutique : clients et vendeurs. Console : l'équipe (discussions à traiter).
-  const member = account.status === "member" && (inConsole || !team);
+  // Tout membre connecté : clients et vendeurs (leurs discussions), équipe (discussions à suivre),
+  // dans la boutique comme dans la console.
+  const member = account.status === "member";
 
   const load = useCallback(async () => {
     try {
@@ -130,14 +133,12 @@ export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
                       }}
                       className="flex w-full items-start gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.04]"
                     >
-                      <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-[12px] font-semibold text-stone-300">
-                        {item.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          (item.kind === "support" ? "M" : item.counterpart.slice(0, 1)).toUpperCase()
-                        )}
-                      </span>
+                      <ChatAvatar
+                        name={item.counterpart}
+                        url={item.imageUrl}
+                        kind={item.counterpartKind ?? (item.kind === "support" ? "platform" : "client")}
+                        size={36}
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
                           <span className={`truncate text-[13px] ${item.unread > 0 ? "font-semibold text-stone-50" : "text-stone-300"}`}>

@@ -299,6 +299,8 @@ export const API_ERROR_CODES = [
   "ACCOUNT_BUSY",
   "AWAITING_PAYMENT",
   "LEGACY_PLAN",
+  "ALREADY_TEAM_MEMBER",
+  "SELLER_CANNOT_BE_MANAGER",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
@@ -360,10 +362,12 @@ export const managerCreateSchema = z.object({
   email: z.string().trim().min(1).max(254).email("E-mail invalide"),
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
-  password: z.string().min(8, "8 caractères minimum").max(72),
+  // Facultatif pour un compte déjà inscrit qui a son mot de passe (il le garde).
+  password: z.string().min(8, "8 caractères minimum").max(72).optional(),
   title: z.string().trim().max(120).optional(),
   permissions: z.array(z.enum(MANAGER_PERMISSIONS)).min(1, "Au moins une permission"),
-  shifts: z.array(managerShiftSchema).max(7).optional(),
+  // Un créneau par jour couvert (« du lundi au mercredi » = 3 lignes), plusieurs par jour possibles.
+  shifts: z.array(managerShiftSchema).max(21).optional(),
 });
 
 export type ManagerCreateInput = z.infer<typeof managerCreateSchema>;
@@ -371,7 +375,7 @@ export type ManagerCreateInput = z.infer<typeof managerCreateSchema>;
 export const managerUpdateSchema = z.object({
   title: z.string().trim().max(120).nullable().optional(),
   permissions: z.array(z.enum(MANAGER_PERMISSIONS)).min(1, "Au moins une permission").optional(),
-  shifts: z.array(managerShiftSchema).max(7).optional(),
+  shifts: z.array(managerShiftSchema).max(21).optional(),
   password: z.string().min(8).max(72).optional(),
   status: z.enum(USER_STATUSES).optional(),
 });

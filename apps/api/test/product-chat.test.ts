@@ -1,5 +1,5 @@
-// Discussion client ↔ côté vente sur un compte : le client ne voit jamais qui
-// répond, le vendeur voit « Équipe MISTERDOU », l'équipe voit l'auteur réel.
+// Discussion client ↔ vendeur sur un compte : échange direct (nom et photo du
+// vendeur), l'administrateur suit en lecture seule ; compte MISTERDOU : l'équipe répond.
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
 import { authFor, buildMiniApp, cleanup, createAdmin, createProduct, createSeller, createStaff, createUser, tracker } from "./helpers.js";
@@ -26,8 +26,9 @@ async function vendorProduct() {
 }
 
 describe("Discussion sur un compte", () => {
-  it("client, vendeur et manager échangent ; chacun voit les auteurs selon son rôle", async () => {
+  it("client et vendeur discutent directement ; l'administrateur suit sans écrire ; les managers n'y ont pas accès", async () => {
     const { owner, product } = await vendorProduct();
+    await prisma.user.update({ where: { id: owner.id }, data: { lastName: "Diop", avatarKey: "avatars/p13-vendeur.jpg" } });
     const buyer = await createUser(t);
     const client = await chatApp(await authFor(buyer.id));
 
@@ -39,49 +40,52 @@ describe("Discussion sur un compte", () => {
     const again = await client.inject({ method: "POST", url: `/api/v1/products/${product.id}/thread`, payload: { content: "Et combien de coins ?" } });
     expect(again.json().data.threadId).toBe(threadId);
 
-    // Le vendeur est prévenu et voit le fil avec le nom du client.
+    // Le vendeur est prévenu et voit le fil avec le nom du client ; l'équipe n'est pas dérangée.
     expect(await prisma.notification.findFirst({ where: { userId: owner.id, type: "NEW_MESSAGE" } })).not.toBeNull();
+    expect(await prisma.notification.count({ where: { type: "NEW_MESSAGE", actionUrl: `/admin/discussions?thread=${threadId}` } })).toBe(0);
     const seller = await chatApp(await authFor(owner.id));
     const inbox = (await seller.inject({ method: "GET", url: "/api/v1/threads/inbox" })).json().data;
     expect(inbox.side).toBe("seller");
     const row = inbox.items.find((i: { id: string }) => i.id === threadId);
     expect(row.unread).toBe(2);
     expect(row.counterpart.startsWith(buyer.firstName)).toBe(true);
+    expect(row.counterpartKind).toBe("client");
 
     await seller.inject({ method: "POST", url: `/api/v1/threads/${threadId}/messages`, payload: { content: "Oui, Messi est là." } });
 
+    // Manager (même avec SUPPORT) : pas d'accès aux discussions des vendeurs.
     const manager = await createStaff(t, ["SUPPORT"]);
     const team = await chatApp(manager.session);
-    const reply = await team.inject({ method: "POST", url: `/api/v1/threads/${threadId}/messages`, payload: { content: "Environ 1 million de coins." } });
-    expect(reply.statusCode).toBe(200);
+    expect((await team.inject({ method: "GET", url: `/api/v1/threads/${threadId}` })).statusCode).toBe(404);
+    expect((await team.inject({ method: "POST", url: `/api/v1/threads/${threadId}/messages`, payload: { content: "x" } })).statusCode).toBe(404);
+    const teamInbox = (await team.inject({ method: "GET", url: "/api/v1/threads/inbox" })).json().data;
+    expect(teamInbox.items.map((i: { id: string }) => i.id)).not.toContain(threadId);
 
-    // Client : les deux réponses viennent du « Vendeur », sans distinction.
+    // Client : il voit le vendeur, son nom public et sa photo (pas la miniature du compte).
     const clientView = (await client.inject({ method: "GET", url: `/api/v1/threads/${threadId}` })).json().data;
     expect(clientView.side).toBe("client");
-    expect(clientView.messages.map((m: { author: string }) => m.author)).toEqual(["Vous", "Vous", "Vendeur", "Vendeur"]);
-    expect(JSON.stringify(clientView)).not.toContain(manager.user.firstName);
-    expect(JSON.stringify(clientView)).not.toContain(owner.firstName);
+    expect(clientView.counterpart).toBe(`${owner.firstName} D.`);
+    expect(clientView.counterpartKind).toBe("seller");
+    expect(clientView.counterpartAvatarUrl).toContain("p13-vendeur.jpg");
+    expect(clientView.messages.map((m: { author: string }) => m.author)).toEqual(["Vous", "Vous", `${owner.firstName} D.`]);
 
-    // Vendeur : la réponse du manager apparaît comme « Équipe MISTERDOU ».
-    const sellerView = (await seller.inject({ method: "GET", url: `/api/v1/threads/${threadId}` })).json().data;
-    const sellerAuthors = sellerView.messages.map((m: { author: string }) => m.author);
-    expect(sellerAuthors.slice(2)).toEqual(["Vous", "Équipe MISTERDOU"]);
-    expect(sellerAuthors[0].startsWith(buyer.firstName)).toBe(true);
-
-    // Admin : auteur réel et rôle.
+    // Administrateur : relit tout (auteurs réels) mais n'écrit pas.
     const admin = await createAdmin(t);
     const adminApp = await chatApp(admin.session);
+    const adminInbox = (await adminApp.inject({ method: "GET", url: "/api/v1/threads/inbox" })).json().data;
+    expect(adminInbox.items.find((i: { id: string }) => i.id === threadId)).toMatchObject({ readOnly: true, unread: 0 });
     const adminView = (await adminApp.inject({ method: "GET", url: `/api/v1/threads/${threadId}` })).json().data;
-    expect(adminView.side).toBe("team");
-    expect(adminView.messages[2].author.startsWith(owner.firstName)).toBe(true);
+    expect(adminView.side).toBe("observer");
+    expect(adminView.readOnly).toBe(true);
     expect(adminView.messages[2].author.endsWith(" · Vendeur")).toBe(true);
-    expect(adminView.messages[3].author.startsWith(manager.user.firstName)).toBe(true);
-    expect(adminView.messages[3].author.endsWith(" · Manager")).toBe(true);
+    const adminWrite = await adminApp.inject({ method: "POST", url: `/api/v1/threads/${threadId}/messages`, payload: { content: "Je m'en mêle" } });
+    expect(adminWrite.statusCode).toBe(403);
+    expect(await prisma.productMessage.count({ where: { threadId } })).toBe(3);
 
-    // Le client a été prévenu des réponses et n'a plus de non-lus après lecture.
-    expect(await prisma.notification.count({ where: { userId: buyer.id, type: "NEW_MESSAGE" } })).toBe(2);
+    // Le client a été prévenu de la réponse et n'a plus de non-lus après lecture.
+    expect(await prisma.notification.count({ where: { userId: buyer.id, type: "NEW_MESSAGE" } })).toBe(1);
     const mine = (await client.inject({ method: "GET", url: "/api/v1/threads/mine" })).json().data;
-    expect(mine.find((i: { id: string }) => i.id === threadId)).toMatchObject({ counterpart: "Vendeur", unread: 0 });
+    expect(mine.find((i: { id: string }) => i.id === threadId)).toMatchObject({ counterpart: `${owner.firstName} D.`, unread: 0 });
 
     await Promise.all([client.close(), seller.close(), team.close(), adminApp.close()]);
   });
@@ -122,7 +126,7 @@ describe("Discussion sur un compte", () => {
     await Promise.all([self.close(), buyer.close()]);
   });
 
-  it("un compte de la plateforme affiche « MISTERDOU » et alerte l'équipe", async () => {
+  it("un compte de la plateforme affiche « MISTERDOU », alerte l'équipe et un manager SUPPORT y répond", async () => {
     await createAdmin(t);
     const product = await createProduct(t);
     const buyer = await createUser(t);
@@ -130,8 +134,13 @@ describe("Discussion sur un compte", () => {
     const threadId = (await client.inject({ method: "POST", url: `/api/v1/products/${product.id}/thread`, payload: { content: "Disponible ?" } })).json().data.threadId;
     const alert = await prisma.notification.findFirst({ where: { type: "NEW_MESSAGE", actionUrl: `/admin/discussions?thread=${threadId}` } });
     expect(alert).not.toBeNull();
+    const manager = await createStaff(t, ["SUPPORT"]);
+    const team = await chatApp(manager.session);
+    expect((await team.inject({ method: "POST", url: `/api/v1/threads/${threadId}/messages`, payload: { content: "Oui !" } })).statusCode).toBe(200);
     const view = (await client.inject({ method: "GET", url: `/api/v1/products/${product.id}/thread` })).json().data;
     expect(view.counterpart).toBe("MISTERDOU");
-    await client.close();
+    expect(view.counterpartKind).toBe("platform");
+    expect(view.messages.map((m: { author: string }) => m.author)).toEqual(["Vous", "MISTERDOU"]);
+    await Promise.all([client.close(), team.close()]);
   });
 });

@@ -12,6 +12,8 @@ import { requestPaged, type PageMeta } from "./api";
 export interface AdminList<T> {
   items: T[];
   meta: PageMeta;
+  /** Meta brut de la dernière réponse (compteurs propres à certaines listes). */
+  extra: Record<string, unknown>;
   loading: boolean;
   refreshing: boolean;
   error: unknown;
@@ -22,18 +24,22 @@ export interface AdminList<T> {
   refresh: (successMessage?: string) => Promise<boolean>;
 }
 
-export function useAdminList<T>(path: string): AdminList<T> {
+/** path null : rien à charger (ex. module non attribué à ce manager). */
+export function useAdminList<T>(path: string | null): AdminList<T> {
   const [items, setItems] = useState<T[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ page: 1, perPage: 25, total: 0 });
+  const [extra, setExtra] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (path === null) return [];
     const result = await requestPaged<T>(path);
     setItems(result.items);
     setMeta(result.meta);
+    setExtra(result.extra);
     setError(null);
     return result.items;
   }, [path]);
@@ -71,5 +77,5 @@ export function useAdminList<T>(path: string): AdminList<T> {
     [load],
   );
 
-  return { items, meta, loading, refreshing, error, notice, setError, setNotice, refresh };
+  return { items, meta, extra, loading, refreshing, error, notice, setError, setNotice, refresh };
 }

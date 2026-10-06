@@ -10,8 +10,9 @@ import { getIntSetting } from "../settings/service.js";
 
 // ---------------------------------------------------------------------------
 // Codes de vérification (connexion au jeu d'un compte acheté).
-// Le client demande un code depuis sa commande ; l'administrateur, un manager
-// autorisé (permission ORDERS) ou le vendeur du compte le fournit. Le code est
+// Le client demande un code depuis sa commande. Compte d'un vendeur : c'est à
+// lui de le fournir (alerte prioritaire) ; l'administrateur et les managers
+// ORDERS peuvent le faire à sa place. Compte MISTERDOU : l'équipe le fournit. Le code est
 // chiffré au repos et valable peu de temps (verificationCodeTtlMinutes) ;
 // une fois expiré, le client peut en redemander un.
 // ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ export async function requestVerificationCode(orderId: string, actor: CodeActor)
     metadata: { orderNumber: order.orderNumber, requestId: created.id },
   });
 
-  // Prévenir ceux qui peuvent répondre : admins, managers ORDERS et le vendeur.
+  // Prévenir : le vendeur en premier (c'est son travail), l'équipe en appui.
   const title = order.items[0]?.title ?? "un compte";
   const team = await prisma.user.findMany({
     where: {
@@ -128,20 +129,39 @@ export async function requestVerificationCode(orderId: string, actor: CodeActor)
     select: { id: true },
   });
   const sellerUserId = order.items[0]?.product.seller?.userId ?? null;
-  const recipients = new Set(team.map((u) => u.id));
-  if (sellerUserId) recipients.add(sellerUserId);
-  await notifyMany(
-    "ADMIN_ALERT",
-    [...recipients].map((userId) => ({
-      userId,
-      params: {
-        title: "Code de vérification demandé",
-        message: `Le client de la commande ${order.orderNumber} attend un code pour « ${title} ».`,
-        actionUrl: userId === sellerUserId && !team.some((u) => u.id === userId) ? "/seller#codes" : "/admin/codes",
-        priority: "CRITICAL",
-      },
-    })),
-  );
+  await notifyMany("ADMIN_ALERT", [
+    ...(sellerUserId
+      ? [
+          {
+            userId: sellerUserId,
+            params: {
+              title: "Code de vérification à envoyer",
+              message: `Votre client (commande ${order.orderNumber}) attend le code pour « ${title} ». Envoyez-le depuis votre espace vendeur : il est valable quelques minutes.`,
+              actionUrl: "/seller#codes",
+              priority: "CRITICAL" as const,
+            },
+          },
+        ]
+      : []),
+    ...team
+      .filter((u) => u.id !== sellerUserId)
+      .map((u) => ({
+        userId: u.id,
+        params: sellerUserId
+          ? {
+              title: "Code demandé (vendeur prévenu)",
+              message: `Commande ${order.orderNumber}, « ${title} » : le vendeur doit fournir le code. Vous pouvez le faire à sa place s'il tarde.`,
+              actionUrl: "/admin/codes",
+              priority: "NORMAL" as const,
+            }
+          : {
+              title: "Code de vérification demandé",
+              message: `Le client de la commande ${order.orderNumber} attend un code pour « ${title} ».`,
+              actionUrl: "/admin/codes",
+              priority: "CRITICAL" as const,
+            },
+      })),
+  ]);
 
   return toClientView(created);
 }
@@ -179,6 +199,8 @@ export type ProviderCodeRow = {
   providedAt: string | null;
   expiresAt: string | null;
   providedBy: string | null;
+  /** Qui doit fournir le code : le vendeur du compte (nom public) ou null (MISTERDOU). */
+  sellerName: string | null;
 };
 
 /** File des demandes : en attente d'abord, puis les dernières traitées. */
@@ -195,7 +217,7 @@ export async function listCodeRequests(scope: ProviderScope, status: "PENDING" |
         select: {
           orderNumber: true,
           buyer: { select: { firstName: true, lastName: true } },
-          items: { select: { title: true }, take: 1 },
+          items: { select: { title: true, product: { select: { seller: { select: { user: { select: { firstName: true, lastName: true } } } } } } }, take: 1 },
         },
       },
     },
@@ -225,6 +247,10 @@ export async function listCodeRequests(scope: ProviderScope, status: "PENDING" |
       providedAt: view.providedAt,
       expiresAt: view.expiresAt,
       providedBy: nameOf(r.providedById),
+      sellerName: (() => {
+        const u = r.order.items[0]?.product.seller?.user;
+        return u ? [u.firstName, u.lastName?.[0] ? `${u.lastName[0]}.` : null].filter(Boolean).join(" ") || "Vendeur" : null;
+      })(),
     };
   });
 }

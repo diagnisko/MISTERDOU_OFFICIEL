@@ -70,7 +70,9 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
       at: string;
       unread: number;
       href: string;
+      /** Photo de l'interlocuteur (vendeur ou client) ; null = initiale ou logo MISTERDOU. */
       imageUrl: string | null;
+      counterpartKind: "seller" | "client" | "platform";
     };
     const items: Item[] = [];
     const fromThread = (t: Awaited<ReturnType<typeof listMyThreads>>[number], base: string): Item => ({
@@ -82,7 +84,8 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
       at: t.lastMessage?.createdAt ?? t.lastMessageAt,
       unread: t.unread,
       href: `${base}?thread=${t.id}`,
-      imageUrl: t.product.imageUrl,
+      imageUrl: t.counterpartAvatarUrl,
+      counterpartKind: t.counterpartKind,
     });
 
     if (!team) for (const t of await listMyThreads(viewer)) items.push(fromThread(t, "/account/messages"));
@@ -112,6 +115,7 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
         unread: c._count.message,
         href: `/messages?c=${c.id}`,
         imageUrl: null,
+        counterpartKind: team ? "client" : "platform",
       });
     }
 

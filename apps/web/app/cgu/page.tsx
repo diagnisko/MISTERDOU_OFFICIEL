@@ -13,7 +13,7 @@ export default async function CguPage() {
   const operator = info.entityName ?? name;
 
   return (
-    <LegalPage kicker="Informations légales" title="Conditions générales d’utilisation" updated="3 octobre 2026">
+    <LegalPage kicker="Informations légales" title="Conditions générales d’utilisation" updated="6 octobre 2026">
       <Section title="1. Objet">
         <p>
           {name} est une place de marché de comptes eFootball. Elle met en relation des acheteurs et des vendeurs vérifiés, et
@@ -42,6 +42,7 @@ export default async function CguPage() {
             "Une preuve inexacte ou un montant incomplet est refusé, avec le motif. Vous pouvez alors envoyer une nouvelle preuve.",
             `Le compte est réservé pendant 20 minutes après la commande, puis tant que votre preuve est en vérification. Une commande jamais réglée est annulée au bout de ${info.unpaidOrderExpiryHours} heures.`,
             "Ne payez jamais un vendeur en dehors du site : aucune protection ne s’applique à un paiement direct.",
+            `Tout ce qui se fait en dehors de ${name} (paiement direct, échange sur une autre messagerie, accord conclu ailleurs) n’est pas couvert : en cas de problème, ${name} ne pourra ni intervenir ni rembourser.`,
           ]}
         />
       </Section>
@@ -72,6 +73,8 @@ export default async function CguPage() {
           items={[
             `Devenir vendeur nécessite une identité vérifiée et le paiement de frais d’adhésion de ${fcfa(info.sellerRegistrationFee)}.`,
             "Le vendeur garantit qu’il est le propriétaire légitime du compte mis en vente, que sa description est exacte, et qu’il ne cherchera pas à le récupérer après la vente.",
+            "Chaque offre (et chaque modification) est vérifiée par l’équipe avant d’apparaître sur le site ; une offre refusée est renvoyée au vendeur avec le motif.",
+            "Le vendeur répond lui-même à ses clients dans la messagerie du site et leur fournit les codes de vérification du jeu. L’administration peut relire ces échanges en cas de litige.",
             `Sur chaque vente, une commission de ${info.commissionPercent} % est prélevée. Le reste revient au vendeur et devient disponible quand le client confirme la réception, ou ${info.payoutHoldDays} jours après la livraison sans signalement.`,
             `Les retraits se font uniquement par Wave, à partir de ${fcfa(info.minWithdrawal)}. L’équipe envoie l’argent et joint la capture de l’envoi ; le vendeur confirme ensuite la réception.`,
             "La vente d’un compte volé, piraté ou obtenu frauduleusement entraîne la suspension du vendeur, l’annulation de ses gains et le remboursement de l’acheteur.",
@@ -99,7 +102,8 @@ export default async function CguPage() {
         <p>
           {name} fournit le service avec soin : vérification des identités, contrôle des paiements, conservation chiffrée des
           identifiants. Sa responsabilité ne peut pas être engagée pour une décision de l’éditeur du jeu, une indisponibilité de Wave
-          ou un usage du compte contraire à ces conditions.
+          ou un usage du compte contraire à ces conditions. Elle ne couvre que les opérations faites sur le site : un paiement, un
+          échange ou un accord conclu en dehors de {name} n’est pas de son ressort.
         </p>
       </Section>
 

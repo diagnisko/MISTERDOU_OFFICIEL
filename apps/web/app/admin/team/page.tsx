@@ -32,6 +32,9 @@ import { PasswordConfirmDialog } from "@/components/password-confirm";
 // Équipe — GET /admin/managers (liste), POST/PATCH/DELETE /admin/managers[/:id].
 // Validations client calquées sur managerCreateSchema / managerUpdateSchema
 // (packages/shared/src/index.ts) : mêmes règles que l'API.
+// Un e-mail déjà inscrit (client) rejoint l'équipe avec son compte ; retiré de
+// l'équipe, il redevient client. Les créneaux se saisissent en plages de jours
+// (« du lundi au mercredi, 14:00 – 18:00 ») et sont enregistrés jour par jour.
 // ---------------------------------------------------------------------------
 
 type Shift = { id?: string; day: string; startMinute: number; endMinute: number };
@@ -40,6 +43,7 @@ type ManagerRow = {
   id: string;
   title: string | null;
   permissions: string[];
+  previousRole: string | null;
   createdAt: string;
   user: {
     id: string;
@@ -53,7 +57,70 @@ type ManagerRow = {
   shifts: Shift[];
 };
 
-type FormShift = { day: string; start: string; end: string };
+/** Plage de présence : du jour « from » au jour « to » (inclus), de start à end. */
+type FormShift = { from: string; to: string; start: string; end: string };
+
+const DAY_SHORT: Record<string, string> = {
+  MONDAY: "Lun",
+  TUESDAY: "Mar",
+  WEDNESDAY: "Mer",
+  THURSDAY: "Jeu",
+  FRIDAY: "Ven",
+  SATURDAY: "Sam",
+  SUNDAY: "Dim",
+};
+
+const toMinutes = (time: string) => Number(time.split(":")[0] ?? "0") * 60 + Number(time.split(":")[1] ?? "0");
+
+/** Jours couverts par une plage, dans l'ordre de la semaine (« ven → lun » passe par le week-end). */
+function daysOf(range: FormShift): string[] {
+  const from = SHIFT_DAYS.indexOf(range.from as (typeof SHIFT_DAYS)[number]);
+  const to = SHIFT_DAYS.indexOf(range.to as (typeof SHIFT_DAYS)[number]);
+  const count = ((to - from + 7) % 7) + 1;
+  return Array.from({ length: count }, (_, i) => SHIFT_DAYS[(from + i) % 7]!);
+}
+
+/** Créneaux enregistrés (un par jour) → plages lisibles : jours consécutifs aux mêmes horaires. */
+function toRanges(shifts: Shift[]): FormShift[] {
+  const byHours = new Map<string, number[]>();
+  for (const s of shifts) {
+    const key = `${s.startMinute}-${s.endMinute}`;
+    const list = byHours.get(key) ?? [];
+    list.push(SHIFT_DAYS.indexOf(s.day as (typeof SHIFT_DAYS)[number]));
+    byHours.set(key, list);
+  }
+  const ranges: Array<FormShift & { order: number }> = [];
+  for (const [key, days] of byHours) {
+    const [startMinute, endMinute] = key.split("-").map(Number) as [number, number];
+    const sorted = [...new Set(days)].sort((a, b) => a - b);
+    let first = sorted[0]!;
+    let prev = first;
+    const flush = () =>
+      ranges.push({
+        from: SHIFT_DAYS[first]!,
+        to: SHIFT_DAYS[prev]!,
+        start: minutesToTime(startMinute),
+        end: minutesToTime(endMinute),
+        order: first * 10_000 + startMinute,
+      });
+    for (const day of sorted.slice(1)) {
+      if (day === prev + 1) {
+        prev = day;
+        continue;
+      }
+      flush();
+      first = day;
+      prev = day;
+    }
+    flush();
+  }
+  return ranges.sort((a, b) => a.order - b.order).map(({ order: _order, ...range }) => range);
+}
+
+function rangeLabel(range: FormShift): string {
+  const days = range.from === range.to ? DAY_SHORT[range.from] : `${DAY_SHORT[range.from]} → ${DAY_SHORT[range.to]}`;
+  return `${days} · ${range.start}–${range.end}`;
+}
 
 type FormState = {
   email: string;
@@ -87,28 +154,22 @@ function formFromRow(row: ManagerRow): FormState {
     password: "",
     title: row.title ?? "",
     permissions: [...row.permissions],
-    shifts: row.shifts.map((shift) => ({
-      day: shift.day,
-      start: minutesToTime(shift.startMinute),
-      end: minutesToTime(shift.endMinute),
-    })),
+    shifts: toRanges(row.shifts),
     status: row.user.status,
   };
 }
 
 function toPayload(mode: "create" | "edit", form: FormState): unknown {
-  const shifts = form.shifts.map((shift) => ({
-    day: shift.day,
-    startMinute: Number(shift.start.split(":")[0] ?? "0") * 60 + Number(shift.start.split(":")[1] ?? "0"),
-    endMinute: Number(shift.end.split(":")[0] ?? "0") * 60 + Number(shift.end.split(":")[1] ?? "0"),
-  }));
+  const shifts = form.shifts.flatMap((range) =>
+    daysOf(range).map((day) => ({ day, startMinute: toMinutes(range.start), endMinute: toMinutes(range.end) })),
+  );
 
   if (mode === "create") {
     return {
       email: form.email.trim(),
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
-      password: form.password,
+      ...(form.password ? { password: form.password } : {}),
       ...(form.title.trim() ? { title: form.title.trim() } : {}),
       permissions: form.permissions,
       ...(shifts.length > 0 ? { shifts } : {}),
@@ -139,9 +200,13 @@ export default function TeamPage() {
   const list = useAdminList<ManagerRow>("/api/v1/admin/managers");
 
   async function createMember(payload: unknown) {
-    await request("/api/v1/admin/managers", { method: "POST", body: JSON.stringify(payload) });
+    const created = await request<{ promoted: boolean }>("/api/v1/admin/managers", { method: "POST", body: JSON.stringify(payload) });
     setModal(null);
-    await list.refresh("Membre ajouté à l’équipe.");
+    await list.refresh(
+      created.promoted
+        ? "Ce compte client a rejoint l’équipe : à sa prochaine connexion, il arrive dans son espace manager."
+        : "Membre ajouté à l’équipe.",
+    );
   }
 
   async function updateMember(row: ManagerRow, payload: unknown) {
@@ -156,7 +221,7 @@ export default function TeamPage() {
   async function deleteMember(row: ManagerRow, password: string) {
     await request(`/api/v1/admin/managers/${row.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
     setDeleteTarget(null);
-    await list.refresh("Membre retiré de l’équipe.");
+    await list.refresh(row.previousRole ? "Retiré de l’équipe : c’est de nouveau un compte client." : "Membre retiré de l’équipe.");
   }
 
   return (
@@ -184,7 +249,7 @@ export default function TeamPage() {
         ) : list.items.length === 0 ? (
           <TableEmpty label="Aucun membre dans l’équipe." />
         ) : (
-          <DataTable columns={["Nom", "E-mail", "Titre", "Permissions", "Statut", "2FA"]} minWidth={960}>
+          <DataTable columns={["Nom", "E-mail", "Titre", "Permissions", "Présence", "Statut", "2FA"]} minWidth={1080}>
             {list.items.map((row) => (
               <tr key={row.id} className="transition hover:bg-white/[0.025]">
                 <td className="px-4 py-3.5 text-stone-200">
@@ -205,6 +270,19 @@ export default function TeamPage() {
                       ))
                     )}
                   </span>
+                </td>
+                <td className="px-4 py-3.5 text-[12.5px] text-stone-300">
+                  {row.shifts.length === 0 ? (
+                    <span className="text-stone-500">Sans restriction</span>
+                  ) : (
+                    <span className="flex flex-col gap-0.5">
+                      {toRanges(row.shifts).map((range) => (
+                        <span key={rangeLabel(range)} className="whitespace-nowrap">
+                          {rangeLabel(range)}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3.5">
                   <StatusBadge status={row.user.status} />
@@ -248,11 +326,17 @@ export default function TeamPage() {
           title="Retirer ce membre"
           confirmLabel="Supprimer"
           message={
-            <>
-              Supprimer définitivement{" "}
-              <strong className="text-stone-100">{deleteTarget.user.email}</strong> de l’équipe ? Ses
-              permissions et ses créneaux seront perdus.
-            </>
+            deleteTarget.previousRole ? (
+              <>
+                Retirer <strong className="text-stone-100">{deleteTarget.user.email}</strong> de l’équipe ? Ses permissions et
+                ses créneaux sont effacés ; son compte redevient un compte client (commandes et mot de passe intacts).
+              </>
+            ) : (
+              <>
+                Supprimer définitivement <strong className="text-stone-100">{deleteTarget.user.email}</strong> de l’équipe ? Ses
+                permissions et ses créneaux seront perdus, et ce compte d’équipe sera désactivé.
+              </>
+            )
           }
           onClose={() => setDeleteTarget(null)}
           onConfirm={(password) => deleteMember(deleteTarget, password)}
@@ -293,7 +377,7 @@ function MemberFormModal({
   }
 
   function addShift() {
-    setForm((prev) => ({ ...prev, shifts: [...prev.shifts, { day: "MONDAY", start: "09:00", end: "18:00" }] }));
+    setForm((prev) => ({ ...prev, shifts: [...prev.shifts, { from: "MONDAY", to: "FRIDAY", start: "09:00", end: "18:00" }] }));
   }
 
   function updateShift(index: number, partial: Partial<FormShift>) {
@@ -310,6 +394,11 @@ function MemberFormModal({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    const badRange = form.shifts.find((range) => toMinutes(range.end) <= toMinutes(range.start));
+    if (badRange) {
+      setError(`Créneau « ${rangeLabel(badRange)} » : l’heure de fin doit être après l’heure de début.`);
+      return;
+    }
     const payload = toPayload(mode, form);
     const parsed = mode === "create" ? managerCreateSchema.safeParse(payload) : managerUpdateSchema.safeParse(payload);
     if (!parsed.success) {
@@ -336,6 +425,12 @@ function MemberFormModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <Label>E-mail</Label>
+            {mode === "create" && (
+              <span className="mb-2 block text-[11.5px] leading-relaxed text-stone-500">
+                Déjà inscrit comme client ? Saisissez son e-mail : son compte rejoint l’équipe et il garde son mot de passe.
+                Retiré de l’équipe, il redevient client.
+              </span>
+            )}
             <TextInput
               type="email"
               required
@@ -365,18 +460,19 @@ function MemberFormModal({
             />
           </label>
           <label className="block">
-            <Label>
-              Mot de passe {mode === "edit" ? "(laisser vide pour conserver)" : ""}
-              {mode === "create" && <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>}
-            </Label>
+            <Label>Mot de passe {mode === "edit" ? "(laisser vide pour conserver)" : ""}</Label>
             <TextInput
               type="password"
-              required={mode === "create"}
               value={form.password}
               onChange={(event) => patch({ password: event.target.value })}
               placeholder={mode === "create" ? "8 caractères minimum" : ""}
               autoComplete="new-password"
             />
+            {mode === "create" && (
+              <span className="mt-1.5 block text-[11px] text-stone-500">
+                Obligatoire pour un nouveau compte. Compte client existant : laissez vide (sauf inscription Google sans mot de passe).
+              </span>
+            )}
           </label>
           <label className="block">
             <Label>Titre</Label>
@@ -452,39 +548,41 @@ function MemberFormModal({
           {form.shifts.length === 0 ? (
             <p className="text-xs text-stone-500">Aucun créneau — la disponibilité ne sera pas restreinte.</p>
           ) : (
-            <div className="mt-2 space-y-2">
+            <div className="mt-2 space-y-2.5">
               {form.shifts.map((shift, index) => (
-                <div key={`${shift.day}-${index}`} className="flex flex-wrap items-center gap-2">
-                  <SelectInput
-                    value={shift.day}
-                    onChange={(event) => updateShift(index, { day: event.target.value })}
-                    className="min-w-[140px] flex-1"
-                  >
-                    {SHIFT_DAYS.map((day) => (
-                      <option key={day} value={day}>
-                        {SHIFT_DAY_LABELS[day]}
-                      </option>
-                    ))}
-                  </SelectInput>
-                  <TextInput
-                    type="time"
-                    value={shift.start}
-                    onChange={(event) => updateShift(index, { start: event.target.value })}
-                    className="w-32"
-                  />
-                  <TextInput
-                    type="time"
-                    value={shift.end}
-                    onChange={(event) => updateShift(index, { end: event.target.value })}
-                    className="w-32"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeShift(index)}
-                    className="rounded-xl border border-white/10 px-3 py-2 text-[10px] uppercase tracking-[0.1em] text-stone-400 transition hover:text-red-200"
-                  >
-                    Retirer
-                  </button>
+                <div key={index} className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                  <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 sm:grid-cols-[auto_1fr_auto_1fr]">
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">Du</span>
+                    <SelectInput value={shift.from} onChange={(event) => updateShift(index, { from: event.target.value })}>
+                      {SHIFT_DAYS.map((day) => (
+                        <option key={day} value={day}>
+                          {SHIFT_DAY_LABELS[day]}
+                        </option>
+                      ))}
+                    </SelectInput>
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">au</span>
+                    <SelectInput value={shift.to} onChange={(event) => updateShift(index, { to: event.target.value })}>
+                      {SHIFT_DAYS.map((day) => (
+                        <option key={day} value={day}>
+                          {SHIFT_DAY_LABELS[day]}
+                        </option>
+                      ))}
+                    </SelectInput>
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">De</span>
+                    <TextInput type="time" value={shift.start} onChange={(event) => updateShift(index, { start: event.target.value })} />
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">à</span>
+                    <TextInput type="time" value={shift.end} onChange={(event) => updateShift(index, { end: event.target.value })} />
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between gap-3">
+                    <span className="text-[12px] text-[#ffb08a]">{rangeLabel(shift)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeShift(index)}
+                      className="rounded-xl border border-white/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-stone-400 transition hover:text-red-200"
+                    >
+                      Retirer
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

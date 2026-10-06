@@ -9,7 +9,7 @@ import { AdminPageHead } from "../_lib/ui";
 export default function AdminDiscussionsPage() {
   return (
     <div className="space-y-6">
-      <AdminPageHead kicker="Relation" title="Discussions sur les comptes" meta="Le client voit toutes les réponses comme venant du « Vendeur »." />
+      <AdminPageHead kicker="Relation" title="Discussions sur les comptes" meta="Comptes MISTERDOU : l’équipe répond. Comptes des vendeurs : l’administrateur suit en lecture seule, le vendeur répond à son client." />
       <Suspense>
         <ChatInbox source="inbox" basePath="/admin/discussions" emptyText="Aucune discussion pour l’instant." />
       </Suspense>

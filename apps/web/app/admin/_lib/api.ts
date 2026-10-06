@@ -14,7 +14,7 @@ export { ApiClientError, formatXof, request };
 
 export type PageMeta = { page: number; perPage: number; total: number };
 
-export type PagedResult<T> = { items: T[]; meta: PageMeta };
+export type PagedResult<T> = { items: T[]; meta: PageMeta; extra: Record<string, unknown> };
 
 export const PERMISSION_MESSAGE =
   "Permission insuffisante — ce module est réservé aux rôles autorisés.";
@@ -61,6 +61,8 @@ export async function requestPaged<T>(path: string): Promise<PagedResult<T>> {
   const total = Number(meta.total ?? items.length);
   return {
     items,
+    // Le meta brut : certaines listes y ajoutent des compteurs (ex. clients par statut).
+    extra: meta,
     meta: {
       page: Number.isFinite(page) && page > 0 ? page : 1,
       perPage: Number.isFinite(perPage) && perPage > 0 ? perPage : Math.max(items.length, 1),

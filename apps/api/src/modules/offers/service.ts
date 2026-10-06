@@ -5,13 +5,18 @@ import type { RoleName } from "@misterdou/db";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { decryptString, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
+import { notifyTeam, notifyUser } from "../../lib/notify.js";
+import { publicUrl } from "../../lib/media.js";
 import { getIntSetting } from "../settings/service.js";
 import { holdsReservation } from "../orders/fulfillment.js";
 
 // ---------------------------------------------------------------------------
 // Création et modification des offres.
-// - Vendeur actif : son offre est publiée tout de suite, sans validation.
-// - Équipe (permission PRODUCTS) : offres MISTERDOU (sans vendeur).
+// - Vendeur actif : son offre (nouvelle ou modifiée) attend la validation de
+//   l'équipe (PENDING_REVIEW) avant d'apparaître sur le site. Refusée, elle
+//   redevient un brouillon avec le motif ; le vendeur corrige et la renvoie.
+// - Équipe (permission PRODUCTS) : offres MISTERDOU (sans vendeur), publiées
+//   directement, et validation des offres des vendeurs.
 // Les identifiants du compte sont chiffrés dès réception et ne sont jamais
 // renvoyés en clair : ils ne sont remis qu'à l'acheteur, après paiement.
 // ---------------------------------------------------------------------------
@@ -120,8 +125,9 @@ export async function createOffer(input: CreateOfferInput, owner: OfferOwner, ac
       slug: slugFor(input.title),
       ownerType: owner.kind === "seller" ? "VENDOR" : "ADMIN",
       sellerId: owner.kind === "seller" ? owner.sellerId : null,
-      status: "ACTIVE",
-      publishedAt: now,
+      // Offre d'un vendeur : en ligne seulement après validation de l'équipe.
+      status: owner.kind === "seller" ? "PENDING_REVIEW" : "ACTIVE",
+      publishedAt: owner.kind === "seller" ? null : now,
       credential: { create: encryptedCredentials(input.credentials) },
     },
     select: { id: true, slug: true },
@@ -135,7 +141,18 @@ export async function createOffer(input: CreateOfferInput, owner: OfferOwner, ac
     resourceId: product.id,
     metadata: { owner: owner.kind, basePrice: input.basePrice, paymentMode: input.paymentMode },
   });
+  if (owner.kind === "seller") await askForReview(input.title, false);
   return product;
+}
+
+/** Prévient l'équipe (admins, managers « Produits ») qu'une offre attend sa validation. */
+async function askForReview(title: string, edited: boolean) {
+  await notifyTeam("PRODUCTS", "ADMIN_ALERT", {
+    title: edited ? "Offre modifiée à revalider" : "Nouvelle offre à valider",
+    message: `« ${title} » attend votre validation avant d’apparaître sur le site.`,
+    actionUrl: "/admin/offers?status=PENDING_REVIEW",
+    priority: "NORMAL",
+  });
 }
 
 /** Offre modifiable par cet auteur : la sienne, ni vendue, ni en cours d'achat. */
@@ -178,6 +195,7 @@ export async function getOfferForEdit(productId: string, owner: OfferOwner) {
       paymentMode: true,
       installmentMonths: true,
       installmentDownPayment: true,
+      rejectedReason: true,
       credential: { select: { id: true } },
     },
   });
@@ -189,11 +207,14 @@ export async function getOfferForEdit(productId: string, owner: OfferOwner) {
 export async function updateOffer(productId: string, input: UpdateOfferInput, owner: OfferOwner, actor: OfferActor) {
   const product = await editable(productId, owner);
   const terms = await paymentTerms(input);
+  // Un vendeur qui modifie son offre la renvoie en validation (elle quitte le site d'ici là).
+  const review = owner.kind === "seller";
   await prisma.product.update({
     where: { id: product.id },
     data: {
       ...fields(input),
       ...terms,
+      ...(review ? { status: "PENDING_REVIEW" as const, rejectedReason: null, reviewedBy: null } : {}),
       ...(input.credentials
         ? {
             credential: {
@@ -210,9 +231,101 @@ export async function updateOffer(productId: string, input: UpdateOfferInput, ow
     action: "OFFER_UPDATED",
     resourceType: "Product",
     resourceId: product.id,
-    metadata: { basePrice: input.basePrice, credentialsChanged: Boolean(input.credentials) },
+    metadata: { basePrice: input.basePrice, credentialsChanged: Boolean(input.credentials), sentToReview: review },
   });
-  return { id: product.id, slug: product.slug };
+  if (review) await askForReview(input.title, true);
+  return { id: product.id, slug: product.slug, status: review ? "PENDING_REVIEW" : product.status };
+}
+
+// ---------------------------------------------------------------------------
+// Validation des offres des vendeurs (équipe, permission PRODUCTS)
+// ---------------------------------------------------------------------------
+
+export const reviewDecisionSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("approve") }),
+  z.object({ decision: z.literal("reject"), reason: text(5, 300) }),
+]);
+
+/** Fiche complète d'une offre à valider : contenu, médias, vendeur. Jamais les identifiants. */
+export async function getOfferForReview(productId: string) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, deletedAt: null },
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      title: true,
+      description: true,
+      division: true,
+      teamPower: true,
+      coins: true,
+      extraInfo: true,
+      basePrice: true,
+      paymentMode: true,
+      installmentMonths: true,
+      installmentDownPayment: true,
+      rejectedReason: true,
+      createdAt: true,
+      updatedAt: true,
+      credential: { select: { id: true } },
+      images: { orderBy: { position: "asc" }, select: { id: true, objectKey: true, mimeType: true } },
+      seller: { select: { id: true, user: { select: { firstName: true, lastName: true, email: true } } } },
+    },
+  });
+  if (!product) throw notFound("Offre introuvable.");
+  const { credential, images, seller, ...rest } = product;
+  return {
+    ...rest,
+    hasCredentials: credential !== null,
+    media: images.map((m) => ({ id: m.id, url: publicUrl(m.objectKey), video: m.mimeType.startsWith("video/") })),
+    seller: seller
+      ? { id: seller.id, name: [seller.user.firstName, seller.user.lastName].filter(Boolean).join(" ") || "Vendeur", email: seller.user.email }
+      : null,
+  };
+}
+
+/** Valide (mise en ligne) ou refuse (brouillon + motif) une offre de vendeur en attente. */
+export async function reviewOffer(productId: string, input: z.infer<typeof reviewDecisionSchema>, actor: OfferActor) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, deletedAt: null },
+    select: { id: true, title: true, status: true, sellerId: true, seller: { select: { userId: true } } },
+  });
+  if (!product || !product.sellerId || !product.seller) throw notFound("Offre de vendeur introuvable.");
+  if (product.status !== "PENDING_REVIEW") throw conflict("ALREADY_REVIEWED", "Cette offre a déjà été traitée.");
+
+  const approve = input.decision === "approve";
+  const claimed = await prisma.product.updateMany({
+    where: { id: product.id, status: "PENDING_REVIEW" },
+    data: approve
+      ? { status: "ACTIVE", publishedAt: new Date(), reviewedBy: actor.actorId, rejectedReason: null }
+      : { status: "DRAFT", reviewedBy: actor.actorId, rejectedReason: input.reason },
+  });
+  if (claimed.count === 0) throw conflict("ALREADY_REVIEWED", "Cette offre a déjà été traitée.");
+
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: approve ? "OFFER_APPROVED" : "OFFER_REJECTED",
+    resourceType: "Product",
+    resourceId: product.id,
+    metadata: approve ? {} : { reason: input.reason },
+    severity: "WARNING",
+  });
+  await notifyUser(product.seller.userId, "SYSTEM", approve
+    ? {
+        title: "Offre validée 🎉",
+        message: `« ${product.title} » est maintenant en ligne, visible par tous les clients.`,
+        actionUrl: "/seller",
+        priority: "NORMAL",
+      }
+    : {
+        title: "Offre à corriger",
+        message: `« ${product.title} » n’a pas été validée (motif : « ${input.reason} »). Corrigez-la puis enregistrez-la pour la renvoyer.`,
+        actionUrl: `/seller/offres/${product.id}`,
+        priority: "CRITICAL",
+      });
+  return { id: product.id, status: approve ? ("ACTIVE" as const) : ("DRAFT" as const) };
 }
 
 /** Retrait : l'offre disparaît du site (suppression douce, historique conservé). */

@@ -92,6 +92,7 @@ export async function registerSellerRoutes(app: FastifyInstance) {
               title: true,
               slug: true,
               status: true,
+              rejectedReason: true,
               basePrice: true,
               paymentMode: true,
               featuredUntil: true,

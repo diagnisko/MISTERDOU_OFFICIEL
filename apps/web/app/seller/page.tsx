@@ -39,6 +39,8 @@ type Dashboard = {
     title: string;
     slug: string;
     status: string;
+    /** Refusée par l'équipe : motif à corriger. */
+    rejectedReason: string | null;
     basePrice: number;
     paymentMode: string;
     featuredUntil: string | null;
@@ -330,6 +332,7 @@ export default function SellerPage() {
             <p className="mt-0.5 text-[12px] text-[#8f7d77]">
               {t("seller.offersLead", { rate: formatXof(rate) })}
             </p>
+            <p className="mt-0.5 text-[12px] text-[#8f7d77]">{t("seller.reviewHint")}</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[12px] text-[#8f7d77]">
@@ -373,7 +376,14 @@ export default function SellerPage() {
                   </td>
                   <td className="whitespace-nowrap tabular-nums">{formatXof(product.basePrice)}</td>
                   <td>
-                    <StatusBadge status={product.status} />
+                    {product.status === "DRAFT" && product.rejectedReason ? (
+                      <span className="flex max-w-[220px] flex-col gap-1">
+                        <span className="dash-pill dash-pill-late w-fit">{t("seller.rejected")}</span>
+                        <span className="text-[11px] leading-snug text-[#fca5a5]">{t("seller.rejectedReason", { reason: product.rejectedReason })}</span>
+                      </span>
+                    ) : (
+                      <StatusBadge status={product.status} />
+                    )}
                   </td>
                   <td>
                     {product.featuredPending ? (

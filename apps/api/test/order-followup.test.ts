@@ -84,8 +84,8 @@ describe("Codes de vérification", () => {
     // Le client ne peut pas consulter la file ni fournir de code.
     expect((await client.inject({ method: "GET", url: "/api/v1/verification-codes" })).statusCode).toBe(403);
 
-    // Le vendeur est prévenu et voit la demande.
-    const alert = await prisma.notification.findFirst({ where: { userId: owner.id, title: "Code de vérification demandé" } });
+    // Le vendeur est prévenu en premier (c'est à lui de fournir le code) et voit la demande.
+    const alert = await prisma.notification.findFirst({ where: { userId: owner.id, title: "Code de vérification à envoyer", priority: "CRITICAL" } });
     expect(alert).not.toBeNull();
     const seller = await codesApp(await authFor(owner.id));
     const queue = await seller.inject({ method: "GET", url: "/api/v1/verification-codes" });

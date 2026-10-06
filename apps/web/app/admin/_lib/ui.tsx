@@ -54,11 +54,14 @@ export function NoticeAlert({ notice }: { notice: string | null }) {
 export function SearchBar({
   placeholder,
   onSearch,
+  initial = "",
 }: {
   placeholder?: string;
   onSearch: (query: string) => void;
+  /** Texte déjà cherché (ex. recherche lancée depuis l'en-tête). */
+  initial?: string;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initial);
   return (
     <form
       onSubmit={(event) => {

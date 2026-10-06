@@ -9,6 +9,7 @@ import { MessagesButton } from "@/components/chat/messages-button";
 import { BackButton } from "@/components/back-button";
 import { AccountMenu } from "@/components/account/account-menu";
 import { useT } from "@/lib/i18n";
+import { request } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Kit des tableaux de bord (admin + vendeur).
@@ -51,17 +52,53 @@ function useTableLabels(root: React.RefObject<HTMLElement | null>) {
   }, [root]);
 }
 
-/** Recherche rapide : filtre la navigation, Entrée ouvre le premier résultat. */
-function QuickJump({ items, autoFocus = false, onDone }: { items: DashNavItem[]; autoFocus?: boolean; onDone?: () => void }) {
+type MemberHit = { id: string; email: string; firstName: string | null; lastName: string | null; role: string };
+
+/**
+ * Recherche rapide : filtre la navigation, Entrée ouvre le premier résultat.
+ * Console d'administration (memberSearch) : cherche aussi les membres par nom,
+ * e-mail ou téléphone ; un clic ouvre sa fiche dans « Clients ».
+ */
+function QuickJump({
+  items,
+  autoFocus = false,
+  onDone,
+  memberSearch = false,
+}: {
+  items: DashNavItem[];
+  autoFocus?: boolean;
+  onDone?: () => void;
+  memberSearch?: boolean;
+}) {
   const t = useT();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [members, setMembers] = useState<MemberHit[]>([]);
+  const q = query.trim();
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return items.filter((item) => item.label.toLowerCase().includes(q)).slice(0, 6);
-  }, [items, query]);
+    const lower = q.toLowerCase();
+    if (!lower) return [];
+    return items.filter((item) => item.label.toLowerCase().includes(lower)).slice(0, memberSearch ? 4 : 6);
+  }, [items, q, memberSearch]);
+
+  // Membres : requête après une courte pause de frappe (pas une par touche).
+  useEffect(() => {
+    if (!memberSearch || q.length < 2) {
+      setMembers([]);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      request<MemberHit[]>(`/api/v1/admin/search/members?q=${encodeURIComponent(q)}`)
+        .then((rows) => active && setMembers(rows))
+        .catch(() => active && setMembers([]));
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [memberSearch, q]);
 
   function go(href: string) {
     setQuery("");
@@ -69,6 +106,9 @@ function QuickJump({ items, autoFocus = false, onDone }: { items: DashNavItem[];
     onDone?.();
     router.push(href);
   }
+
+  const searchClients = () => go(`/admin/clients?q=${encodeURIComponent(q)}`);
+  const showList = open && q.length > 0 && (matches.length > 0 || memberSearch);
 
   return (
     <div className="relative w-full md:max-w-sm">
@@ -82,33 +122,74 @@ function QuickJump({ items, autoFocus = false, onDone }: { items: DashNavItem[];
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && matches[0]) go(matches[0].href);
+          if (event.key === "Enter") {
+            if (matches[0]) go(matches[0].href);
+            else if (members[0]) go(`/admin/clients?q=${encodeURIComponent(members[0].email)}&view=${members[0].id}`);
+            else if (memberSearch && q.length >= 2) searchClients();
+          }
           if (event.key === "Escape") {
             setOpen(false);
             onDone?.();
           }
         }}
         autoFocus={autoFocus}
-        placeholder={t("dash.search")}
+        placeholder={memberSearch ? "Page, nom, e-mail ou téléphone" : t("dash.search")}
         aria-label={t("dash.searchLabel")}
         className="dash-input"
       />
-      {open && matches.length > 0 && (
-        <ul className="dash-card absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden p-1.5">
-          {matches.map((item) => (
-            <li key={item.href}>
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => go(item.href)}
-                className="dash-nav-link w-full"
-              >
-                <item.icon size={16} />
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
+      {showList && (
+        <div className="dash-card absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-[70vh] overflow-y-auto p-1.5">
+          {matches.length > 0 && (
+            <ul>
+              {matches.map((item) => (
+                <li key={item.href}>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => go(item.href)}
+                    className="dash-nav-link w-full"
+                  >
+                    <item.icon size={16} />
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {memberSearch && members.length > 0 && (
+            <>
+              <p className="px-3 pb-1 pt-2 text-[10.5px] uppercase tracking-[0.18em] text-[#8f7d77]">Membres</p>
+              <ul>
+                {members.map((m) => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => go(`/admin/clients?q=${encodeURIComponent(m.email)}&view=${m.id}`)}
+                      className="flex w-full flex-col items-start rounded-xl px-3 py-2 text-start transition hover:bg-white/[0.05]"
+                    >
+                      <span className="flex items-center gap-2 text-[13px] text-stone-100">
+                        {[m.firstName, m.lastName].filter(Boolean).join(" ") || "Sans nom"}
+                        {m.role === "VENDOR" && <span className="text-[10px] uppercase tracking-[0.12em] text-[#ffb08a]">Vendeur</span>}
+                      </span>
+                      <span className="max-w-full truncate text-[11.5px] text-[#8f7d77]">{m.email}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {memberSearch && q.length >= 2 && (
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={searchClients}
+              className="mt-1 w-full rounded-xl px-3 py-2 text-start text-[12.5px] text-[#ffb08a] transition hover:bg-white/[0.05]"
+            >
+              Chercher « {q} » dans les clients →
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -121,9 +202,12 @@ export function DashShell({
   badge,
   onLogout,
   loggingOut,
+  memberSearch = false,
   children,
 }: {
   nav: DashNavItem[];
+  /** Console : la recherche de l'en-tête trouve aussi les membres. */
+  memberSearch?: boolean;
   areaLabel: string;
   user: { name: string; email?: string | null };
   badge?: ReactNode;
@@ -216,7 +300,7 @@ export function DashShell({
               </button>
               <BackButton hideOn={["/admin", "/seller"]} />
               <div className="hidden min-w-0 flex-1 md:block">
-                <QuickJump items={nav} />
+                <QuickJump items={nav} memberSearch={memberSearch} />
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
                 {badge}
@@ -229,7 +313,7 @@ export function DashShell({
                 >
                   {searching ? <IconClose size={16} /> : <IconSearch size={17} />}
                 </button>
-                <MessagesButton inConsole />
+                <MessagesButton />
                 <NotificationBell />
                 {/* Jamais « Connexion / Créer un compte » dans un espace connecté. */}
                 <AccountMenu compact />
@@ -237,7 +321,7 @@ export function DashShell({
             </div>
             {searching && (
               <div className="px-4 pb-3 md:hidden">
-                <QuickJump items={nav} autoFocus onDone={() => setSearching(false)} />
+                <QuickJump items={nav} memberSearch={memberSearch} autoFocus onDone={() => setSearching(false)} />
               </div>
             )}
           </header>

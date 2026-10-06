@@ -8,9 +8,9 @@ import { AdminPageHead } from "../_lib/ui";
 export default function AdminCodesPage() {
   return (
     <div className="space-y-6">
-      <AdminPageHead kicker="Commandes" title="Codes de vérification" meta="Le client voit le code dès l’envoi. Il reste valable 10 minutes." />
+      <AdminPageHead kicker="Commandes" title="Codes de vérification" meta="Comptes des vendeurs : le vendeur fournit le code, vous pouvez le faire à sa place. Le client le voit dès l’envoi (valable 10 minutes)." />
       <section className="dash-card p-5">
-        <CodeQueue />
+        <CodeQueue team />
       </section>
     </div>
   );

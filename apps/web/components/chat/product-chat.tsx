@@ -126,7 +126,63 @@ export function Composer({ onSend, placeholder }: { onSend: (text: string) => Pr
   );
 }
 
-/** Un fil ouvert : en-tête produit, messages rafraîchis, saisie. */
+/**
+ * Photo de l'interlocuteur : vendeur ou client (photo de profil, sinon son
+ * initiale) ; MISTERDOU : son monogramme. Remplace la miniature du compte.
+ */
+export function ChatAvatar({
+  name,
+  url,
+  kind,
+  size = 40,
+}: {
+  name: string;
+  url: string | null;
+  kind: "seller" | "client" | "platform";
+  size?: number;
+}) {
+  const style = { width: size, height: size };
+  if (kind === "platform") {
+    return (
+      <span
+        aria-hidden
+        style={style}
+        className="lux-serif grid shrink-0 place-items-center rounded-full border border-[rgba(255,160,112,0.4)] bg-[radial-gradient(circle_at_35%_30%,rgba(255,160,112,0.3),rgba(122,23,18,0.5))] text-[14px] font-bold text-[#ffd8c4]"
+      >
+        M.
+      </span>
+    );
+  }
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="" style={style} className="shrink-0 rounded-full object-cover" />;
+  }
+  return (
+    <span
+      aria-hidden
+      style={style}
+      className="grid shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#ff6a32,#8e2014)] text-[14px] font-semibold text-white"
+    >
+      {(name.trim()[0] ?? "?").toUpperCase()}
+    </span>
+  );
+}
+
+/** Rappel affiché dans chaque discussion client ↔ vendeur. */
+export function OffsiteNotice() {
+  const t = useT();
+  return (
+    <p className="flex gap-2 rounded-xl border border-[rgba(251,191,36,0.25)] bg-[rgba(251,191,36,0.06)] px-3 py-2 text-[11.5px] leading-relaxed text-[#f5d9a8]">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="mt-0.5 shrink-0">
+        <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z" />
+        <path d="M12 8v4M12 16h.01" />
+      </svg>
+      <span>{t("chat.offsite")}</span>
+    </p>
+  );
+}
+
+/** Un fil ouvert : en-tête (interlocuteur + compte), messages rafraîchis, saisie. */
 export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActivity?: () => void }) {
   const t = useT();
   const [thread, setThread] = useState<ThreadDetail | null>(null);
@@ -160,46 +216,53 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
-        <Thumb url={thread.product.imageUrl} />
+        <ChatAvatar name={thread.counterpart} url={thread.counterpartAvatarUrl} kind={thread.counterpartKind} />
         <div className="min-w-0 flex-1">
-          <Link href={`/catalogue/${thread.product.slug}`} className="block truncate text-[14px] font-semibold text-white hover:underline">
-            {thread.product.title}
-          </Link>
-          <p className="text-[12px] text-stone-400">
-            {thread.side === "client" ? (thread.counterpart === "Vendeur" ? t("chat.withSeller") : t("chat.with", { name: thread.counterpart })) : t("chat.client", { name: thread.counterpart })}
+          <p className="truncate text-[14px] font-semibold text-white">
+            {thread.side === "client" ? thread.counterpart : t("chat.client", { name: thread.counterpart })}
+          </p>
+          <p className="truncate text-[12px] text-stone-400">
+            <Link href={`/catalogue/${thread.product.slug}`} className="hover:text-stone-200 hover:underline">
+              {thread.product.title}
+            </Link>
+            {(thread.side === "observer" || thread.side === "team") && thread.sellerName && ` · ${t("chat.sellerOf", { name: thread.sellerName })}`}
             {!thread.product.available && t("chat.soldOut")}
           </p>
         </div>
-        {thread.side === "team" && (
-          <span className="shrink-0 rounded-full border border-[rgba(134,239,172,0.3)] px-2.5 py-1 text-[10.5px] text-[#86efac]">{t("chat.authorsVisible")}</span>
+        {thread.readOnly ? (
+          <span className="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[10.5px] text-stone-300">{t("chat.readOnly")}</span>
+        ) : (
+          thread.side === "team" && (
+            <span className="shrink-0 rounded-full border border-[rgba(134,239,172,0.3)] px-2.5 py-1 text-[10.5px] text-[#86efac]">{t("chat.authorsVisible")}</span>
+          )
         )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {(thread.side === "client" || thread.side === "seller") && (
+          <div className="mb-4">
+            <OffsiteNotice />
+          </div>
+        )}
         <MessageList messages={thread.messages} showAuthors={thread.side !== "client"} />
       </div>
       <div className="border-t border-white/[0.06] p-3">
-        <Composer
-          placeholder={thread.side === "client" ? t("chat.writeSeller") : t("chat.replyClient")}
-          onSend={async (content) => {
-            await replyInThread(thread.id, content);
-            await load();
-            onActivity?.();
-          }}
-        />
+        {thread.readOnly ? (
+          <p className="text-[12.5px] leading-relaxed text-stone-400">{t("chat.readOnlyNote")}</p>
+        ) : (
+          <Composer
+            placeholder={thread.side === "client" ? t("chat.writeSeller") : t("chat.replyClient")}
+            onSend={async (content) => {
+              await replyInThread(thread.id, content);
+              await load();
+              onActivity?.();
+            }}
+          />
+        )}
         {thread.side === "seller" && (
           <p className="mt-2 text-[11px] text-stone-600">{t("chat.sellerNote")}</p>
         )}
       </div>
     </div>
-  );
-}
-
-function Thumb({ url }: { url: string | null }) {
-  return url ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
-  ) : (
-    <span aria-hidden className="h-10 w-10 shrink-0 rounded-xl bg-[linear-gradient(135deg,rgba(255,106,50,0.35),rgba(142,32,20,0.35))]" />
   );
 }
 
@@ -276,15 +339,18 @@ export function ChatInbox({ source, basePath, emptyText }: { source: "mine" | "i
                   item.id === selected ? "bg-[rgba(232,71,36,0.12)]" : "hover:bg-white/[0.03]"
                 }`}
               >
-                <Thumb url={item.product.imageUrl} />
+                <ChatAvatar name={item.counterpart} url={item.counterpartAvatarUrl} kind={item.counterpartKind} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[13.5px] font-semibold text-stone-100">{item.product.title}</span>
+                    <span className="truncate text-[13.5px] font-semibold text-stone-100">{item.counterpart}</span>
                     <span className="shrink-0 text-[10.5px] text-stone-500">{when(item.lastMessageAt, t.intl)}</span>
+                  </span>
+                  <span className="block truncate text-[11.5px] text-stone-500">
+                    {item.product.title}
+                    {item.readOnly && item.sellerName && ` · ${t("chat.sellerOf", { name: item.sellerName })}`}
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span className={`truncate text-[12.5px] ${item.unread > 0 ? "text-stone-200" : "text-stone-500"}`}>
-                      {source === "inbox" && <span className="text-stone-400">{item.counterpart} · </span>}
                       {item.lastMessage?.preview ?? ""}
                     </span>
                     {item.unread > 0 && (

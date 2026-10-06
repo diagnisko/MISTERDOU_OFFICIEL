@@ -616,6 +616,8 @@ model ManagerProfile {
   userId       String              @unique
   title        String?
   permissions  ManagerPermission[]
+  // Rôle du compte avant de rejoindre l'équipe (client promu) : rendu à la suppression.
+  previousRole RoleName?
   createdById  String?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
