@@ -5,12 +5,16 @@ import { Button } from "@/components/ui";
 import { buildQuery } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import { CredentialKeyButton } from "../_lib/credential-key";
+import { useAdminAccess } from "../_lib/access";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
+import { request } from "@/lib/api";
 import {
   AdminPageHead,
   DataTable,
   ErrorAlert,
   NoticeAlert,
   Pagination,
+  RowAction,
   SearchBar,
   TableCard,
   TableEmpty,
@@ -50,6 +54,8 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
 
+  const { isAdmin } = useAdminAccess();
+  const [purging, setPurging] = useState<OrderRow | null>(null);
   const list = useAdminList<OrderRow>(
     `/api/v1/admin/orders${buildQuery({ page, perPage, q: search || undefined })}`,
   );
@@ -101,11 +107,14 @@ export default function AdminOrdersPage() {
                     </td>
                   ))}
                   <td className="px-4 py-3.5">
-                    {row.item ? (
-                      <CredentialKeyButton productId={row.item.productId} missing={!row.item.hasCredentials} />
-                    ) : (
-                      <span className="text-stone-600">—</span>
-                    )}
+                    <span className="flex flex-wrap gap-2">
+                      {row.item ? (
+                        <CredentialKeyButton productId={row.item.productId} missing={!row.item.hasCredentials} />
+                      ) : (
+                        <span className="text-stone-600">—</span>
+                      )}
+                      {isAdmin && <RowAction label="Effacer (test)" tone="danger" onClick={() => setPurging(row)} />}
+                    </span>
                   </td>
                 </tr>
               );
@@ -113,6 +122,26 @@ export default function AdminOrdersPage() {
           </DataTable>
         )}
       </TableCard>
+
+      {purging && (
+        <PasswordConfirmDialog
+          title="Effacer cette commande de test"
+          message={
+            <>
+              La commande <strong className="text-stone-100">{purging.orderNumber}</strong> est effacée avec ses paiements, preuves Wave,
+              échéancier et notifications : elle disparaît des statistiques. La part du vendeur est retirée de son solde et le compte
+              est désactivé (à supprimer ou remettre en vente dans « Offres »). À utiliser uniquement pour un achat de test.
+            </>
+          }
+          confirmLabel="Effacer définitivement"
+          onClose={() => setPurging(null)}
+          onConfirm={async (password) => {
+            await request(`/api/v1/admin/orders/${purging.id}/test`, { method: "DELETE", body: JSON.stringify({ password }) });
+            setPurging(null);
+            await list.refresh("Commande de test effacée.");
+          }}
+        />
+      )}
 
       <Pagination
         meta={list.meta}

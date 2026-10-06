@@ -29,6 +29,7 @@ import {
 } from "./service.js";
 import { financeOverview, listReceivables } from "./finance.js";
 import { requireTeamPassword } from "../../lib/step-up.js";
+import { purgeTestOrder } from "./purge-order.js";
 
 const TAG = "Admin — Opérations";
 
@@ -292,6 +293,17 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
       if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Motif invalide.");
       const { id } = request.params as { id: string };
       return sendOk(reply, await cancelPlan(id, input.data.reason, actor(request)));
+    },
+  );
+
+  // Commande de test : effacée avec tout ce qui en dépend (administrateur + mot de passe).
+  app.delete(
+    "/admin/orders/:id/test",
+    { preHandler: adminGuard, schema: secured("Effacer une commande de test (statistiques comprises) — ADMIN, mot de passe exigé") },
+    async (request, reply) => {
+      await requireTeamPassword(request);
+      const { id } = request.params as { id: string };
+      return sendOk(reply, await purgeTestOrder(id, actor(request)));
     },
   );
 
