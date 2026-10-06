@@ -28,11 +28,6 @@ export function marker(): string {
   return "p13-" + randomUUID().slice(0, 8);
 }
 
-/** Test utilisé par les contrôles SQL de leftovers (e-mail + prénom). */
-export function isSuiteRow(row: { email?: string | null; firstName?: string | null }): boolean {
-  return (row.email ?? "").startsWith("p13-") || (row.firstName ?? "").startsWith("P13-");
-}
-
 // ---------------------------------------------------------------------------
 // Suivi des lignes créées par un fichier de test
 // ---------------------------------------------------------------------------

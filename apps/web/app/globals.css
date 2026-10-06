@@ -63,18 +63,6 @@
   border: 1px solid var(--color-border);
 }
 
-.gradient-text {
-  background: linear-gradient(90deg, #ffa070, var(--color-brand), var(--color-brand-strong));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.shadow-glow {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent),
-    0 12px 40px -12px color-mix(in srgb, var(--color-brand) 45%, transparent);
-}
-
 .card-hover {
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
@@ -120,17 +108,12 @@ body {
   --lux-gold-light: #ff7a45;
   --lux-gold-deep: #7a1712;
   --lux-line: rgba(255, 236, 229, 0.1);
-  --lux-ink: color-mix(in srgb, var(--lux-gold-deep) 18%, #050301);
   --lux-gold-gradient: linear-gradient(120deg, #ffb08a 0%, #ff6a32 45%, #e84724 100%);
   /* Braise profonde : filets, lignes de progression, halos (jamais du texte). */
   --lux-ember-gradient: linear-gradient(120deg, #ff6a32 0%, #e84724 45%, #7a1712 100%);
   --lux-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Palettes de divisions (tuiles 6×6 SEULEMENT — rang, pas la marque) */
-  --lux-tile-gold: linear-gradient(135deg, #f5d78e 0%, #ca8a04 60%, #8a5a03 100%);
-  --lux-tile-platinum: linear-gradient(135deg, #ffffff 0%, #e5e4e2 55%, #9fa39f 100%);
-  --lux-tile-silver: linear-gradient(135deg, #e2e4e6 0%, #c0c0c0 55%, #7f8487 100%);
-  --lux-tile-bronze: linear-gradient(135deg, #e0a06c 0%, #cd7f32 60%, #8a5a2b 100%);
 
   /* Aurore radiale fixe (couche d'ambiance de la landing) */
   --lux-aurora:
@@ -315,17 +298,6 @@ body {
   border-top: 1px solid var(--lux-line);
   border-bottom: 1px solid var(--lux-line);
 }
-.lux-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: lux-marquee 30s linear infinite;
-  will-change: transform;
-}
-@keyframes lux-marquee {
-  to {
-    transform: translateX(-50%);
-  }
-}
 .lux-marquee-item {
   font-family: var(--font-lux-serif), Georgia, serif;
   font-style: italic;
@@ -339,48 +311,6 @@ body {
   height: 12px;
   flex: none;
   color: var(--lux-gold);
-}
-
-/* --- Anneaux concentriques (hero) --- */
-.lux-ring {
-  position: absolute;
-  border-radius: 9999px;
-  border: 1px solid rgba(232, 71, 36, 0.14);
-  pointer-events: none;
-}
-.lux-spin-slow {
-  animation: lux-spin 60s linear infinite;
-  will-change: transform;
-}
-.lux-spin-rev {
-  animation: lux-spin 90s linear infinite reverse;
-  will-change: transform;
-}
-@keyframes lux-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* --- Particules or (hero) --- */
-.lux-particle {
-  position: absolute;
-  border-radius: 9999px;
-  background: radial-gradient(circle, rgba(255, 106, 50, 0.9), rgba(232, 71, 36, 0));
-  pointer-events: none;
-  animation: lux-float var(--dur, 7s) ease-in-out infinite;
-  will-change: transform, opacity;
-}
-@keyframes lux-float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: calc(var(--o, 0.5) * 0.7);
-  }
-  50% {
-    transform: translate3d(0, -18px, 0);
-    opacity: var(--o, 0.5);
-  }
 }
 
 /* --- Vendeur sur les cartes : pastille verre + anneau braise ------------------ */
@@ -567,104 +497,6 @@ body {
   }
 }
 
-/* --- Indicateur de scroll (ligne verticale + goutte 2.1 s) --- */
-.lux-scroll-cue {
-  position: absolute;
-  right: 22px;
-  bottom: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  pointer-events: none;
-}
-.lux-scroll-cue .label {
-  font-size: 10px;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-  color: var(--lux-muted);
-  writing-mode: vertical-rl;
-}
-.lux-scroll-cue .rail {
-  position: relative;
-  width: 1px;
-  height: 96px;
-  background: linear-gradient(180deg, var(--lux-gold) 0%, rgba(232, 71, 36, 0.35) 70%, transparent);
-  overflow: visible;
-}
-.lux-scroll-cue .drop {
-  position: absolute;
-  top: -3px;
-  left: -2px;
-  width: 5px;
-  height: 9px;
-  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
-  background: var(--lux-gold-light);
-  box-shadow: 0 0 12px rgba(255, 106, 50, 0.8);
-  animation: lux-drop 2.1s var(--lux-ease) infinite;
-}
-@keyframes lux-drop {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  18% {
-    opacity: 1;
-  }
-  82% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(96px);
-    opacity: 0;
-  }
-}
-
-/* --- Tuiles division 6×6 (rôle exclusif) --- */
-.lux-div-tile {
-  position: relative;
-  width: 42px;
-  height: 42px;
-  border-radius: 9px;
-  flex: none;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.6);
-}
-.lux-div-tile::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 8px),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 8px);
-  mix-blend-mode: multiply;
-}
-.lux-div-tile::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(120% 90% at 22% 12%, rgba(255, 255, 255, 0.5), transparent 55%);
-}
-.lux-tile-gold {
-  background: var(--lux-tile-gold);
-}
-.lux-tile-platinum {
-  background: var(--lux-tile-platinum);
-}
-.lux-tile-silver {
-  background: var(--lux-tile-silver);
-}
-.lux-tile-bronze {
-  background: var(--lux-tile-bronze);
-}
-
-/* --- Cartes produit --- */
-[data-lux] .lux-chip-active {
-  border-color: rgba(232, 71, 36, 0.6) !important;
-  background: linear-gradient(145deg, rgba(232, 71, 36, 0.24), rgba(232, 71, 36, 0.1)) !important;
-  color: var(--lux-gold-light) !important;
-}
-
 .lux-card {
   background: linear-gradient(180deg, color-mix(in srgb, var(--lux-surface-2) 92%, transparent), color-mix(in srgb, var(--lux-surface) 96%, transparent));
   border: 1px solid var(--lux-line);
@@ -749,32 +581,12 @@ body {
   box-shadow: 0 26px 60px -30px rgba(0, 0, 0, 0.85), 0 20px 50px -28px rgba(232, 71, 36, 0.35);
 }
 
-/* Boutons */
-[data-lux] .shadow-glow {
-  box-shadow: 0 10px 30px -12px rgba(232, 71, 36, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-[data-lux] a.shadow-glow:hover,
-[data-lux] button.shadow-glow:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 38px -12px rgba(232, 71, 36, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-[data-lux] .gradient-text {
-  background: var(--lux-gold-gradient, linear-gradient(120deg, #ffa070, #ff6a32 45%, #e84724));
-}
-
 /* Variantes compactes du bouton luxe (dashboards denses) */
 .lux-btn-sm {
   min-height: 38px;
   padding: 0 1.15rem;
   font-size: 11.5px;
   border-radius: 14px;
-}
-.lux-btn-xs {
-  min-height: 30px;
-  padding: 0 0.8rem;
-  font-size: 10.5px;
-  border-radius: 11px;
-  letter-spacing: 0.1em;
 }
 
 /* Tableaux : en-tête sur surface élevée, lignes filetées */
@@ -786,326 +598,6 @@ body {
 }
 [data-lux-app] tbody tr:hover {
   background: rgba(255, 255, 255, 0.03);
-}
-
-/* ============================================================
-   ADMIN — « CONSOLE NOIR » (direction artistique v2)
-   Objectif : premium, profond, soyeux. On rompt avec le
-   « dashboard SaaS » (5 cartes arrondies, dégradé violet)
-   sur 3 points :
-     1. des surfaces de verre COSTÉ (pas des cartes),
-     2. des filets d'or au lieu de bordures grises,
-     3. une typo serif géante pour l'argent.
-   ============================================================ */
-
-[data-apx] {
-  --apx-panel: rgba(20, 10, 8, 0.62);
-  --apx-panel-2: rgba(28, 14, 11, 0.5);
-  --apx-hair: rgba(255, 255, 255, 0.075);
-  --apx-hair-strong: rgba(255, 106, 50, 0.22);
-  --apx-gold: var(--lux-gold);
-  --apx-gold-lite: var(--lux-gold-light);
-  --apx-radius: 22px;
-}
-
-/* Surface de verre liquide : réfraction simulée par un reflet
-   interne + un liseré de lumière sur l'arête haute. */
-.apx-glass {
-  position: relative;
-  background:
-    linear-gradient(168deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.018) 42%, rgba(255, 255, 255, 0) 100%),
-    var(--apx-panel);
-  backdrop-filter: blur(26px) saturate(140%);
-  -webkit-backdrop-filter: blur(26px) saturate(140%);
-  border: 1px solid var(--apx-hair);
-  border-radius: var(--apx-radius);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-    0 24px 60px -34px rgba(0, 0, 0, 0.9);
-  isolation: isolate;
-}
-.apx-glass::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 38%, rgba(255, 106, 50, 0.12) 100%);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0.9;
-}
-
-/* Halo doré qui suit le pointeur (--apx-x/--apx-y défini en JS) */
-.apx-glow {
-  position: relative;
-}
-.apx-glow::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  background: radial-gradient(
-    340px circle at var(--apx-x, 50%) var(--apx-y, 0%),
-    rgba(232, 71, 36, 0.16),
-    transparent 62%
-  );
-  opacity: 0;
-  transition: opacity 420ms var(--lux-ease);
-  pointer-events: none;
-}
-.apx-glow:hover::after {
-  opacity: 1;
-}
-
-/* Chiffre d'argent : serif, dégradé or, tracking serré */
-.apx-figure {
-  font-family: var(--font-lux-serif), Georgia, serif;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 0.92;
-  background: linear-gradient(112deg, #ffd9c2 0%, var(--lux-gold) 42%, #b8301c 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  font-variant-numeric: tabular-nums;
-}
-.apx-figure-sm {
-  font-family: var(--font-lux-serif), Georgia, serif;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  background: linear-gradient(112deg, #ffd9c2, var(--lux-gold) 60%, #b8301c);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Sur-titre */
-.apx-kicker {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--lux-gold-light);
-}
-
-/* Filet d'or (règle) — remplace les bordures */
-.apx-rule {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--apx-hair-strong) 22%, var(--apx-hair-strong) 78%, transparent);
-  border: 0;
-}
-.apx-rule-v {
-  width: 1px;
-  background: linear-gradient(180deg, transparent, var(--apx-hair) 30%, var(--apx-hair) 70%, transparent);
-  border: 0;
-}
-
-/* Boutons */
-.apx-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: 13px;
-  font-weight: 600;
-  font-size: 12.5px;
-  letter-spacing: 0.02em;
-  padding: 0 1.05rem;
-  min-height: 40px;
-  cursor: pointer;
-  transition:
-    transform 260ms var(--lux-ease),
-    box-shadow 260ms var(--lux-ease),
-    background 260ms var(--lux-ease),
-    border-color 260ms var(--lux-ease);
-}
-.apx-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.apx-btn-gold {
-  color: #1a0503;
-  background: linear-gradient(120deg, #ffd9c2, #ff6a32 46%, #e84724);
-  box-shadow:
-    0 10px 30px -14px rgba(232, 71, 36, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-.apx-btn-gold:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow:
-    0 18px 40px -14px rgba(232, 71, 36, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-.apx-btn-ghost {
-  color: var(--color-muted-strong);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--apx-hair);
-}
-.apx-btn-ghost:hover:not(:disabled) {
-  color: var(--lux-gold-light);
-  border-color: var(--apx-hair-strong);
-  background: rgba(232, 71, 36, 0.07);
-  transform: translateY(-1px);
-}
-.apx-btn-sm {
-  min-height: 34px;
-  font-size: 11.5px;
-  padding: 0 0.85rem;
-  border-radius: 11px;
-}
-
-/* Champs */
-.apx-input {
-  width: 100%;
-  background: rgba(8, 4, 3, 0.45);
-  border: 1px solid var(--apx-hair);
-  border-radius: 13px;
-  padding: 0.62rem 0.9rem;
-  font-size: 13.5px;
-  color: var(--color-foreground);
-  transition:
-    border-color 220ms ease,
-    box-shadow 220ms ease,
-    background 220ms ease;
-}
-.apx-input::placeholder {
-  color: #8a7771;
-}
-.apx-input:focus {
-  outline: none;
-  border-color: rgba(232, 71, 36, 0.5);
-  box-shadow: 0 0 0 3px rgba(232, 71, 36, 0.14);
-  background: rgba(8, 4, 3, 0.6);
-}
-.apx-input::selection {
-  background: rgba(232, 71, 36, 0.35);
-}
-
-/* Tableaux */
-[data-apx] table {
-  border-color: var(--apx-hair);
-}
-[data-apx] thead th {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #b8a6a1;
-  background: rgba(255, 255, 255, 0.03);
-}
-[data-apx] tbody td {
-  border-color: var(--apx-hair);
-}
-[data-apx] tbody tr {
-  transition: background 200ms ease;
-}
-[data-apx] tbody tr:hover {
-  background: rgba(232, 71, 36, 0.045);
-}
-
-/* Barre de défilement */
-.apx-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 106, 50, 0.28) transparent;
-}
-.apx-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.apx-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(255, 106, 50, 0.35), rgba(232, 71, 36, 0.18));
-  border-radius: 99px;
-}
-.apx-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* Lien de navigation latérale — le trait or qui glisse est le repère
-   de position (pas un simple fond). */
-.apx-navlink {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  border-radius: 13px;
-  padding: 0.6rem 0.8rem;
-  font-size: 13.5px;
-  color: #cdbab3;
-  transition:
-    color 220ms ease,
-    background 220ms ease;
-}
-.apx-navlink::before {
-  content: "";
-  position: absolute;
-  left: -0.8rem;
-  top: 50%;
-  width: 3px;
-  height: 0;
-  border-radius: 0 3px 3px 0;
-  background: linear-gradient(180deg, #ffd9c2, #ff6a32);
-  transform: translateY(-50%);
-  transition: height 320ms var(--lux-ease);
-  box-shadow: 0 0 14px rgba(232, 71, 36, 0.7);
-}
-.apx-navlink:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.04);
-}
-.apx-navlink[data-active="true"] {
-  color: #fff;
-  background: rgba(232, 71, 36, 0.08);
-  font-weight: 600;
-}
-.apx-navlink[data-active="true"]::before {
-  height: 22px;
-}
-
-/* Puce d'état */
-.apx-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-radius: 999px;
-  padding: 0.22rem 0.65rem;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  border: 1px solid currentColor;
-}
-
-/* Séquence de chargement (shimmer) */
-.apx-shimmer {
-  position: relative;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.035);
-  border-radius: 10px;
-}
-.apx-shimmer::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 106, 50, 0.14), transparent);
-  animation: apx-shimmer 1.6s infinite;
-}
-@keyframes apx-shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-/* Progression d'entrée, pilotée par GSAP (transform/opacity seulement) */
-.apx-reveal {
-  will-change: transform, opacity;
 }
 
 /* ============================================================
@@ -1504,16 +996,14 @@ table {
   color: #fff7f2;
   background: linear-gradient(120deg, #d23c1f 0%, #a82a18 60%, #7a1712 100%);
 }
-.dash-root .lux-kicker,
-.dash-root .apx-kicker {
+.dash-root .lux-kicker {
   text-transform: none;
   letter-spacing: 0;
   font-size: 13px;
   font-weight: 500;
   color: #b8a6a1;
 }
-.dash-root .lux-glass,
-.dash-root .apx-glass {
+.dash-root .lux-glass {
   background: linear-gradient(180deg, #140a08 0%, #0d0605 100%);
   border: 1px solid rgba(255, 236, 229, 0.075);
   border-radius: 20px;
@@ -1558,18 +1048,11 @@ table {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  [data-lux] .lux-marquee-track,
-  [data-lux] .lux-spin-slow,
-  [data-lux] .lux-spin-rev,
-  [data-lux] .lux-particle,
   [data-lux] .lux-ember,
   [data-lux] .lux-cue-line::after {
     animation: none !important;
   }
   [data-lux] .lux-ember {
-    display: none;
-  }
-  [data-lux] .lux-scroll-cue {
     display: none;
   }
   .lux-bg {

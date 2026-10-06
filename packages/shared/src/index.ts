@@ -310,7 +310,6 @@ export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
 const phoneNumber = z.string().regex(/^[0-9]{6,15}$/, "Numéro invalide (6 à 15 chiffres)");
 const countryCode = z.string().regex(/^\+[0-9]{1,4}$/, "Indicatif invalide (ex. +221)");
-const oneTimePassword = z.string().regex(/^[0-9]{6}$/, "Code OTP : 6 chiffres");
 
 export const registerSchema = z.object({
   firstName: z.string().trim().min(1, "Prénom requis").max(80, "Prénom trop long"),
@@ -382,16 +381,6 @@ export const managerUpdateSchema = z.object({
 
 export type ManagerUpdateInput = z.infer<typeof managerUpdateSchema>;
 
-export const adminUserStatusSchema = z.object({
-  status: z.enum(USER_STATUSES),
-  reason: z.string().trim().max(300).optional(),
-});
-
-export const adminSellerStatusSchema = z.object({
-  status: z.enum(SELLER_STATUSES),
-  reason: z.string().trim().max(300).optional(),
-});
-
 export const planCollectSchema = z.object({
   installmentId: z.string().min(1),
   method: z.enum(["CASH", "TRANSFER", "MOBILE_MONEY", "OTHER"]).optional(),
@@ -409,22 +398,6 @@ export type PlanSettleInput = z.infer<typeof planSettleSchema>;
 // ---------------------------------------------------------------------------
 // Enveloppe de réponse API
 // ---------------------------------------------------------------------------
-
-export const apiEnvelopeSchema = z.discriminatedUnion("ok", [
-  z.object({
-    ok: z.literal(true),
-    data: z.unknown(),
-    meta: z.record(z.string(), z.unknown()).optional(),
-  }),
-  z.object({
-    ok: z.literal(false),
-    error: z.object({
-      code: z.enum(API_ERROR_CODES),
-      message: z.string(),
-      details: z.unknown().optional(),
-    }),
-  }),
-]);
 
 export type ApiEnvelope<T = unknown, M = never> =
   | { ok: true; data: T; meta?: M }
@@ -512,19 +485,9 @@ export const kycAdminActionSchema = z.object({
 
 export type KycAdminActionInput = z.infer<typeof kycAdminActionSchema>;
 
-export const verifyPhoneSchema = z.object({
-  countryCode,
-  phoneNumber,
-  code: oneTimePassword,
-});
-
-export type VerifyPhoneInput = z.infer<typeof verifyPhoneSchema>;
-
 // ---------------------------------------------------------------------------
 // Constantes applicatives partagées
 // ---------------------------------------------------------------------------
 
-export const INSTALLMENT_HARD_CAP = 8;
 export const SESSION_COOKIE_NAME = "md_sid";
 export const CSRF_COOKIE_NAME = "md_csrf";
-export const DEFAULT_CURRENCY = "XOF";

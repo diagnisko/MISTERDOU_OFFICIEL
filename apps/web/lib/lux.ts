@@ -156,7 +156,3 @@ export function divisionTier(division: string): LuxTier {
   return "bronze";
 }
 
-export function tierTileClass(tier: LuxTier): string {
-  return `lux-tile-${tier}`;
-}
-

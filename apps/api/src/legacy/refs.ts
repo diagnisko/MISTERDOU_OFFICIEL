@@ -13,14 +13,6 @@ export async function findRef(source: string, entity: LegacyEntity, legacyId: st
   return ref?.newId ?? null;
 }
 
-export async function saveRef(source: string, entity: LegacyEntity, legacyId: string, newId: string): Promise<void> {
-  await prisma.legacyRef.upsert({
-    where: { source_entity_legacyId: { source, entity, legacyId } },
-    create: { source, entity, legacyId, newId },
-    update: { newId },
-  });
-}
-
 /**
  * Transaction de la copie : jusqu'à une minute (contre 5 s par défaut), car la
  * base est loin du poste qui copie et chaque écriture fait un aller-retour.
