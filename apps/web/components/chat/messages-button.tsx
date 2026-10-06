@@ -29,11 +29,14 @@ type RecentItem = {
 };
 type Recent = { total: number; href: string; items: RecentItem[] };
 
+// Dernières discussions gardées d'une page à l'autre : la pastille ne repart pas de zéro.
+let lastRecent: Recent | null = null;
+
 export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
   const account = useAccount();
   const t = useT();
   const router = useRouter();
-  const [data, setData] = useState<Recent>({ total: 0, href: "/account/messages", items: [] });
+  const [data, setData] = useState<Recent>(() => lastRecent ?? { total: 0, href: "/account/messages", items: [] });
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -43,7 +46,9 @@ export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
 
   const load = useCallback(async () => {
     try {
-      setData(await request<Recent>("/api/v1/threads/recent"));
+      const recent = await request<Recent>("/api/v1/threads/recent");
+      lastRecent = recent;
+      setData(recent);
     } catch {
       /* sans conséquence : l'icône reste accessible */
     }
@@ -70,7 +75,10 @@ export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
     };
   }, [open]);
 
-  if (!member) return null;
+  if (!member) {
+    lastRecent = null;
+    return null;
+  }
   const badge = data.total > 9 ? "9+" : String(data.total);
 
   return (
@@ -85,7 +93,7 @@ export function MessagesButton({ inConsole = false }: { inConsole?: boolean }) {
           setOpen((value) => !value);
           if (!open) void load();
         }}
-        className="relative grid h-10 w-10 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
+        className="relative grid h-9 w-9 place-items-center rounded-xl border sm:h-10 sm:w-10 border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M20 12.5a7.5 7.5 0 0 1-11.1 6.6L4 20l1-4.3A7.5 7.5 0 1 1 20 12.5Z" />

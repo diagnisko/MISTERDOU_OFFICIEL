@@ -9,7 +9,7 @@ import { IconMenu, IconX } from "./lux-icons";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { MessagesButton } from "@/components/chat/messages-button";
 import { BackButton } from "@/components/back-button";
-import { AccountMenu, MobileAccountPanel } from "@/components/account/account-menu";
+import { AccountMenu } from "@/components/account/account-menu";
 import { useAccount } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
 
@@ -59,13 +59,13 @@ export function LuxNav({ root = false }: { root?: boolean }) {
         scrolled ? "border-b border-[rgba(255,255,255,0.08)] bg-[#050303]/78 backdrop-blur-xl" : "bg-transparent",
       )}
     >
-      <nav aria-label={t("nav.main")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:h-[72px] md:px-8">
-        <div className="flex min-w-0 items-center gap-3">
+      <nav aria-label={t("nav.main")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5 md:h-[72px] md:px-8">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Pas de flèche sur les pages d'accueil (visiteur et membre). */}
           <BackButton hideOn={HOME_PATHS} />
           <a
             href={account.status === "member" ? "/offres" : root ? "/" : "#top"}
-            className="lux-serif whitespace-nowrap text-[19px] font-bold tracking-[0.02em] text-stone-50 sm:text-[22px]"
+            className="lux-serif whitespace-nowrap text-[18px] font-bold tracking-[0.02em] text-stone-50 sm:text-[22px]"
           >
             MISTERDOU<span className="text-[var(--lux-gold)]">.</span>
           </a>
@@ -100,20 +100,24 @@ export function LuxNav({ root = false }: { root?: boolean }) {
           })}
         </ul>
 
-        <div className="flex shrink-0 items-center gap-2 lg:gap-3">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
           <MessagesButton />
           <NotificationBell />
-          {/* Téléphone : le compte est dans le menu ☰ (pas la place pour un 4e rond). */}
+          {/* Rond du profil : l'espace du membre (profil, commandes…), aussi sur téléphone. */}
+          <div className="lg:hidden">
+            <AccountMenu compact avatarSize={36} />
+          </div>
           <div className="hidden lg:block">
             <AccountMenu />
           </div>
 
+          {/* ☰ : la navigation du site seulement (Offres, Mensualités, Comment ça marche…). */}
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             aria-label={open ? t("nav.closeMenu") : t("nav.openMenu")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-stone-200 lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-stone-200 sm:h-10 sm:w-10 lg:hidden"
           >
             {open ? <IconX size={20} /> : <IconMenu size={20} />}
           </button>
@@ -127,10 +131,7 @@ export function LuxNav({ root = false }: { root?: boolean }) {
           open ? "max-h-[calc(100svh-64px)] overflow-y-auto opacity-100" : "max-h-0 opacity-0",
         )}
       >
-        <div className="px-6 pt-5">
-          <MobileAccountPanel onNavigate={() => setOpen(false)} />
-        </div>
-        <ul className="flex flex-col gap-1 px-6 pb-6 pt-1">
+        <ul className="flex flex-col gap-1 px-6 pb-6 pt-4">
           {links.map((l) => (
             <li key={l.href}>
               <Link

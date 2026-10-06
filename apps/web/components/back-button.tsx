@@ -67,7 +67,7 @@ export function BackButton({ hideOn = [], className = "" }: { hideOn?: string[];
       onClick={goBack}
       aria-label={t("nav.back")}
       title={t("nav.back")}
-      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60 ${className}`}
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border sm:h-10 sm:w-10 border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60 ${className}`}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="rtl:rotate-180">
         <path d="M15 18l-6-6 6-6" />

@@ -42,7 +42,7 @@ const TEAM_ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUser
 ];
 
 // Menu du compte : rond de profil dans l'en-tête ; boutons d'accès pour un visiteur.
-export function AccountMenu({ compact = false }: { compact?: boolean }) {
+export function AccountMenu({ compact = false, avatarSize = 40 }: { compact?: boolean; avatarSize?: number }) {
   const account = useAccount();
   const router = useRouter();
   const pathname = usePathname();
@@ -66,7 +66,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   }, [open]);
 
   if (account.status === "loading") {
-    return <span className="block h-10 w-10 animate-pulse rounded-full bg-white/[0.06]" aria-hidden />;
+    return <span className="block animate-pulse rounded-full bg-white/[0.06]" style={{ width: avatarSize, height: avatarSize }} aria-hidden />;
   }
 
   if (account.status === "guest") {
@@ -109,7 +109,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
         aria-label={t("menu.label", { name: displayName(user) })}
         className="flex items-center rounded-full ring-2 ring-transparent transition hover:ring-[rgba(255,106,50,0.5)] focus-visible:ring-[#ff6a32]"
       >
-        <Avatar user={user} url={profile.avatarUrl} />
+        <Avatar user={user} url={profile.avatarUrl} size={avatarSize} />
       </button>
 
       <AnimatePresence>
@@ -121,7 +121,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? undefined : { opacity: 0, y: -4 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="dash-card absolute end-0 top-[calc(100%+10px)] z-[90] w-72 origin-top-right p-2 text-start"
+            className="dash-card fixed inset-x-3 top-[68px] z-[90] max-h-[calc(100svh-84px)] overflow-y-auto p-2 text-start sm:absolute sm:inset-x-auto sm:end-0 sm:top-[calc(100%+10px)] sm:w-72 sm:origin-top-right"
           >
             <MenuBody account={account} onNavigate={() => setOpen(false)} onLogout={() => void logout()} leaving={leaving} itemRole="menuitem" />
           </motion.div>
@@ -206,26 +206,5 @@ function MenuBody({
       {leaving ? t("menu.loggingOut") : t("menu.logout")}
     </button>
     </>
-  );
-}
-
-/** Téléphone : le compte dans le menu ☰ (le rond de profil n'a pas la place dans la barre). */
-export function MobileAccountPanel({ onNavigate }: { onNavigate: () => void }) {
-  const account = useAccount();
-  const router = useRouter();
-  const [leaving, setLeaving] = useState(false);
-  if (account.status !== "member") return null;
-  async function logout() {
-    setLeaving(true);
-    await logoutAccount();
-    setLeaving(false);
-    onNavigate();
-    router.push("/");
-    router.refresh();
-  }
-  return (
-    <div className="dash-card mb-4 p-2 text-start">
-      <MenuBody account={account} onNavigate={onNavigate} onLogout={() => void logout()} leaving={leaving} />
-    </div>
   );
 }

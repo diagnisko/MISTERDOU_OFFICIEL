@@ -15,6 +15,7 @@ import {
   type NotificationItem,
 } from "@/lib/notifications";
 import { useT } from "@/lib/i18n";
+import { useAccount } from "@/lib/account";
 
 // ---------------------------------------------------------------------------
 // Cloche de notifications (en-tête du site).
@@ -26,12 +27,29 @@ import { useT } from "@/lib/i18n";
 
 const POLL_INTERVAL_MS = 30000;
 
+// Mémoire d'une page à l'autre : l'en-tête est recréé à chaque navigation. Sans
+// elle, la cloche disparaissait le temps de revérifier la session, puis revenait
+// avec un compteur reparti de zéro.
+const memory: {
+  state: "checking" | "hidden" | "visible";
+  kind: "member" | "admin" | null;
+  items: NotificationItem[];
+  unread: number;
+} = { state: "checking", kind: null, items: [], unread: 0 };
+
 export function NotificationBell() {
   const t = useT();
   const router = useRouter();
-  const [state, setState] = useState<"checking" | "hidden" | "visible">("checking");
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [unread, setUnread] = useState(0);
+  const account = useAccount();
+  const [state, setState] = useState(memory.state);
+  const [items, setItems] = useState<NotificationItem[]>(memory.items);
+  const [unread, setUnread] = useState(memory.unread);
+
+  useEffect(() => {
+    memory.state = state;
+    memory.items = items;
+    memory.unread = unread;
+  }, [state, items, unread]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,11 +80,17 @@ export function NotificationBell() {
     }
   }, []);
 
-  // Session : une seule résolution, aucune boucle de reconnexion.
+  // Session : déjà connue (page précédente) → simple rafraîchissement ; sinon une
+  // seule résolution, aucune boucle de reconnexion.
   useEffect(() => {
+    if (memory.state === "visible") {
+      void load();
+      return;
+    }
     let active = true;
     void resolveSession().then((session) => {
       if (!active) return;
+      memory.kind = session?.kind ?? null;
       if (!session) {
         setState("hidden");
         return;
@@ -78,6 +102,16 @@ export function NotificationBell() {
       active = false;
     };
   }, [load]);
+
+  // Déconnexion d'un membre : la cloche part tout de suite (sans attendre l'erreur du serveur).
+  useEffect(() => {
+    if (account.status === "guest" && memory.kind === "member" && state === "visible") {
+      memory.kind = null;
+      setItems([]);
+      setUnread(0);
+      setState("hidden");
+    }
+  }, [account.status, state]);
 
   // Sondage 30 s : mise en pause hors premier plan, rafraîchi au retour.
   useVisiblePoll(load, POLL_INTERVAL_MS, { enabled: state === "visible" });
@@ -155,7 +189,7 @@ export function NotificationBell() {
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="relative grid h-10 w-10 place-items-center rounded-xl border border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
+        className="relative grid h-9 w-9 place-items-center rounded-xl border sm:h-10 sm:w-10 border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
       >
         <svg
           width="18"
