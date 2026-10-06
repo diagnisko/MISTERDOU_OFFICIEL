@@ -11,5 +11,10 @@
     // L'API (deploy/api) : /api/* et rendus serveur.
     { "binding": "API", "service": "misterdou-api" }
   ],
+  // Adresse principale + www (renvoyé vers l'adresse principale par cloudflare-worker.ts).
+  "routes": [
+    { "pattern": "misterdou.com", "custom_domain": true },
+    { "pattern": "www.misterdou.com/*", "zone_name": "misterdou.com" }
+  ],
   "observability": { "enabled": true }
 }

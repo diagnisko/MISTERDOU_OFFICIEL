@@ -10,8 +10,13 @@ type Env = { API: { fetch(request: Request): Promise<Response> } };
 
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
-    const { pathname } = new URL(request.url);
-    if (pathname.startsWith("/api/")) return env.API.fetch(request);
+    const url = new URL(request.url);
+    // www.misterdou.com → misterdou.com (même page, même paramètres), redirection permanente.
+    if (url.hostname === "www.misterdou.com") {
+      url.hostname = "misterdou.com";
+      return Response.redirect(url.toString(), 301);
+    }
+    if (url.pathname.startsWith("/api/")) return env.API.fetch(request);
     return handler.fetch(request, env, ctx);
   },
 };
