@@ -18,6 +18,8 @@ async function main() {
   logger.info(`API MISTERDOU démarrée sur ${env.API_PUBLIC_URL}`);
   // Services facultatifs : visibles au démarrage (et dans /api/v1/health).
   logger.info({ email: Boolean(env.SMTP_URL), google: Boolean(env.GOOGLE_OAUTH_CLIENT_ID) }, "Services facultatifs");
+  // Adresse du site utilisée dans les e-mails (première de WEB_ORIGIN).
+  logger.info({ site: env.WEB_ORIGIN[0], origines: env.WEB_ORIGIN.length }, "Adresse publique du site");
   logger.info(`Docs OpenAPI : ${env.API_PUBLIC_URL}/docs`);
 
   // Échéanciers : retards (OVERDUE) + rappels J-3 (idempotents, anti-doublon).
