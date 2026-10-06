@@ -113,7 +113,7 @@ export default function AdminOrdersPage() {
                       ) : (
                         <span className="text-stone-600">—</span>
                       )}
-                      {isAdmin && <RowAction label="Effacer (test)" tone="danger" onClick={() => setPurging(row)} />}
+                      {isAdmin && <RowAction label="Effacer" tone="danger" onClick={() => setPurging(row)} />}
                     </span>
                   </td>
                 </tr>
@@ -125,12 +125,12 @@ export default function AdminOrdersPage() {
 
       {purging && (
         <PasswordConfirmDialog
-          title="Effacer cette commande de test"
+          title="Effacer cette commande"
           message={
             <>
               La commande <strong className="text-stone-100">{purging.orderNumber}</strong> est effacée avec ses paiements, preuves Wave,
               échéancier et notifications : elle disparaît des statistiques. La part du vendeur est retirée de son solde et le compte
-              est désactivé (à supprimer ou remettre en vente dans « Offres »). À utiliser uniquement pour un achat de test.
+              est désactivé (à supprimer ou remettre en vente dans « Offres »).
             </>
           }
           confirmLabel="Effacer définitivement"
