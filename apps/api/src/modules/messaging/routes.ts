@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { ConversationKind } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
+import { publicUrl } from "../../lib/media.js";
 import { requireAuth, requirePermission, type AuthContext } from "../../lib/auth-context.js";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
@@ -304,7 +305,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           attachmentKey: true,
           createdAt: true,
           readAt: true,
-          user: { select: { firstName: true, lastName: true } },
+          user: { select: { firstName: true, lastName: true, avatarKey: true } },
         },
       });
       const hasMore = rows.length > args.limit;
@@ -315,6 +316,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           content: m.content,
           senderId: m.senderId,
           senderName: m.isSystem ? "Système" : displayName(m.user) || "Utilisateur",
+          senderAvatarUrl: !m.isSystem && m.user.avatarKey ? publicUrl(m.user.avatarKey) : null,
           isSystem: m.isSystem,
           attachmentKey: m.attachmentKey,
           createdAt: m.createdAt,

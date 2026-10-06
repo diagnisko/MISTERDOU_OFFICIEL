@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChatAvatar } from "@/components/chat/product-chat";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { ApiClientError, errorMessage } from "@/lib/api";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
@@ -326,7 +327,9 @@ function MessageBubble({ message, mine }: { message: MessageItem; mine: boolean 
   }
 
   return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+    <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+      {/* Photo de profil de l'auteur (ses initiales s'il n'en a pas mis). */}
+      {!mine && <ChatAvatar name={message.senderName ?? "?"} url={message.senderAvatarUrl ?? null} kind="client" size={28} />}
       <div
         className={`max-w-[85%] rounded-[16px] border px-3.5 py-2.5 sm:max-w-[70%] ${
           mine

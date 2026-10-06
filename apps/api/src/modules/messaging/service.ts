@@ -1,6 +1,7 @@
 import { prisma } from "@misterdou/db";
 import type { ConversationKind, RoleName } from "@misterdou/db";
 import { badRequest, conflict, forbidden } from "../../lib/errors.js";
+import { publicUrl } from "../../lib/media.js";
 
 // ---------------------------------------------------------------------------
 // Règles de séparation des conversations (§43) — un client ne discute JAMAIS
@@ -18,12 +19,19 @@ export interface ParticipantInfo {
   status: string;
 }
 
-export const USER_NAME_SELECT = { id: true, firstName: true, lastName: true, role: { select: { name: true } } } as const;
+export const USER_NAME_SELECT = { id: true, firstName: true, lastName: true, avatarKey: true, role: { select: { name: true } } } as const;
 
-export type NamedUser = { id: string; firstName: string | null; lastName: string | null; role: { name: RoleName } };
+export type NamedUser = { id: string; firstName: string | null; lastName: string | null; avatarKey: string | null; role: { name: RoleName } };
 
+/** Participant affiché : nom, rôle et photo de profil du compte (null : initiales). */
 export function toUserDto(user: NamedUser) {
-  return { id: user.id, firstName: user.firstName, lastName: user.lastName, role: user.role.name };
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role.name,
+    avatarUrl: user.avatarKey ? publicUrl(user.avatarKey) : null,
+  };
 }
 
 export function displayName(user: { firstName: string | null; lastName: string | null }): string {

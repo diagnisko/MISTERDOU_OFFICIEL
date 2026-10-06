@@ -17,9 +17,9 @@ import {
   TableLoading,
 } from "../_lib/ui";
 import { ConversationThread } from "@/components/messagerie/thread";
+import { ChatAvatar } from "@/components/chat/product-chat";
 import {
   excerpt,
-  initials,
   kindLabel,
   personName,
   unreadCount,
@@ -106,12 +106,11 @@ export default function AdminMessagesPage() {
                 <tr key={row.id} className="transition hover:bg-white/[0.025]">
                   <td className="px-4 py-3.5">
                     <span className="flex items-center gap-2.5">
-                      <span
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] text-[10px] font-bold text-[var(--lux-gold-light)]"
-                        aria-hidden
-                      >
-                        {initials(participantsLabel(row))}
-                      </span>
+                      {(() => {
+                        // Photo du membre (le participant qui n'est pas de l'équipe), sinon initiales.
+                        const member = row.participants?.find((p) => p.role !== "ADMIN" && p.role !== "STAFF") ?? row.participants?.[0];
+                        return <ChatAvatar name={personName(member) || participantsLabel(row)} url={member?.avatarUrl ?? null} kind="client" size={32} />;
+                      })()}
                       <span className="min-w-0">
                         <span className="block max-w-[240px] truncate text-stone-200">
                           {participantsLabel(row)}

@@ -9,6 +9,8 @@ export type Participant = {
   firstName: string | null;
   lastName: string | null;
   role: string;
+  /** Photo de profil du compte (null : initiales). */
+  avatarUrl?: string | null;
 };
 
 export type ConversationLastMessage = {
@@ -32,6 +34,7 @@ export type MessageItem = {
   content: string;
   senderId: string;
   senderName: string | null;
+  senderAvatarUrl?: string | null;
   isSystem: boolean;
   attachmentKey: string | null;
   createdAt: string;
@@ -68,13 +71,6 @@ export function personName(person: Pick<Participant, "firstName" | "lastName"> |
   return [person?.firstName, person?.lastName].filter(Boolean).join(" ");
 }
 
-export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  const first = parts[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1] : undefined;
-  return (first.charAt(0) + (last ? last.charAt(0) : "")).toUpperCase();
-}
 
 /** Interlocuteur affiché : `peer` (liste membre) sinon participant non-moi. */
 export function peerOf(

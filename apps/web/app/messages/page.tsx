@@ -10,6 +10,7 @@ import { errorMessage, isPermissionError, type PageMeta } from "@/lib/api";
 import { resolveSession, isAuthError, type SessionUser } from "@/lib/session";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { ConversationThread } from "@/components/messagerie/thread";
+import { ChatAvatar } from "@/components/chat/product-chat";
 import {
   createConversation,
   fetchConversation,
@@ -17,7 +18,6 @@ import {
 } from "@/components/messagerie/api";
 import {
   excerpt,
-  initials,
   kindLabel,
   peerOf,
   personName,
@@ -288,12 +288,7 @@ function MessagesInner() {
                             active ? "bg-white/[0.05]" : "hover:bg-white/[0.04]"
                           }`}
                         >
-                          <span
-                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] text-[11px] font-bold text-[var(--lux-gold-light)]"
-                            aria-hidden
-                          >
-                            {initials(name)}
-                          </span>
+                          <ChatAvatar name={name} url={rowPeer?.avatarUrl ?? null} kind={rowPeer ? "client" : "platform"} size={40} />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center justify-between gap-2">
                               <span className="truncate text-sm font-semibold text-stone-100">
@@ -380,12 +375,7 @@ function MessagesInner() {
                         >
                           ←
                         </button>
-                        <span
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[rgba(255,106,50,0.28)] bg-[rgba(232,71,36,0.12)] text-[11px] font-bold text-[var(--lux-gold-light)]"
-                          aria-hidden
-                        >
-                          {initials(peerName)}
-                        </span>
+                        <ChatAvatar name={peerName} url={peer?.avatarUrl ?? null} kind={peer ? "client" : "platform"} size={36} />
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-stone-100">
                             {peerName}
