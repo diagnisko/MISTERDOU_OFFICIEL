@@ -101,7 +101,7 @@ export function PushSetupCard() {
       const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
       await saveSubscription(sub);
       setState("on");
-      setNote("Notifications activées. Touchez « Tester » pour en recevoir une.");
+      setNote(null);
     } catch (err) {
       setNote(err instanceof ApiClientError ? err.message : "Activation impossible sur cet appareil. Réessayez dans un instant.");
     } finally {
@@ -124,19 +124,6 @@ export function PushSetupCard() {
     }
   }
 
-  async function test() {
-    setBusy(true);
-    setNote(null);
-    try {
-      const res = await request<{ delivered: boolean }>("/api/v1/push/test", { method: "POST", body: "{}" });
-      setNote(res.delivered ? "Notification envoyée : elle arrive dans quelques secondes." : "L'envoi n'a pas abouti. Désactivez puis réactivez les notifications.");
-    } catch (err) {
-      setNote(err instanceof ApiClientError ? err.message : "Envoi impossible.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (state === "loading" || state === "unsupported") return null;
 
   if (state === "on") {
@@ -145,16 +132,10 @@ export function PushSetupCard() {
         <p className="flex items-center gap-2.5 text-[13px] text-stone-200">
           <BellIcon className="text-[#6ee7b7]" />
           Notifications activées sur cet appareil.
-          {note && <span className="text-stone-400">{note}</span>}
         </p>
-        <span className="flex gap-2">
-          <button type="button" onClick={() => void test()} disabled={busy} className="dash-btn dash-btn-ghost !min-h-[34px] !text-[12.5px]">
-            {busy && <Spinner />} Tester
-          </button>
-          <button type="button" onClick={() => void disable()} disabled={busy} className="text-[12.5px] text-[#8f7d77] transition hover:text-white">
-            Désactiver
-          </button>
-        </span>
+        <button type="button" onClick={() => void disable()} disabled={busy} className="text-[12.5px] text-[#8f7d77] transition hover:text-white disabled:opacity-60">
+          Désactiver
+        </button>
       </div>
     );
   }

@@ -4,13 +4,12 @@ import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, type AuthContext } from "../../lib/auth-context.js";
 import { forbidden } from "../../lib/errors.js";
-import { pushToUsers, vapidKeys } from "../../lib/push.js";
+import { vapidKeys } from "../../lib/push.js";
 
 // ---------------------------------------------------------------------------
 // Notifications sur le téléphone de l'équipe (centre de notifications).
 // GET  /push/key        clé publique pour l'abonnement du navigateur
 // POST /push/subscribe  enregistre cet appareil   DELETE : l'oublie
-// POST /push/test       notification d'essai sur mes appareils
 // ---------------------------------------------------------------------------
 
 const TAG = "Notifications";
@@ -62,22 +61,6 @@ export async function registerPushRoutes(app: FastifyInstance) {
       const { endpoint } = endpointSchema.parse(request.body);
       await prisma.pushSubscription.deleteMany({ where: { endpoint, userId: auth.user.id } });
       return sendOk(reply, { subscribed: false });
-    },
-  );
-
-  app.post(
-    "/push/test",
-    { schema: { tags: [TAG], summary: "Notification d'essai sur mes appareils", security: [{ bearerAuth: [] }] }, config: rate(5) },
-    async (request, reply) => {
-      const auth = requireAuth(request);
-      requireTeam(auth);
-      const reached = await pushToUsers([auth.user.id], {
-        title: "MISTERDOU",
-        body: "Les notifications fonctionnent sur cet appareil. Vous serez prévenu ici des messages, paiements et vérifications.",
-        url: "/admin",
-        tag: "test",
-      });
-      return sendOk(reply, { delivered: reached.has(auth.user.id) });
     },
   );
 }

@@ -115,7 +115,7 @@ describe("Alerte d'équipe selon les créneaux", () => {
 });
 
 describe("Abonnement d'un appareil", () => {
-  it("l'équipe s'abonne et reçoit l'essai ; un client ne peut pas s'abonner", async () => {
+  it("l'équipe s'abonne puis se désabonne ; un client ne peut pas s'abonner", async () => {
     const admin = await createAdmin(t);
     const app = await buildMiniApp({ auth: admin.session }, async (a) => {
       await a.register(registerPushRoutes, { prefix: "/api/v1" });
@@ -126,10 +126,6 @@ describe("Abonnement d'un appareil", () => {
     const endpoint = `https://push.example.test/admin-${Date.now()}`;
     const sub = await app.inject({ method: "POST", url: "/api/v1/push/subscribe", payload: { endpoint, keys: { p256dh: "p".repeat(40), auth: "a".repeat(16) } } });
     expect(sub.json().data).toMatchObject({ subscribed: true, devices: 1 });
-
-    const test = await app.inject({ method: "POST", url: "/api/v1/push/test", payload: {} });
-    expect(test.json().data.delivered).toBe(true);
-    expect(pushed.some((p) => p.endpoint === endpoint)).toBe(true);
 
     await app.inject({ method: "DELETE", url: "/api/v1/push/subscribe", payload: { endpoint } });
     expect(await prisma.pushSubscription.count({ where: { endpoint } })).toBe(0);
