@@ -60,7 +60,7 @@ const NAV: DashNavItem[] = [
   { href: "/admin/support", label: "Support", icon: IconLifebuoy, group: "Relation" },
   { href: "/admin/team", label: "Équipe", icon: IconSpark, group: "Plateforme" },
   { href: "/admin/settings", label: "Paramètres", icon: IconGear, group: "Plateforme" },
-  { href: "/admin/audit", label: "Journal d’audit", icon: IconList, group: "Plateforme" },
+  { href: "/admin/audit", label: "Journal d’activité", icon: IconList, group: "Plateforme" },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

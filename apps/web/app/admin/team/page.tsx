@@ -12,26 +12,17 @@ import {
   managerUpdateSchema,
 } from "@misterdou/shared";
 import { request } from "@/lib/api";
-import { Alert, Badge, Button, SelectInput, StatusBadge, TextInput } from "@/components/ui";
+import { Alert, Button, SelectInput, TextInput } from "@/components/ui";
 import { errorMessage, minutesToTime } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
-import {
-  AdminModal,
-  AdminPageHead,
-  DataTable,
-  ErrorAlert,
-  NoticeAlert,
-  RowAction,
-  TableCard,
-  TableEmpty,
-  TableLoading,
-} from "../_lib/ui";
+import { AdminModal, AdminPageHead, ErrorAlert, NoticeAlert, TableCard, TableEmpty, TableLoading } from "../_lib/ui";
 import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
 // Équipe — GET /admin/managers (liste), POST/PATCH/DELETE /admin/managers[/:id].
-// Validations client calquées sur managerCreateSchema / managerUpdateSchema
-// (packages/shared/src/index.ts) : mêmes règles que l'API.
+// Une barre par membre, trois boutons : Permissions (et compte), Créneaux,
+// Supprimer. Validations client calquées sur managerCreateSchema /
+// managerUpdateSchema (packages/shared) : mêmes règles que l'API.
 // Un e-mail déjà inscrit (client) rejoint l'équipe avec son compte ; retiré de
 // l'équipe, il redevient client. Les créneaux se saisissent en plages de jours
 // (« du lundi au mercredi, 14:00 – 18:00 ») et sont enregistrés jour par jour.
@@ -69,6 +60,8 @@ const DAY_SHORT: Record<string, string> = {
   SATURDAY: "Sam",
   SUNDAY: "Dim",
 };
+
+const STATUS_TEXT: Record<string, string> = { ACTIVE: "Actif", SUSPENDED: "Suspendu", BANNED: "Banni" };
 
 const toMinutes = (time: string) => Number(time.split(":")[0] ?? "0") * 60 + Number(time.split(":")[1] ?? "0");
 
@@ -122,67 +115,20 @@ function rangeLabel(range: FormShift): string {
   return `${days} · ${range.start}–${range.end}`;
 }
 
-type FormState = {
-  email: string;
-  firstName: string;
-  lastName: string;
-  password: string;
-  title: string;
-  permissions: string[];
-  shifts: FormShift[];
-  status: string;
-};
-
-function emptyForm(): FormState {
-  return {
-    email: "",
-    firstName: "",
-    lastName: "",
-    password: "",
-    title: "",
-    permissions: [],
-    shifts: [],
-    status: "ACTIVE",
-  };
-}
-
-function formFromRow(row: ManagerRow): FormState {
-  return {
-    email: row.user.email,
-    firstName: row.user.firstName,
-    lastName: row.user.lastName,
-    password: "",
-    title: row.title ?? "",
-    permissions: [...row.permissions],
-    shifts: toRanges(row.shifts),
-    status: row.user.status,
-  };
-}
-
-function toPayload(mode: "create" | "edit", form: FormState): unknown {
-  const shifts = form.shifts.flatMap((range) =>
+function toShiftPayload(ranges: FormShift[]) {
+  return ranges.flatMap((range) =>
     daysOf(range).map((day) => ({ day, startMinute: toMinutes(range.start), endMinute: toMinutes(range.end) })),
   );
+}
 
-  if (mode === "create") {
-    return {
-      email: form.email.trim(),
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      ...(form.password ? { password: form.password } : {}),
-      ...(form.title.trim() ? { title: form.title.trim() } : {}),
-      permissions: form.permissions,
-      ...(shifts.length > 0 ? { shifts } : {}),
-    };
-  }
+/** Message d'erreur si une plage finit avant de commencer. */
+function badRangeMessage(ranges: FormShift[]): string | null {
+  const bad = ranges.find((range) => toMinutes(range.end) <= toMinutes(range.start));
+  return bad ? `Créneau « ${rangeLabel(bad)} » : l’heure de fin doit être après l’heure de début.` : null;
+}
 
-  return {
-    title: form.title.trim() ? form.title.trim() : null,
-    permissions: form.permissions,
-    shifts,
-    ...(form.password ? { password: form.password } : {}),
-    status: form.status,
-  };
+function fullName(row: ManagerRow): string {
+  return [row.user.firstName, row.user.lastName].filter(Boolean).join(" ") || row.user.email;
 }
 
 function Label({ children }: { children: ReactNode }) {
@@ -193,15 +139,19 @@ function Label({ children }: { children: ReactNode }) {
   );
 }
 
-export default function TeamPage() {
-  const [modal, setModal] = useState<{ mode: "create" } | { mode: "edit"; row: ManagerRow } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ManagerRow | null>(null);
+type Dialog =
+  | { kind: "create" }
+  | { kind: "permissions"; row: ManagerRow }
+  | { kind: "shifts"; row: ManagerRow }
+  | { kind: "delete"; row: ManagerRow };
 
+export default function TeamPage() {
+  const [dialog, setDialog] = useState<Dialog | null>(null);
   const list = useAdminList<ManagerRow>("/api/v1/admin/managers");
 
   async function createMember(payload: unknown) {
     const created = await request<{ promoted: boolean }>("/api/v1/admin/managers", { method: "POST", body: JSON.stringify(payload) });
-    setModal(null);
+    setDialog(null);
     await list.refresh(
       created.promoted
         ? "Ce compte client a rejoint l’équipe : à sa prochaine connexion, il arrive dans son espace manager."
@@ -209,18 +159,15 @@ export default function TeamPage() {
     );
   }
 
-  async function updateMember(row: ManagerRow, payload: unknown) {
-    await request(`/api/v1/admin/managers/${row.id}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
-    setModal(null);
-    await list.refresh("Membre mis à jour.");
+  async function updateMember(row: ManagerRow, payload: unknown, notice: string) {
+    await request(`/api/v1/admin/managers/${row.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    setDialog(null);
+    await list.refresh(notice);
   }
 
   async function deleteMember(row: ManagerRow, password: string) {
     await request(`/api/v1/admin/managers/${row.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
-    setDeleteTarget(null);
+    setDialog(null);
     await list.refresh(row.previousRole ? "Retiré de l’équipe : c’est de nouveau un compte client." : "Membre retiré de l’équipe.");
   }
 
@@ -229,13 +176,13 @@ export default function TeamPage() {
       <AdminPageHead
         kicker="Paramètres & équipe"
         title="Équipe"
-        meta="Managers et leurs permissions par module."
+        meta="Qui fait partie de l’équipe, ce que chacun peut faire et quand."
         action={
           <>
             <Button variant="outline" loading={list.refreshing} onClick={() => void list.refresh()}>
               Actualiser
             </Button>
-            <Button onClick={() => setModal({ mode: "create" })}>Nouveau membre</Button>
+            <Button onClick={() => setDialog({ kind: "create" })}>Nouveau membre</Button>
           </>
         }
       />
@@ -243,103 +190,65 @@ export default function TeamPage() {
       <ErrorAlert error={list.error} />
       <NoticeAlert notice={list.notice} />
 
-      <TableCard>
-        {list.loading ? (
+      {list.loading ? (
+        <TableCard>
           <TableLoading label="Chargement de l’équipe…" />
-        ) : list.items.length === 0 ? (
+        </TableCard>
+      ) : list.items.length === 0 ? (
+        <TableCard>
           <TableEmpty label="Aucun membre dans l’équipe." />
-        ) : (
-          <DataTable columns={["Nom", "E-mail", "Titre", "Permissions", "Présence", "Statut", "2FA"]} minWidth={1080}>
-            {list.items.map((row) => (
-              <tr key={row.id} className="transition hover:bg-white/[0.025]">
-                <td className="px-4 py-3.5 text-stone-200">
-                  {[row.user.firstName, row.user.lastName].filter(Boolean).join(" ") || "—"}
-                </td>
-                <td className="max-w-[220px] truncate px-4 py-3.5 text-stone-300">{row.user.email}</td>
-                <td className="px-4 py-3.5 text-stone-300">{row.title ?? "—"}</td>
-                <td className="px-4 py-3.5">
-                  <span className="flex flex-wrap gap-1.5">
-                    {row.permissions.length === 0 ? (
-                      <span className="text-stone-600">—</span>
-                    ) : (
-                      row.permissions.map((permission) => (
-                        <Badge key={permission} cls="border-white/15 bg-white/5 text-stone-300">
-                          {MANAGER_PERMISSION_LABELS[permission as keyof typeof MANAGER_PERMISSION_LABELS] ??
-                            permission}
-                        </Badge>
-                      ))
-                    )}
-                  </span>
-                </td>
-                <td className="px-4 py-3.5 text-[12.5px] text-stone-300">
-                  {row.shifts.length === 0 ? (
-                    <span className="text-stone-500">Sans restriction</span>
-                  ) : (
-                    <span className="flex flex-col gap-0.5">
-                      {toRanges(row.shifts).map((range) => (
-                        <span key={rangeLabel(range)} className="whitespace-nowrap">
-                          {rangeLabel(range)}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3.5">
-                  <StatusBadge status={row.user.status} />
-                </td>
-                <td className="px-4 py-3.5">
-                  <Badge
-                    cls={
-                      row.user.twoFactorEnabled
-                        ? "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]"
-                        : "text-stone-400 border-white/15 bg-white/5"
-                    }
-                  >
-                    {row.user.twoFactorEnabled ? "Activée" : "Désactivée"}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3.5">
-                  <span className="flex flex-wrap gap-3">
-                    <RowAction label="Modifier" onClick={() => setModal({ mode: "edit", row })} />
-                    <RowAction label="Supprimer" tone="danger" onClick={() => setDeleteTarget(row)} />
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </DataTable>
-        )}
-      </TableCard>
+        </TableCard>
+      ) : (
+        <ul className="mt-6 space-y-2.5">
+          {list.items.map((row) => (
+            <MemberBar
+              key={row.id}
+              row={row}
+              onPermissions={() => setDialog({ kind: "permissions", row })}
+              onShifts={() => setDialog({ kind: "shifts", row })}
+              onDelete={() => setDialog({ kind: "delete", row })}
+            />
+          ))}
+        </ul>
+      )}
 
-      {modal && (
-        <MemberFormModal
-          mode={modal.mode}
-          initial={modal.mode === "edit" ? modal.row : undefined}
-          onClose={() => setModal(null)}
-          onSubmit={(payload) =>
-            modal.mode === "edit" ? updateMember(modal.row, payload) : createMember(payload)
-          }
+      {dialog?.kind === "create" && <CreateMemberModal onClose={() => setDialog(null)} onSubmit={createMember} />}
+
+      {dialog?.kind === "permissions" && (
+        <PermissionsModal
+          row={dialog.row}
+          onClose={() => setDialog(null)}
+          onSubmit={(payload) => updateMember(dialog.row, payload, "Permissions enregistrées.")}
         />
       )}
 
-      {deleteTarget && (
+      {dialog?.kind === "shifts" && (
+        <ShiftsModal
+          row={dialog.row}
+          onClose={() => setDialog(null)}
+          onSubmit={(payload) => updateMember(dialog.row, payload, "Créneaux enregistrés.")}
+        />
+      )}
+
+      {dialog?.kind === "delete" && (
         <PasswordConfirmDialog
           title="Retirer ce membre"
           confirmLabel="Supprimer"
           message={
-            deleteTarget.previousRole ? (
+            dialog.row.previousRole ? (
               <>
-                Retirer <strong className="text-stone-100">{deleteTarget.user.email}</strong> de l’équipe ? Ses permissions et
+                Retirer <strong className="text-stone-100">{dialog.row.user.email}</strong> de l’équipe ? Ses permissions et
                 ses créneaux sont effacés ; son compte redevient un compte client (commandes et mot de passe intacts).
               </>
             ) : (
               <>
-                Supprimer définitivement <strong className="text-stone-100">{deleteTarget.user.email}</strong> de l’équipe ? Ses
+                Supprimer définitivement <strong className="text-stone-100">{dialog.row.user.email}</strong> de l’équipe ? Ses
                 permissions et ses créneaux seront perdus, et ce compte d’équipe sera désactivé.
               </>
             )
           }
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={(password) => deleteMember(deleteTarget, password)}
+          onClose={() => setDialog(null)}
+          onConfirm={(password) => deleteMember(dialog.row, password)}
         />
       )}
     </>
@@ -347,60 +256,205 @@ export default function TeamPage() {
 }
 
 // ---------------------------------------------------------------------------
+// Une barre par membre
+// ---------------------------------------------------------------------------
 
-function MemberFormModal({
-  mode,
-  initial,
-  onClose,
-  onSubmit,
+function MemberBar({
+  row,
+  onPermissions,
+  onShifts,
+  onDelete,
 }: {
-  mode: "create" | "edit";
-  initial?: ManagerRow;
-  onClose: () => void;
-  onSubmit: (payload: unknown) => Promise<void>;
+  row: ManagerRow;
+  onPermissions: () => void;
+  onShifts: () => void;
+  onDelete: () => void;
 }) {
-  const [form, setForm] = useState<FormState>(() => (initial ? formFromRow(initial) : emptyForm()));
+  const name = fullName(row);
+  const initials = [row.user.firstName, row.user.lastName].map((part) => part?.[0] ?? "").join("").toUpperCase() || "?";
+  const ranges = toRanges(row.shifts);
+  const active = row.user.status === "ACTIVE";
+  const presence = ranges.length === 0 ? "Toujours disponible" : ranges.length === 1 ? rangeLabel(ranges[0]!) : `${ranges.length} créneaux`;
+
+  return (
+    <li className="dash-card flex flex-wrap items-center gap-x-4 gap-y-3 !rounded-2xl px-4 py-3.5 sm:flex-nowrap">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#ff8a5c,#c83a24)] text-[13px] font-bold text-white">
+        {initials}
+      </span>
+
+      <span className="min-w-0 flex-1 basis-48">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-[14.5px] font-semibold text-stone-100">{name}</span>
+          {!active && (
+            <span className="shrink-0 rounded-full border border-[rgba(239,68,68,0.4)] px-2 py-px text-[10.5px] font-semibold text-[#fca5a5]">
+              {STATUS_TEXT[row.user.status] ?? row.user.status}
+            </span>
+          )}
+        </span>
+        <span className="mt-0.5 block truncate text-[12px] text-stone-500">
+          {row.title ? `${row.title} · ` : ""}
+          {row.user.email}
+        </span>
+      </span>
+
+      <span className="hidden min-w-0 shrink-0 flex-col items-end text-right text-[12px] leading-relaxed text-stone-400 md:flex">
+        <span title={row.permissions.map((p) => MANAGER_PERMISSION_LABELS[p as keyof typeof MANAGER_PERMISSION_LABELS] ?? p).join(", ")}>
+          {row.permissions.length} permission{row.permissions.length > 1 ? "s" : ""}
+          <span className={row.user.twoFactorEnabled ? "text-[#6ee7b7]" : "text-stone-500"}>
+            {" · "}
+            {row.user.twoFactorEnabled ? "2FA activée" : "2FA désactivée"}
+          </span>
+        </span>
+        <span className="max-w-[220px] truncate text-stone-500">{presence}</span>
+      </span>
+
+      <span className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">
+        <BarButton onClick={onPermissions}>Permissions</BarButton>
+        <BarButton onClick={onShifts}>Créneaux</BarButton>
+        <BarButton onClick={onDelete} danger>
+          Supprimer
+        </BarButton>
+      </span>
+    </li>
+  );
+}
+
+function BarButton({ children, onClick, danger = false }: { children: ReactNode; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition ${
+        danger
+          ? "border-[rgba(239,68,68,0.35)] text-[#fca5a5] hover:bg-[rgba(239,68,68,0.1)]"
+          : "border-white/12 text-stone-200 hover:border-[rgba(255,138,92,0.5)] hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Briques des fenêtres : choix des permissions, éditeur de créneaux
+// ---------------------------------------------------------------------------
+
+function PermissionPicker({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {MANAGER_PERMISSIONS.map((permission) => {
+        const checked = value.includes(permission);
+        return (
+          <label
+            key={permission}
+            className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
+              checked ? "border-[rgba(232,71,36,0.45)] bg-amber-300/[0.07]" : "border-white/10 bg-black/10 hover:bg-white/[0.04]"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onChange(checked ? value.filter((p) => p !== permission) : [...value, permission])}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--lux-gold)]"
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-stone-200">{MANAGER_PERMISSION_LABELS[permission]}</span>
+              <span className="mt-0.5 block text-[11px] leading-relaxed text-stone-500">
+                {MANAGER_PERMISSION_DESCRIPTIONS[permission]}
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function ShiftEditor({ value, onChange }: { value: FormShift[]; onChange: (next: FormShift[]) => void }) {
+  const update = (index: number, partial: Partial<FormShift>) =>
+    onChange(value.map((shift, i) => (i === index ? { ...shift, ...partial } : shift)));
+
+  return (
+    <div>
+      {value.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-white/10 px-4 py-3 text-xs text-stone-500">
+          Aucun créneau : disponible à toute heure.
+        </p>
+      ) : (
+        <div className="space-y-2.5">
+          {value.map((shift, index) => (
+            <div key={index} className="rounded-2xl border border-white/10 bg-black/10 p-3">
+              <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 sm:grid-cols-[auto_1fr_auto_1fr]">
+                <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">Du</span>
+                <SelectInput value={shift.from} onChange={(event) => update(index, { from: event.target.value })}>
+                  {SHIFT_DAYS.map((day) => (
+                    <option key={day} value={day}>
+                      {SHIFT_DAY_LABELS[day]}
+                    </option>
+                  ))}
+                </SelectInput>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">au</span>
+                <SelectInput value={shift.to} onChange={(event) => update(index, { to: event.target.value })}>
+                  {SHIFT_DAYS.map((day) => (
+                    <option key={day} value={day}>
+                      {SHIFT_DAY_LABELS[day]}
+                    </option>
+                  ))}
+                </SelectInput>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">De</span>
+                <TextInput type="time" value={shift.start} onChange={(event) => update(index, { start: event.target.value })} />
+                <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">à</span>
+                <TextInput type="time" value={shift.end} onChange={(event) => update(index, { end: event.target.value })} />
+              </div>
+              <div className="mt-2.5 flex items-center justify-between gap-3">
+                <span className="text-[12px] text-[#ffb08a]">{rangeLabel(shift)}</span>
+                <button
+                  type="button"
+                  onClick={() => onChange(value.filter((_, i) => i !== index))}
+                  className="rounded-xl border border-white/10 px-3 py-1.5 text-[11px] text-stone-400 transition hover:text-red-200"
+                >
+                  Retirer
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => onChange([...value, { from: "MONDAY", to: "FRIDAY", start: "09:00", end: "18:00" }])}
+        className="mt-3 text-[12px] font-medium text-[#ff8a5c] transition hover:opacity-80"
+      >
+        + Ajouter un créneau
+      </button>
+    </div>
+  );
+}
+
+/** Pied de fenêtre commun : erreur, Annuler, Enregistrer. */
+function ModalFooter({ error, pending, onClose, submitLabel }: { error: string | null; pending: boolean; onClose: () => void; submitLabel: string }) {
+  return (
+    <>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" type="button" onClick={onClose} disabled={pending}>
+          Annuler
+        </Button>
+        <Button type="submit" loading={pending}>
+          {submitLabel}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** Envoi d'un formulaire : validation, attente, message d'erreur de l'API. */
+function useSubmit(onSubmit: (payload: unknown) => Promise<void>) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-
-  function patch(partial: Partial<FormState>) {
-    setForm((prev) => ({ ...prev, ...partial }));
-  }
-
-  function togglePermission(permission: string) {
-    setForm((prev) => ({
-      ...prev,
-      permissions: prev.permissions.includes(permission)
-        ? prev.permissions.filter((item) => item !== permission)
-        : [...prev.permissions, permission],
-    }));
-  }
-
-  function addShift() {
-    setForm((prev) => ({ ...prev, shifts: [...prev.shifts, { from: "MONDAY", to: "FRIDAY", start: "09:00", end: "18:00" }] }));
-  }
-
-  function updateShift(index: number, partial: Partial<FormShift>) {
-    setForm((prev) => ({
-      ...prev,
-      shifts: prev.shifts.map((shift, i) => (i === index ? { ...shift, ...partial } : shift)),
-    }));
-  }
-
-  function removeShift(index: number) {
-    setForm((prev) => ({ ...prev, shifts: prev.shifts.filter((_, i) => i !== index) }));
-  }
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function run(payload: unknown, schema: { safeParse: (v: unknown) => { success: true; data: unknown } | { success: false; error: { issues: Array<{ message: string }> } } }) {
     setError(null);
-    const badRange = form.shifts.find((range) => toMinutes(range.end) <= toMinutes(range.start));
-    if (badRange) {
-      setError(`Créneau « ${rangeLabel(badRange)} » : l’heure de fin doit être après l’heure de début.`);
-      return;
-    }
-    const payload = toPayload(mode, form);
-    const parsed = mode === "create" ? managerCreateSchema.safeParse(payload) : managerUpdateSchema.safeParse(payload);
+    const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Formulaire invalide.");
       return;
@@ -414,191 +468,196 @@ function MemberFormModal({
       setPending(false);
     }
   }
+  return { error, setError, pending, run };
+}
+
+// ---------------------------------------------------------------------------
+// Fenêtres
+// ---------------------------------------------------------------------------
+
+function PermissionsModal({
+  row,
+  onClose,
+  onSubmit,
+}: {
+  row: ManagerRow;
+  onClose: () => void;
+  onSubmit: (payload: unknown) => Promise<void>;
+}) {
+  const [permissions, setPermissions] = useState<string[]>(row.permissions);
+  const [title, setTitle] = useState(row.title ?? "");
+  const [status, setStatus] = useState(row.user.status);
+  const [password, setPassword] = useState("");
+  const { error, pending, run } = useSubmit(onSubmit);
 
   return (
-    <AdminModal
-      title={mode === "create" ? "Nouveau membre" : "Modifier ce membre"}
-      onClose={onClose}
-      width="max-w-2xl"
-    >
-      <form onSubmit={(event) => void submit(event)} className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block sm:col-span-2">
-            <Label>E-mail</Label>
-            {mode === "create" && (
-              <span className="mb-2 block text-[11.5px] leading-relaxed text-stone-500">
-                Déjà inscrit comme client ? Saisissez son e-mail : son compte rejoint l’équipe et il garde son mot de passe.
-                Retiré de l’équipe, il redevient client.
-              </span>
-            )}
-            <TextInput
-              type="email"
-              required
-              value={form.email}
-              readOnly={mode === "edit"}
-              onChange={(event) => patch({ email: event.target.value })}
-              placeholder="prenom.nom@misterdou.com"
-              className={mode === "edit" ? "opacity-70" : undefined}
-            />
-          </label>
-          <label className="block">
-            <Label>Prénom</Label>
-            <TextInput
-              required
-              value={form.firstName}
-              readOnly={mode === "edit"}
-              onChange={(event) => patch({ firstName: event.target.value })}
-            />
-          </label>
-          <label className="block">
-            <Label>Nom</Label>
-            <TextInput
-              required
-              value={form.lastName}
-              readOnly={mode === "edit"}
-              onChange={(event) => patch({ lastName: event.target.value })}
-            />
-          </label>
-          <label className="block">
-            <Label>Mot de passe {mode === "edit" ? "(laisser vide pour conserver)" : ""}</Label>
-            <TextInput
-              type="password"
-              value={form.password}
-              onChange={(event) => patch({ password: event.target.value })}
-              placeholder={mode === "create" ? "8 caractères minimum" : ""}
-              autoComplete="new-password"
-            />
-            {mode === "create" && (
-              <span className="mt-1.5 block text-[11px] text-stone-500">
-                Obligatoire pour un nouveau compte. Compte client existant : laissez vide (sauf inscription Google sans mot de passe).
-              </span>
-            )}
-          </label>
-          <label className="block">
-            <Label>Titre</Label>
-            <TextInput
-              value={form.title}
-              onChange={(event) => patch({ title: event.target.value })}
-              placeholder="Responsable opérations"
-            />
-          </label>
-          {mode === "edit" && (
-            <label className="block sm:col-span-2">
+    <AdminModal title={`Permissions — ${fullName(row)}`} onClose={onClose} width="max-w-2xl">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void run(
+            {
+              permissions,
+              title: title.trim() || null,
+              status,
+              ...(password ? { password } : {}),
+            },
+            managerUpdateSchema,
+          );
+        }}
+        className="space-y-5"
+      >
+        <div>
+          <Label>Ce que ce membre peut faire</Label>
+          <PermissionPicker value={permissions} onChange={setPermissions} />
+        </div>
+
+        <details className="group rounded-2xl border border-white/10 bg-black/10 p-4">
+          <summary className="cursor-pointer list-none text-[13px] font-medium text-stone-300">
+            Compte : titre, statut, mot de passe
+            <span className="ml-2 text-stone-500 group-open:hidden">▾</span>
+          </summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <Label>Titre</Label>
+              <TextInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Responsable opérations" />
+            </label>
+            <label className="block">
               <Label>Statut du compte</Label>
-              <SelectInput value={form.status} onChange={(event) => patch({ status: event.target.value })}>
-                {USER_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status === "ACTIVE"
-                      ? "Actif"
-                      : status === "SUSPENDED"
-                        ? "Suspendu"
-                        : "Banni"}
+              <SelectInput value={status} onChange={(event) => setStatus(event.target.value)}>
+                {USER_STATUSES.map((value) => (
+                  <option key={value} value={value}>
+                    {STATUS_TEXT[value] ?? value}
                   </option>
                 ))}
               </SelectInput>
             </label>
-          )}
+            <label className="block sm:col-span-2">
+              <Label>Nouveau mot de passe (laisser vide pour le garder)</Label>
+              <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
+            </label>
+          </div>
+        </details>
+
+        <ModalFooter error={error} pending={pending} onClose={onClose} submitLabel="Enregistrer" />
+      </form>
+    </AdminModal>
+  );
+}
+
+function ShiftsModal({
+  row,
+  onClose,
+  onSubmit,
+}: {
+  row: ManagerRow;
+  onClose: () => void;
+  onSubmit: (payload: unknown) => Promise<void>;
+}) {
+  const [ranges, setRanges] = useState<FormShift[]>(() => toRanges(row.shifts));
+  const { error, setError, pending, run } = useSubmit(onSubmit);
+
+  return (
+    <AdminModal title={`Créneaux — ${fullName(row)}`} onClose={onClose} width="max-w-2xl">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const bad = badRangeMessage(ranges);
+          if (bad) {
+            setError(bad);
+            return;
+          }
+          void run({ shifts: toShiftPayload(ranges) }, managerUpdateSchema);
+        }}
+        className="space-y-5"
+      >
+        <p className="text-[12.5px] leading-relaxed text-stone-400">
+          Jours et heures de présence de ce membre, pour savoir qui est disponible et quand.
+        </p>
+        <ShiftEditor value={ranges} onChange={setRanges} />
+        <ModalFooter error={error} pending={pending} onClose={onClose} submitLabel="Enregistrer" />
+      </form>
+    </AdminModal>
+  );
+}
+
+function CreateMemberModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (payload: unknown) => Promise<void> }) {
+  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [password, setPassword] = useState("");
+  const [title, setTitle] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [ranges, setRanges] = useState<FormShift[]>([]);
+  const { error, setError, pending, run } = useSubmit(onSubmit);
+
+  return (
+    <AdminModal title="Nouveau membre" onClose={onClose} width="max-w-2xl">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const bad = badRangeMessage(ranges);
+          if (bad) {
+            setError(bad);
+            return;
+          }
+          const shifts = toShiftPayload(ranges);
+          void run(
+            {
+              email: email.trim(),
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              ...(password ? { password } : {}),
+              ...(title.trim() ? { title: title.trim() } : {}),
+              permissions,
+              ...(shifts.length > 0 ? { shifts } : {}),
+            },
+            managerCreateSchema,
+          );
+        }}
+        className="space-y-5"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block sm:col-span-2">
+            <Label>E-mail</Label>
+            <span className="mb-2 block text-[11.5px] leading-relaxed text-stone-500">
+              Déjà inscrit comme client ? Saisissez son e-mail : son compte rejoint l’équipe et il garde son mot de passe.
+              Retiré de l’équipe, il redevient client.
+            </span>
+            <TextInput type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="prenom.nom@misterdou.com" />
+          </label>
+          <label className="block">
+            <Label>Prénom</Label>
+            <TextInput required value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+          </label>
+          <label className="block">
+            <Label>Nom</Label>
+            <TextInput required value={lastName} onChange={(event) => setLastName(event.target.value)} />
+          </label>
+          <label className="block">
+            <Label>Mot de passe</Label>
+            <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="8 caractères minimum" autoComplete="new-password" />
+            <span className="mt-1.5 block text-[11px] text-stone-500">
+              Obligatoire pour un nouveau compte. Compte client existant : laissez vide (sauf inscription Google sans mot de passe).
+            </span>
+          </label>
+          <label className="block">
+            <Label>Titre</Label>
+            <TextInput value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Responsable opérations" />
+          </label>
         </div>
 
         <div>
           <Label>Permissions</Label>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {MANAGER_PERMISSIONS.map((permission) => {
-              const checked = form.permissions.includes(permission);
-              return (
-                <label
-                  key={permission}
-                  className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                    checked
-                      ? "border-[rgba(232,71,36,0.45)] bg-amber-300/[0.07]"
-                      : "border-white/10 bg-black/10 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => togglePermission(permission)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--lux-gold)]"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-xs font-semibold text-stone-200">
-                      {MANAGER_PERMISSION_LABELS[permission]}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] leading-relaxed text-stone-500">
-                      {MANAGER_PERMISSION_DESCRIPTIONS[permission]}
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          <PermissionPicker value={permissions} onChange={setPermissions} />
         </div>
 
         <div>
-          <div className="flex items-center justify-between gap-3">
-            <Label>Créneaux de présence</Label>
-            <button
-              type="button"
-              onClick={addShift}
-              className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--lux-gold-light)] transition hover:opacity-80"
-            >
-              + Ajouter un créneau
-            </button>
-          </div>
-          {form.shifts.length === 0 ? (
-            <p className="text-xs text-stone-500">Aucun créneau — la disponibilité ne sera pas restreinte.</p>
-          ) : (
-            <div className="mt-2 space-y-2.5">
-              {form.shifts.map((shift, index) => (
-                <div key={index} className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                  <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 sm:grid-cols-[auto_1fr_auto_1fr]">
-                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">Du</span>
-                    <SelectInput value={shift.from} onChange={(event) => updateShift(index, { from: event.target.value })}>
-                      {SHIFT_DAYS.map((day) => (
-                        <option key={day} value={day}>
-                          {SHIFT_DAY_LABELS[day]}
-                        </option>
-                      ))}
-                    </SelectInput>
-                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">au</span>
-                    <SelectInput value={shift.to} onChange={(event) => updateShift(index, { to: event.target.value })}>
-                      {SHIFT_DAYS.map((day) => (
-                        <option key={day} value={day}>
-                          {SHIFT_DAY_LABELS[day]}
-                        </option>
-                      ))}
-                    </SelectInput>
-                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">De</span>
-                    <TextInput type="time" value={shift.start} onChange={(event) => updateShift(index, { start: event.target.value })} />
-                    <span className="text-[11px] uppercase tracking-[0.14em] text-stone-500">à</span>
-                    <TextInput type="time" value={shift.end} onChange={(event) => updateShift(index, { end: event.target.value })} />
-                  </div>
-                  <div className="mt-2.5 flex items-center justify-between gap-3">
-                    <span className="text-[12px] text-[#ffb08a]">{rangeLabel(shift)}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeShift(index)}
-                      className="rounded-xl border border-white/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-stone-400 transition hover:text-red-200"
-                    >
-                      Retirer
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <Label>Créneaux de présence</Label>
+          <ShiftEditor value={ranges} onChange={setRanges} />
         </div>
 
-        {error && <Alert tone="danger">{error}</Alert>}
-
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={pending}>
-            Annuler
-          </Button>
-          <Button type="submit" loading={pending}>
-            {mode === "create" ? "Créer le membre" : "Enregistrer"}
-          </Button>
-        </div>
+        <ModalFooter error={error} pending={pending} onClose={onClose} submitLabel="Créer le membre" />
       </form>
     </AdminModal>
   );

@@ -543,7 +543,9 @@ export function formatCell(value: unknown, key: string): ReactNode {
   return <span className="max-w-[220px] truncate">{String(value)}</span>;
 }
 
-/** Badge de sévérité du journal d'audit. */
+const SEVERITY_LABELS: Record<string, string> = { INFO: "Normal", WARNING: "Important", CRITICAL: "Sensible" };
+
+/** Badge d'importance du journal d'activité. */
 export function SeverityBadge({ severity }: { severity: string }) {
   const cls =
     severity === "CRITICAL"
@@ -551,7 +553,7 @@ export function SeverityBadge({ severity }: { severity: string }) {
       : severity === "WARNING"
         ? "text-[#fbbf24] border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.1)]"
         : "text-stone-300 border-white/15 bg-white/5";
-  return <Badge cls={cls}>{severity}</Badge>;
+  return <Badge cls={cls}>{SEVERITY_LABELS[severity] ?? severity}</Badge>;
 }
 
 /** Ligne d'action de tableau (motif de la console). */

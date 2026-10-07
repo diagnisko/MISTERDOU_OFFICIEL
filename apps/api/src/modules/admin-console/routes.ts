@@ -62,7 +62,7 @@ async function audit(request: FastifyRequest, action: string, resourceType: stri
 
 // Fiche complète d'un membre pour l'équipe : identité, coordonnées, dossiers
 // d'identité (les pièces s'ouvrent par /admin/kyc/:id/files/:kind, permission
-// KYC et journal d'audit), commandes et compte vendeur. Consultation journalisée.
+// KYC et journal d'audit), commandes et compte vendeur.
 async function memberDossier(userId: string) {
   const user = await prisma.user.findFirst({
     where: { id: userId, deletedAt: null },
@@ -149,7 +149,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
       rejected: counted(KYC_FILTERS.rejected!),
       none: counted(KYC_FILTERS.none!),
     };
-    await audit(request, "ADMIN_CLIENTS_LISTED", "User", undefined, { total, page, kyc });
     return sendOk(reply, items.map(({ role, ...row }) => ({ ...row, role: role.name })), { page, perPage, total, counts });
   });
 
@@ -171,7 +170,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     await requirePermission(request, "SUPPORT");
     const { id } = request.params as { id: string };
     const dossier = await memberDossier(id);
-    await audit(request, "ADMIN_MEMBER_VIEWED", "User", id);
     return sendOk(reply, dossier);
   });
 
@@ -181,7 +179,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const seller = await prisma.seller.findUnique({ where: { id }, select: { userId: true } });
     if (!seller) throw notFound("Vendeur introuvable.");
     const dossier = await memberDossier(seller.userId);
-    await audit(request, "ADMIN_MEMBER_VIEWED", "User", seller.userId, { sellerId: id });
     return sendOk(reply, dossier);
   });
 
@@ -234,7 +231,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
       SELECT count(*)::bigint AS count FROM "Seller" s JOIN "User" u ON u.id = s."userId"
       WHERE (${search}::text IS NULL OR u.email ILIKE ${search} OR u."firstName" ILIKE ${search} OR u."lastName" ILIKE ${search})
     `;
-    await audit(request, "ADMIN_SELLERS_LISTED", "Seller", undefined, { total: Number(count[0]?.count ?? 0), page });
     return sendOk(reply, items, { page, perPage, total: Number(count[0]?.count ?? 0) });
   });
 
@@ -280,7 +276,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
       prisma.product.count({ where }),
       prisma.product.count({ where: { deletedAt: null, status: "PENDING_REVIEW" } }),
     ]);
-    await audit(request, "ADMIN_OFFERINGS_LISTED", "Product", undefined, { total, page, status });
     return sendOk(
       reply,
       items.map(({ seller, credential, ...row }) => ({
@@ -316,7 +311,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
       prisma.order.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, orderNumber: true, status: true, paymentMode: true, totalAmount: true, createdAt: true, buyer: { select: { id: true, email: true, firstName: true, lastName: true } }, payments: { select: { status: true, amount: true, type: true } }, items: { take: 1, select: { productId: true, title: true, product: { select: { credential: { select: { id: true } } } } } } } }),
       prisma.order.count({ where }),
     ]);
-    await audit(request, "ADMIN_ORDERS_LISTED", "Order", undefined, { total, page });
     return sendOk(
       reply,
       items.map(({ items: lines, ...row }) => ({
@@ -335,7 +329,6 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
       prisma.payment.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, paymentNumber: true, providerReference: true, type: true, amount: true, currency: true, status: true, paidAt: true, createdAt: true, user: { select: { email: true, firstName: true, lastName: true } }, order: { select: { orderNumber: true } } } }),
       prisma.payment.count({ where }),
     ]);
-    await audit(request, "ADMIN_PAYMENTS_LISTED", "Payment", undefined, { total, page });
     return sendOk(reply, items, { page, perPage, total });
   });
 }

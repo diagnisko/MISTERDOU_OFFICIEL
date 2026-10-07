@@ -86,6 +86,46 @@ export function assertKindParticipants(
   }
 }
 
+/**
+ * L'équipe écrit la première à un membre : conversation existante réutilisée
+ * (une seule par paire), sinon créée — « client » ou « vendeur » selon le membre.
+ */
+export async function openStaffConversation(staffId: string, memberId: string): Promise<{ id: string; created: boolean }> {
+  const [staff, member] = await Promise.all([loadParticipant(staffId), loadParticipant(memberId)]);
+  if (!staff || sideOf(staff) !== "ADMIN") throw forbidden("Réservé à l'équipe.");
+  if (!member) throw badRequest("VALIDATION_ERROR", "Membre introuvable.");
+  if (sideOf(member) === "ADMIN") throw badRequest("VALIDATION_ERROR", "Ce compte fait partie de l'équipe.");
+  const kind: ConversationKind = sideOf(member) === "VENDOR" ? "VENDOR_TO_ADMIN" : "CLIENT_TO_ADMIN";
+  assertKindParticipants(kind, staff, member);
+  const [first, second] = [staff.id, member.id].sort() as [string, string];
+  const existing = await prisma.conversation.findFirst({
+    where: {
+      kind,
+      OR: [
+        { participantAUserId: first, participantBUserId: second },
+        { participantAUserId: second, participantBUserId: first },
+      ],
+    },
+    select: { id: true },
+  });
+  if (existing) return { id: existing.id, created: false };
+  const created = await prisma.conversation.create({
+    data: { kind, participantAUserId: first, participantBUserId: second },
+    select: { id: true },
+  });
+  return { id: created.id, created: true };
+}
+
+/** Message de l'équipe dans une conversation (la conversation remonte en tête). */
+export async function postStaffMessage(conversationId: string, staffId: string, content: string) {
+  const message = await prisma.message.create({
+    data: { conversationId, senderId: staffId, content },
+    select: { id: true, createdAt: true },
+  });
+  await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+  return message;
+}
+
 // Administrateur déterministe : le plus ancien compte ADMIN actif.
 export async function pickDefaultAdminId(): Promise<string | null> {
   const admin = await prisma.user.findFirst({

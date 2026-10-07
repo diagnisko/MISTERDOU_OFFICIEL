@@ -131,7 +131,6 @@ export async function listPendingVerifications(actor: KycActor) {
     where: { status: { in: ["PENDING", "IN_PROGRESS"] } }, orderBy: { submittedAt: "asc" }, take: 100,
     include: { user: { select: { id: true, email: true, phoneNumber: true } }, histories: { orderBy: { createdAt: "asc" } } },
   });
-  await logAudit({ actorId: actor.actorId, actorRole: actor.actorRole, ip: actor.ip, action: "KYC_QUEUE_VIEWED", resourceType: "IdentityVerification", metadata: { count: records.length } });
   return records.map((record) => ({ ...publicRecord(record), user: record.user }));
 }
 

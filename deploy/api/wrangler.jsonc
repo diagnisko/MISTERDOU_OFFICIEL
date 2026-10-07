@@ -25,7 +25,12 @@
     "bindings": [{ "name": "API", "class_name": "ApiContainer" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ApiContainer"] }],
-  "triggers": { "crons": ["*/30 * * * *"] },
+  // Toutes les 30 min : garde le serveur allumé (sans toucher à la base).
+  // Toutes les 4 min de 15 h à 23 h (heure de Dakar = UTC) : garde la base Neon
+  // éveillée aux heures de pointe (elle s'endort après 5 min sans activité).
+  // Budget Neon gratuit : 100 CU-heures/mois ≈ 400 h à 0,25 CU ; cette plage
+  // en coûte ≈ 245 h, le reste (tâches de fond, visites hors plage) ≈ 75 h.
+  "triggers": { "crons": ["*/30 * * * *", "*/4 15-22 * * *"] },
   "vars": {
     "NODE_ENV": "production"
   },

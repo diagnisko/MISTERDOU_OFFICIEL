@@ -51,6 +51,9 @@ export class ApiContainer extends Container {
   envVars = containerEnv();
 }
 
+// Doit correspondre au second déclencheur de wrangler.jsonc.
+const KEEP_DB_AWAKE_CRON = "*/4 15-22 * * *";
+
 // Une seule instance : les tâches de fond ne doivent jamais tourner en double.
 function api(env: Env) {
   return env.API.get(env.API.idFromName("misterdou-api"));
@@ -65,8 +68,12 @@ export default {
     return api(env).fetch(new Request(request, { headers }));
   },
 
-  // Toutes les 30 minutes : réveille le serveur pour que les tâches de fond passent.
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(api(env).fetch(new Request("https://api.internal/api/v1/health")));
+  // Toutes les 30 min : garde le serveur allumé pour les tâches de fond — /healthz
+  // ne touche pas à la base, qui peut dormir (forfait Neon gratuit préservé).
+  // Toutes les 4 min aux heures de pointe : /health interroge la base, qui reste
+  // éveillée (pas d'attente de réveil pour les visiteurs). Voir wrangler.jsonc.
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const path = controller.cron === KEEP_DB_AWAKE_CRON ? "/api/v1/health" : "/api/v1/healthz";
+    ctx.waitUntil(api(env).fetch(new Request(`https://api.internal${path}`)));
   },
 } satisfies ExportedHandler<Env>;

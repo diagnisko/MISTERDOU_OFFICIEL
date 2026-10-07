@@ -27,10 +27,14 @@ import {
   type SupportTicket,
 } from "@/lib/support";
 import { formatDateTime } from "@/lib/format";
+import { resolveSession } from "@/lib/session";
+import { ConversationThread } from "@/components/messagerie/thread";
 
 // ---------------------------------------------------------------------------
 // Support — GET /admin/support/tickets { page, perPage, status, category, q }
 // PATCH /admin/support/tickets/:id { status?, assignedToId?, reason? }
+// POST /admin/support/tickets/:id/reply { message } : la réponse arrive dans la
+// messagerie du membre (notification), et la discussion continue ici.
 // Liste d’assignation : GET /admin/managers (comptes actifs uniquement).
 // ---------------------------------------------------------------------------
 
@@ -271,7 +275,7 @@ function TicketDetailModal({
 
   return (
     <AdminModal title={`Demande ${ticket.code}`} onClose={onClose} width="max-w-2xl">
-      <form onSubmit={(event) => void submit(event)} className="space-y-5">
+      <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={ticket.status} />
           <Badge cls="border-white/15 bg-white/5 text-stone-300">
@@ -296,104 +300,187 @@ function TicketDetailModal({
           </p>
         </div>
 
-        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Signalé par</dt>
-            <dd className="mt-1 text-stone-200">
-              {personLabel(ticket.reporter)}
-              {ticket.reporter?.role ? ` · ${ticket.reporter.role}` : ""}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Assigné à</dt>
-            <dd className="mt-1 text-stone-200">
-              {ticket.assignedTo ? personLabel(ticket.assignedTo) : "Non assigné"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Commande</dt>
-            <dd className="mt-1 text-stone-200">{ticket.orderNumber ?? ticket.orderId ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Mise à jour</dt>
-            <dd className="mt-1 tabular-nums text-stone-200">
-              {formatDateTime(ticket.updatedAt)}
-            </dd>
-          </div>
-        </dl>
+        <ReplyBox ticket={ticket} />
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={(event) => void submit(event)} className="space-y-5">
+          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Signalé par</dt>
+              <dd className="mt-1 text-stone-200">
+                {personLabel(ticket.reporter)}
+                {ticket.reporter?.role ? ` · ${ticket.reporter.role}` : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Assigné à</dt>
+              <dd className="mt-1 text-stone-200">
+                {ticket.assignedTo ? personLabel(ticket.assignedTo) : "Non assigné"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Commande</dt>
+              <dd className="mt-1 text-stone-200">{ticket.orderNumber ?? ticket.orderId ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Mise à jour</dt>
+              <dd className="mt-1 tabular-nums text-stone-200">
+                {formatDateTime(ticket.updatedAt)}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                Statut
+              </span>
+              <SelectInput value={status} onChange={(event) => setStatus(event.target.value)}>
+                {SUPPORT_STATUS_OPTIONS.filter((option) => option.value !== "").map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </label>
+
+            {canAssign && (
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                Assigner à
+              </span>
+              <SelectInput
+                value={assignedToId}
+                onChange={(event) => setAssignedToId(event.target.value)}
+                disabled={managers === null}
+              >
+                <option value="">
+                  {managers === null ? "Chargement…" : "Non assigné"}
+                </option>
+                {currentAssigneeMissing && currentAssignee && (
+                  <option value={currentAssignee.id}>{personLabel(currentAssignee)}</option>
+                )}
+                {managers?.map((manager) => (
+                  <option key={manager.user.id} value={manager.user.id}>
+                    {[manager.user.firstName, manager.user.lastName].filter(Boolean).join(" ") ||
+                      manager.user.email}
+                  </option>
+                ))}
+              </SelectInput>
+            </label>
+            )}
+          </div>
+
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-              Statut
+              Motif (facultatif)
             </span>
-            <SelectInput value={status} onChange={(event) => setStatus(event.target.value)}>
-              {SUPPORT_STATUS_OPTIONS.filter((option) => option.value !== "").map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </SelectInput>
+            <TextInput
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={300}
+              placeholder="Justification de la modification (journalisée)"
+            />
+            <span className="mt-1.5 block text-xs text-stone-500">
+              Transmis au demandeur et inscrit au journal d’activité.
+            </span>
           </label>
 
-          {canAssign && (
-          <label className="block">
-            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-              Assigner à
-            </span>
-            <SelectInput
-              value={assignedToId}
-              onChange={(event) => setAssignedToId(event.target.value)}
-              disabled={managers === null}
-            >
-              <option value="">
-                {managers === null ? "Chargement…" : "Non assigné"}
-              </option>
-              {currentAssigneeMissing && currentAssignee && (
-                <option value={currentAssignee.id}>{personLabel(currentAssignee)}</option>
-              )}
-              {managers?.map((manager) => (
-                <option key={manager.user.id} value={manager.user.id}>
-                  {[manager.user.firstName, manager.user.lastName].filter(Boolean).join(" ") ||
-                    manager.user.email}
-                </option>
-              ))}
-            </SelectInput>
-          </label>
+          {managersError && (
+            <Alert tone="warning">
+              Équipe indisponible — impossible de réassigner : {managersError}
+            </Alert>
           )}
-        </div>
+          {error && <Alert tone="danger">{error}</Alert>}
 
-        <label className="block">
-          <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-            Motif (facultatif)
-          </span>
-          <TextInput
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            maxLength={300}
-            placeholder="Justification de la modification (journalisée)"
-          />
-          <span className="mt-1.5 block text-xs text-stone-500">
-            Transmis au demandeur et inscrit au journal d’activité.
-          </span>
-        </label>
-
-        {managersError && (
-          <Alert tone="warning">
-            Équipe indisponible — impossible de réassigner : {managersError}
-          </Alert>
-        )}
-        {error && <Alert tone="danger">{error}</Alert>}
-
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" type="button" onClick={onClose} disabled={pending}>
-            Fermer
-          </Button>
-          <Button type="submit" loading={pending}>
-            Enregistrer
-          </Button>
-        </div>
-      </form>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={onClose} disabled={pending}>
+              Fermer
+            </Button>
+            <Button type="submit" loading={pending}>
+              Enregistrer
+            </Button>
+          </div>
+        </form>
+      </div>
     </AdminModal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Réponse au membre : envoyée dans sa messagerie ; ensuite la conversation
+// s'affiche ici pour continuer l'échange.
+// ---------------------------------------------------------------------------
+
+function ReplyBox({ ticket }: { ticket: SupportTicket }) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void resolveSession().then((session) => {
+      if (active) setCurrentUserId(session?.user.id ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function send() {
+    if (!message.trim()) {
+      setError("Écrivez votre réponse.");
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      const res = await request<{ conversationId: string }>(`/api/v1/admin/support/tickets/${ticket.id}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ message: message.trim() }),
+      });
+      setConversationId(res.conversationId);
+      setMessage("");
+    } catch (err) {
+      setError(envelopeMessage(err));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (conversationId) {
+    return (
+      <div className="space-y-2">
+        <Alert tone="success">
+          Réponse envoyée : {personLabel(ticket.reporter)} la reçoit dans ses messages, avec une notification.
+        </Alert>
+        <ConversationThread conversationId={conversationId} currentUserId={currentUserId} className="h-[45vh]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[14px] border border-[rgba(255,138,92,0.25)] bg-[rgba(232,71,36,0.05)] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#ffb08a]">Répondre à {personLabel(ticket.reporter)}</p>
+      <textarea
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        rows={4}
+        maxLength={4000}
+        placeholder="Votre réponse… Elle arrive dans ses messages."
+        className="dash-input mt-2 min-h-[110px] w-full resize-y !rounded-2xl !py-3 !pl-4"
+      />
+      {error && (
+        <div className="mt-2">
+          <Alert tone="danger">{error}</Alert>
+        </div>
+      )}
+      <div className="mt-3 flex justify-end">
+        <Button type="button" loading={sending} onClick={() => void send()}>
+          Envoyer la réponse
+        </Button>
+      </div>
+    </div>
   );
 }

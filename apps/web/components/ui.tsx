@@ -175,6 +175,11 @@ const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   WAIVED: { label: "Annulée", cls: "text-stone-400 border-white/15 bg-white/5" },
 };
 
+/** Libellé français d'un statut (inconnu : renvoyé tel quel). */
+export function statusLabel(status: string): string {
+  return STATUS_STYLES[status]?.label ?? status;
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const t = useT();
   const s = STATUS_STYLES[status];

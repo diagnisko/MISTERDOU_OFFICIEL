@@ -12,6 +12,7 @@ import {
   assertKindParticipants,
   displayName,
   loadParticipant,
+  openStaffConversation,
   pickDefaultAdminId,
   sideOf,
   toUserDto,
@@ -36,6 +37,10 @@ const postMessageSchema = z.object({
   content: z.string().trim().min(1).max(4000),
   attachmentKey: z.string().trim().max(300).optional(),
 });
+
+const recipientsQuery = z.object({ q: z.string().trim().min(2).max(120) });
+
+const startConversationSchema = z.object({ userId: z.string().uuid() });
 
 const messagesQuery = z.object({
   before: z.string().trim().max(64).optional(),
@@ -405,6 +410,50 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
         createdAt: message.createdAt,
         readAt: message.readAt,
       });
+    },
+  );
+
+  // --- L'équipe écrit la première : recherche d'un membre (permission SUPPORT) ---
+  app.get(
+    "/admin/conversations/recipients",
+    { schema: { tags: [TAG], summary: "Membres à qui écrire (nom, e-mail ou téléphone)", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      await requirePermission(request, "SUPPORT");
+      const { q } = recipientsQuery.parse(request.query);
+      const users = await prisma.user.findMany({
+        where: {
+          deletedAt: null,
+          role: { name: { in: ["CLIENT", "VENDOR"] } },
+          OR: [
+            { email: { contains: q, mode: "insensitive" } },
+            { firstName: { contains: q, mode: "insensitive" } },
+            { lastName: { contains: q, mode: "insensitive" } },
+            { phoneNumber: { contains: q } },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        select: { ...USER_NAME_SELECT, email: true, seller: { select: { id: true } } },
+      });
+      return sendOk(
+        reply,
+        users.map((u) => ({ ...toUserDto(u), email: u.email, isSeller: u.seller !== null })),
+      );
+    },
+  );
+
+  // --- L'équipe ouvre (ou retrouve) la conversation avec un membre ---
+  app.post(
+    "/admin/conversations/start",
+    { schema: { tags: [TAG], summary: "Écrire à un membre (conversation créée au besoin)", security: [{ bearerAuth: [] }] }, config: rate(20) },
+    async (request, reply) => {
+      const auth = await requirePermission(request, "SUPPORT");
+      const { userId } = startConversationSchema.parse(request.body);
+      const convo = await openStaffConversation(auth.user.id, userId);
+      if (convo.created) await audit(request, "CONVERSATION_CREATED", "Conversation", convo.id, { by: "team" });
+      const detail = await findConversation(convo.id, auth.user.id);
+      if (!detail) throw notFound("Conversation introuvable.");
+      return sendOk(reply, toDto(detail, auth.user.id));
     },
   );
 

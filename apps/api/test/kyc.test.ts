@@ -210,10 +210,11 @@ describe("Lecture du dossier et file d'attente", () => {
     expect(queue.some((row) => row.id === record.id)).toBe(true);
     expect(queue.find((row) => row.id === record.id)?.user.id).toBe(user.id);
 
+    // Consulter la file n'est plus inscrit au journal (routine, sans intérêt pour l'équipe).
     const audit = await prisma.auditLog.findFirst({
       where: { userId: admin.user.id, action: "KYC_QUEUE_VIEWED", createdAt: { gte: SUITE_STARTED_AT } },
     });
-    expect(audit).not.toBeNull();
+    expect(audit).toBeNull();
   });
 });
 

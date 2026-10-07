@@ -8,7 +8,8 @@ import { randomInt } from "node:crypto";
 import { z } from "zod";
 import { prisma, Prisma } from "@misterdou/db";
 import type { AuditSeverity, PlanStatus, RoleName, WithdrawalStatus } from "@misterdou/db";
-import type { ManagerCreateInput, ManagerUpdateInput, PlanCollectInput } from "@misterdou/shared";
+import { AUDIT_ACTIONS, AUDIT_HIDDEN_ACTIONS, auditActionsOf } from "@misterdou/shared";
+import type { AuditCategory, ManagerCreateInput, ManagerUpdateInput, PlanCollectInput } from "@misterdou/shared";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
@@ -113,6 +114,7 @@ export interface AuditListArgs {
   page: number;
   perPage: number;
   action?: string;
+  category?: Exclude<AuditCategory, "routine">;
   severity?: AuditSeverity;
   resourceType?: string;
   from?: Date;
@@ -122,8 +124,19 @@ export interface AuditListArgs {
 
 export async function listAuditLogs(args: AuditListArgs) {
   const { page, perPage } = args;
+  // Recherche en français : « offre supprimée » retrouve l'action OFFER_REMOVED.
+  const needle = args.q?.toLocaleLowerCase("fr");
+  const labelMatches = needle
+    ? Object.entries(AUDIT_ACTIONS)
+        .filter(([, meta]) => meta.label.toLocaleLowerCase("fr").includes(needle))
+        .map(([action]) => action)
+    : [];
   const where: Prisma.AuditLogWhereInput = {
-    ...(args.action ? { action: args.action } : {}),
+    ...(args.action
+      ? { action: args.action }
+      : args.category
+        ? { action: { in: auditActionsOf(args.category) } }
+        : { action: { notIn: AUDIT_HIDDEN_ACTIONS } }),
     ...(args.severity ? { severity: args.severity } : {}),
     ...(args.resourceType ? { resourceType: args.resourceType } : {}),
     ...(args.from || args.to
@@ -133,8 +146,11 @@ export async function listAuditLogs(args: AuditListArgs) {
       ? {
           OR: [
             { action: { contains: args.q, mode: "insensitive" } },
+            ...(labelMatches.length > 0 ? [{ action: { in: labelMatches } }] : []),
             { resourceId: { contains: args.q, mode: "insensitive" } },
-            { resourceType: { contains: args.q, mode: "insensitive" } },
+            { user: { email: { contains: args.q, mode: "insensitive" } } },
+            { user: { firstName: { contains: args.q, mode: "insensitive" } } },
+            { user: { lastName: { contains: args.q, mode: "insensitive" } } },
           ],
         }
       : {}),

@@ -7,6 +7,7 @@ import { requireAuth, requirePermission, type AuthContext } from "../../lib/auth
 import { badRequest, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
+import { openStaffConversation, postStaffMessage } from "../messaging/service.js";
 
 const TAG = "Support";
 
@@ -46,6 +47,8 @@ const adminPatchSchema = z.object({
   assignedToId: z.string().uuid().nullable().optional(),
   reason: z.string().trim().max(500).optional(),
 });
+
+const replySchema = z.object({ message: z.string().trim().min(1).max(4000) });
 
 // « Code d'aide » dérivé de l'id (aucune colonne supplémentaire).
 const ticketCode = (id: string) => "MD-" + id.slice(0, 8).toUpperCase();
@@ -285,7 +288,6 @@ export async function registerSupportRoutes(app: FastifyInstance) {
         }),
         prisma.supportTicket.count({ where }),
       ]);
-      await audit(request, "SUPPORT_TICKETS_LISTED", "SupportTicket", undefined, { total, page: args.page });
       return sendOk(
         reply,
         items.map((t) => ({
@@ -370,6 +372,48 @@ export async function registerSupportRoutes(app: FastifyInstance) {
         assignedToId: updated.assignedToId,
         resolvedAt: updated.resolvedAt,
       });
+    },
+  );
+
+  // --- Réponse de l'équipe : arrive dans la messagerie du membre (et en notification) ---
+  app.post(
+    "/admin/support/tickets/:id/reply",
+    {
+      schema: { tags: [TAG], summary: "Répondre à une demande de support (message au membre)", security: [{ bearerAuth: [] }] },
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const auth = await requirePermission(request, "SUPPORT");
+      const { id } = request.params as { id: string };
+      const { message } = replySchema.parse(request.body);
+      const ticket = await prisma.supportTicket.findUnique({
+        where: { id },
+        select: { id: true, subject: true, status: true, assignedToId: true, reporterId: true },
+      });
+      if (!ticket) throw notFound("Ticket introuvable.");
+
+      const code = ticketCode(ticket.id);
+      const conversation = await openStaffConversation(auth.user.id, ticket.reporterId);
+      await postStaffMessage(conversation.id, auth.user.id, `Réponse à votre demande ${code} (« ${ticket.subject} ») :\n\n${message}`);
+
+      // Demande prise en charge : « En cours », et confiée à celui qui répond si personne ne l'avait.
+      const reopen = ticket.status === "CREATED" || ticket.status === "PENDING";
+      await prisma.supportTicket.update({
+        where: { id },
+        data: {
+          ...(reopen ? { status: "IN_PROGRESS" as const } : {}),
+          ...(ticket.assignedToId ? {} : { assignedToId: auth.user.id }),
+        },
+      });
+
+      await notifyUser(ticket.reporterId, "NEW_MESSAGE", {
+        title: "Réponse du support",
+        message: `Votre demande ${code} a reçu une réponse : ${message.slice(0, 100)}`,
+        actionUrl: "/messages",
+        priority: "NORMAL",
+      });
+      await audit(request, "SUPPORT_TICKET_REPLIED", "SupportTicket", id, { code });
+      return sendOk(reply, { conversationId: conversation.id, status: reopen ? "IN_PROGRESS" : ticket.status });
     },
   );
 }

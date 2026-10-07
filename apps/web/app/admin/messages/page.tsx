@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Button } from "@/components/ui";
-import { buildQuery } from "../_lib/api";
+import { Alert, Badge, Button, Spinner, TextInput } from "@/components/ui";
+import { buildQuery, errorMessage, request } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import {
   AdminModal,
@@ -31,6 +31,8 @@ import { formatDateTime } from "@/lib/format";
 // ---------------------------------------------------------------------------
 // Messages — GET /admin/conversations { page, perPage, q }, ouverture d’un fil
 // via le composant partagé components/messagerie/thread.tsx (envoi côté admin).
+// « Écrire à un membre » : l'équipe peut écrire la première à un client ou un
+// vendeur (GET /admin/conversations/recipients, POST /admin/conversations/start).
 // ---------------------------------------------------------------------------
 
 const PER_PAGE = 25;
@@ -49,6 +51,7 @@ export default function AdminMessagesPage() {
   const [perPage, setPerPage] = useState(PER_PAGE);
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [composing, setComposing] = useState(false);
 
   const list = useAdminList<ConversationSummary>(
     `/api/v1/admin/conversations${buildQuery({ page, perPage })}`,
@@ -71,9 +74,12 @@ export default function AdminMessagesPage() {
         title="Messages"
         meta="Conversations internes : clients et vendeurs avec l’administration."
         action={
-          <Button variant="outline" loading={list.refreshing} onClick={() => void list.refresh()}>
-            Actualiser
-          </Button>
+          <>
+            <Button variant="outline" loading={list.refreshing} onClick={() => void list.refresh()}>
+              Actualiser
+            </Button>
+            <Button onClick={() => setComposing(true)}>Écrire à un membre</Button>
+          </>
         }
       />
 
@@ -163,6 +169,17 @@ export default function AdminMessagesPage() {
         }}
       />
 
+      {composing && (
+        <NewConversationModal
+          onClose={() => setComposing(false)}
+          onOpened={(conversation) => {
+            setComposing(false);
+            setSelected(conversation);
+            void list.refresh();
+          }}
+        />
+      )}
+
       {selected && (
         <AdminModal
           title={participantsLabel(selected)}
@@ -198,5 +215,121 @@ export default function AdminMessagesPage() {
         </AdminModal>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Écrire à un membre : recherche par nom, e-mail ou téléphone, puis la
+// conversation s'ouvre (la même que s'il avait écrit le premier).
+// ---------------------------------------------------------------------------
+
+type Recipient = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  isSeller: boolean;
+};
+
+function NewConversationModal({
+  onClose,
+  onOpened,
+}: {
+  onClose: () => void;
+  onOpened: (conversation: ConversationSummary) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Recipient[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      request<Recipient[]>(`/api/v1/admin/conversations/recipients${buildQuery({ q })}`)
+        .then((rows) => active && setResults(rows))
+        .catch((err) => active && setError(errorMessage(err)))
+        .finally(() => active && setSearching(false));
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  async function open(recipient: Recipient) {
+    setOpening(recipient.id);
+    setError(null);
+    try {
+      const conversation = await request<ConversationSummary>("/api/v1/admin/conversations/start", {
+        method: "POST",
+        body: JSON.stringify({ userId: recipient.id }),
+      });
+      onOpened(conversation);
+    } catch (err) {
+      setError(errorMessage(err));
+      setOpening(null);
+    }
+  }
+
+  return (
+    <AdminModal title="Écrire à un membre" onClose={onClose} width="max-w-lg">
+      <div className="space-y-4">
+        <TextInput
+          autoFocus
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Nom, e-mail ou téléphone"
+          aria-label="Chercher un membre"
+        />
+        {error && <Alert tone="danger">{error}</Alert>}
+        {searching && (
+          <p className="flex items-center gap-2 text-sm text-stone-400">
+            <Spinner /> Recherche…
+          </p>
+        )}
+        {!searching && results !== null && results.length === 0 && (
+          <p className="text-sm text-stone-500">Aucun membre ne correspond.</p>
+        )}
+        {results && results.length > 0 && (
+          <ul className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/10">
+            {results.map((recipient) => {
+              const name = personName(recipient) || recipient.email || "Membre";
+              return (
+                <li key={recipient.id}>
+                  <button
+                    type="button"
+                    disabled={opening !== null}
+                    onClick={() => void open(recipient)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.04] disabled:opacity-60"
+                  >
+                    <ChatAvatar name={name} url={recipient.avatarUrl} kind="client" size={34} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-stone-100">{name}</span>
+                      <span className="block truncate text-[12px] text-stone-500">
+                        {recipient.email ?? ""}
+                        {recipient.isSeller ? " · Vendeur" : " · Client"}
+                      </span>
+                    </span>
+                    {opening === recipient.id ? <Spinner /> : <span className="text-[12px] font-medium text-[#ff8a5c]">Écrire</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {results === null && !searching && (
+          <p className="text-[12.5px] text-stone-500">Tapez au moins 2 lettres. Le membre reçoit votre message dans sa messagerie, avec une notification.</p>
+        )}
+      </div>
+    </AdminModal>
   );
 }

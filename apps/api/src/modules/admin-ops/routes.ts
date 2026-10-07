@@ -43,6 +43,8 @@ const auditQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(50),
   action: z.string().trim().max(120).optional(),
+  // Catégorie lisible (offres, commandes…) ; absente : tout sauf les connexions et la routine.
+  category: z.enum(["offers", "orders", "payments", "sellers", "clients", "messages", "team", "settings", "logins"]).optional(),
   severity: z.enum(["INFO", "WARNING", "CRITICAL"]).optional(),
   resourceType: z.string().trim().max(80).optional(),
   from: z.coerce.date().optional(),

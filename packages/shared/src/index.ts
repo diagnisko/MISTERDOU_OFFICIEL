@@ -492,3 +492,160 @@ export type KycAdminActionInput = z.infer<typeof kycAdminActionSchema>;
 
 export const SESSION_COOKIE_NAME = "md_sid";
 export const CSRF_COOKIE_NAME = "md_csrf";
+
+// ---------------------------------------------------------------------------
+// Journal d'activité (console) : chaque action enregistrée, en français simple,
+// rangée par catégorie. Les connexions des membres et les anciennes
+// « consultations » de listes sont de la routine : masquées de la vue « Tout ».
+// ---------------------------------------------------------------------------
+
+export const AUDIT_CATEGORIES = {
+  offers: "Offres",
+  orders: "Commandes",
+  payments: "Paiements",
+  sellers: "Vendeurs",
+  clients: "Clients",
+  messages: "Messages & support",
+  team: "Équipe & sécurité",
+  settings: "Paramètres",
+  logins: "Connexions des membres",
+} as const;
+
+export type AuditCategory = keyof typeof AUDIT_CATEGORIES | "routine";
+
+export const AUDIT_ACTIONS: Record<string, { label: string; category: AuditCategory }> = {
+  // Offres
+  OFFER_CREATED: { label: "Offre ajoutée", category: "offers" },
+  OFFER_UPDATED: { label: "Offre modifiée", category: "offers" },
+  OFFER_REMOVED: { label: "Offre supprimée", category: "offers" },
+  OFFER_APPROVED: { label: "Offre validée et mise en ligne", category: "offers" },
+  OFFER_REJECTED: { label: "Offre refusée", category: "offers" },
+  ADMIN_OFFER_STATUS_CHANGED: { label: "Statut d’une offre changé", category: "offers" },
+  PRODUCT_MEDIA_ADDED: { label: "Photo ou vidéo ajoutée à une offre", category: "offers" },
+  PRODUCT_MEDIA_REMOVED: { label: "Photo ou vidéo retirée d’une offre", category: "offers" },
+  PRODUCT_MEDIA_COVER: { label: "Photo de couverture changée", category: "offers" },
+  PRODUCT_CREDENTIAL_SET: { label: "Clé d’accès d’un compte ajoutée", category: "offers" },
+  PRODUCT_CREDENTIAL_REPLACED: { label: "Clé d’accès d’un compte remplacée", category: "offers" },
+  PRODUCT_CREDENTIAL_REVEALED: { label: "Clé d’accès d’un compte affichée par l’équipe", category: "offers" },
+  FEATURED_REQUESTED: { label: "Mise en avant demandée", category: "offers" },
+  FEATURED_APPROVED: { label: "Mise en avant acceptée", category: "offers" },
+  FEATURED_REJECTED: { label: "Mise en avant refusée", category: "offers" },
+  FEATURED_PAID_BALANCE: { label: "Mise en avant payée avec le solde vendeur", category: "offers" },
+  FEATURED_ACTIVATED_ADMIN: { label: "Mise en avant activée par l’équipe", category: "offers" },
+  PROMOTION_CREATED: { label: "Promotion créée", category: "offers" },
+  PROMOTION_CANCELLED: { label: "Promotion annulée", category: "offers" },
+
+  // Commandes
+  ORDER_CREATED: { label: "Nouvelle commande", category: "orders" },
+  ORDER_DELIVERED: { label: "Commande livrée", category: "orders" },
+  ORDER_RECEIVED: { label: "Réception confirmée par le client", category: "orders" },
+  ORDER_EXPIRED: { label: "Commande annulée (non payée à temps)", category: "orders" },
+  ORDER_CREDENTIAL_REVEALED: { label: "Le client a affiché les identifiants de son compte", category: "orders" },
+  TEST_ORDER_PURGED: { label: "Commande effacée", category: "orders" },
+  VERIFICATION_CODE_REQUESTED: { label: "Code de vérification demandé", category: "orders" },
+  VERIFICATION_CODE_PROVIDED: { label: "Code de vérification envoyé au client", category: "orders" },
+  REVIEW_CREATED: { label: "Avis laissé par un client", category: "orders" },
+
+  // Paiements
+  PAYMENT_PROOF_SUBMITTED: { label: "Capture de paiement Wave envoyée", category: "payments" },
+  PAYMENT_PROOF_APPROVED: { label: "Paiement Wave validé", category: "payments" },
+  PAYMENT_PROOF_REJECTED: { label: "Paiement Wave refusé", category: "payments" },
+  PAYMENT_SUCCESS: { label: "Paiement encaissé", category: "payments" },
+  PAYMENT_SETTLED: { label: "Paiement clôturé", category: "payments" },
+  PAYMENT_REFUNDED: { label: "Paiement remboursé", category: "payments" },
+  INSTALLMENT_PAYMENT_CREATED: { label: "Mensualité à payer créée", category: "payments" },
+  INSTALLMENT_PAY_REQUESTED: { label: "Paiement d’une mensualité demandé", category: "payments" },
+  PLAN_INSTALLMENT_COLLECTED: { label: "Mensualité encaissée par l’équipe", category: "payments" },
+  PLAN_SETTLED: { label: "Paiement en plusieurs fois soldé", category: "payments" },
+  INSTALLMENT_PLAN_CANCELLED: { label: "Paiement en plusieurs fois annulé", category: "payments" },
+
+  // Vendeurs
+  SELLER_JOIN_REQUESTED: { label: "Demande pour devenir vendeur", category: "sellers" },
+  SELLER_CONTRACT_REQUESTED: { label: "Contrat revendeur demandé", category: "sellers" },
+  ADMIN_SELLER_STATUS_CHANGED: { label: "Statut d’un vendeur changé", category: "sellers" },
+  WITHDRAWAL_REQUESTED: { label: "Retrait demandé par un vendeur", category: "sellers" },
+  WITHDRAWAL_APPROVED: { label: "Retrait accepté", category: "sellers" },
+  WITHDRAWAL_PROCESSING: { label: "Retrait en cours de traitement", category: "sellers" },
+  WITHDRAWAL_REJECTED: { label: "Retrait refusé", category: "sellers" },
+  WITHDRAWAL_RECEIVED: { label: "Le vendeur confirme avoir reçu son retrait", category: "sellers" },
+  WITHDRAWAL_NOT_RECEIVED: { label: "Le vendeur signale un retrait non reçu", category: "sellers" },
+
+  // Clients
+  REGISTER: { label: "Nouveau membre inscrit", category: "clients" },
+  KYC_SUBMITTED: { label: "Pièce d’identité envoyée", category: "clients" },
+  KYC_VERIFIED: { label: "Identité validée", category: "clients" },
+  KYC_REJECTED: { label: "Identité refusée", category: "clients" },
+  KYC_IN_PROGRESS: { label: "Vérification d’identité en cours", category: "clients" },
+  KYC_PENDING: { label: "Vérification d’identité remise en attente", category: "clients" },
+  ADMIN_CLIENT_STATUS_CHANGED: { label: "Compte d’un membre suspendu ou réactivé", category: "clients" },
+  ADMIN_CLIENT_DELETED: { label: "Compte d’un membre supprimé", category: "clients" },
+
+  // Messages & support
+  MESSAGE_SENT: { label: "Message envoyé", category: "messages" },
+  CONVERSATION_CREATED: { label: "Nouvelle conversation", category: "messages" },
+  SUPPORT_TICKET_CREATED: { label: "Nouvelle demande au support", category: "messages" },
+  SUPPORT_TICKET_UPDATED: { label: "Demande au support mise à jour", category: "messages" },
+  SUPPORT_TICKET_REPLIED: { label: "Réponse de l’équipe à une demande", category: "messages" },
+
+  // Équipe & sécurité
+  MANAGER_CREATED: { label: "Membre ajouté à l’équipe", category: "team" },
+  MANAGER_PROMOTED: { label: "Un client a rejoint l’équipe", category: "team" },
+  MANAGER_UPDATED: { label: "Membre de l’équipe modifié", category: "team" },
+  MANAGER_DELETED: { label: "Membre retiré de l’équipe", category: "team" },
+  ADMIN_LOGIN: { label: "Connexion à la console", category: "team" },
+  ADMIN_LOGIN_TRUSTED_DEVICE: { label: "Connexion à la console (appareil de confiance)", category: "team" },
+  ADMIN_LOGIN_TOTP_SETUP_REQUIRED: { label: "Connexion à la console (double authentification à activer)", category: "team" },
+  ADMIN_TOTP_ENABLED: { label: "Double authentification activée", category: "team" },
+  ADMIN_TOTP_FAILED: { label: "Code de double authentification faux", category: "team" },
+  ADMIN_TOTP_SECRET_VIEWED: { label: "Clé de double authentification affichée", category: "team" },
+  ADMIN_PASSWORD_RESET: { label: "Mot de passe administrateur réinitialisé", category: "team" },
+  ADMIN_ACCESS_RESET_WITH_MFA: { label: "Accès administrateur réinitialisé", category: "team" },
+  DELETE_PASSWORD_FAILED: { label: "Mot de passe faux lors d’une action protégée", category: "team" },
+  SENSITIVE_DATA_ACCESS: { label: "Accès à des données sensibles", category: "team" },
+
+  // Paramètres
+  SETTINGS_CHANGE: { label: "Paramètre modifié", category: "settings" },
+  SETTING_COMMISSION_RESTORED_15: { label: "Commission remise à 15 %", category: "settings" },
+
+  // Connexions et comptes des membres (masqué de « Tout », onglet dédié)
+  LOGIN: { label: "Connexion d’un membre", category: "logins" },
+  LOGIN_GOOGLE: { label: "Connexion d’un membre avec Google", category: "logins" },
+  LOGOUT: { label: "Déconnexion", category: "logins" },
+  PASSWORD_CHANGED: { label: "Mot de passe changé", category: "logins" },
+  PASSWORD_SET: { label: "Mot de passe créé", category: "logins" },
+  PASSWORD_RESET_REQUESTED: { label: "Mot de passe oublié : lien demandé", category: "logins" },
+  PASSWORD_RESET_LINK_CREATED: { label: "Lien de nouveau mot de passe créé", category: "logins" },
+  PASSWORD_RESET: { label: "Mot de passe réinitialisé", category: "logins" },
+  EMAIL_VERIFIED: { label: "Adresse e-mail confirmée", category: "logins" },
+  PROFILE_UPDATED: { label: "Profil modifié", category: "logins" },
+  AVATAR_UPDATED: { label: "Photo de profil changée", category: "logins" },
+  AVATAR_REMOVED: { label: "Photo de profil retirée", category: "logins" },
+  NOTIFICATION_PREFS_UPDATED: { label: "Préférences de notification modifiées", category: "logins" },
+
+  // Routine : consultations de listes (plus enregistrées ; anciennes lignes jamais affichées)
+  ADMIN_CLIENTS_LISTED: { label: "Liste des clients consultée", category: "routine" },
+  ADMIN_SELLERS_LISTED: { label: "Liste des vendeurs consultée", category: "routine" },
+  ADMIN_OFFERINGS_LISTED: { label: "Liste des offres consultée", category: "routine" },
+  ADMIN_ORDERS_LISTED: { label: "Liste des commandes consultée", category: "routine" },
+  ADMIN_PAYMENTS_LISTED: { label: "Liste des paiements consultée", category: "routine" },
+  SUPPORT_TICKETS_LISTED: { label: "Liste du support consultée", category: "routine" },
+  ADMIN_MEMBER_VIEWED: { label: "Fiche d’un membre consultée", category: "routine" },
+  KYC_QUEUE_VIEWED: { label: "File des identités consultée", category: "routine" },
+};
+
+/** Actions d'une catégorie. */
+export function auditActionsOf(category: AuditCategory): string[] {
+  return Object.entries(AUDIT_ACTIONS)
+    .filter(([, meta]) => meta.category === category)
+    .map(([action]) => action);
+}
+
+/** Actions masquées de la vue « Tout » : connexions des membres et routine. */
+export const AUDIT_HIDDEN_ACTIONS = Object.entries(AUDIT_ACTIONS)
+  .filter(([, meta]) => meta.category === "routine" || meta.category === "logins")
+  .map(([action]) => action);
+
+/** Nom lisible d'une action (inconnue : « Autre action »). */
+export function auditActionLabel(action: string): string {
+  return AUDIT_ACTIONS[action]?.label ?? "Autre action";
+}
