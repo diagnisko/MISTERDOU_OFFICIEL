@@ -8,11 +8,14 @@ import { formatDateTime } from "@/lib/format";
 import { resolveSession, isAuthError } from "@/lib/session";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import {
+  deleteNotifications,
   fetchNotifications,
+  hideNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   notificationTypeLabel,
   type NotificationItem,
+  type NotificationSelection,
 } from "@/lib/notifications";
 import { useT } from "@/lib/i18n";
 import { useAccount } from "@/lib/account";
@@ -22,6 +25,8 @@ import { useAccount } from "@/lib/account";
 // • visible uniquement si une session existe (/auth/me puis /auth/admin/me) ;
 // • sondage toutes les 30 s, mis en pause quand l’onglet est masqué ;
 // • panneau : 5 dernières, « Tout marquer comme lu », « Voir toutes » ;
+// • « Sélectionner » : cocher, ou « Toutes (N) », puis Masquer (membres,
+//   équipe) ou Supprimer définitivement (administrateur, après confirmation) ;
 // • accessibilité : aria-label / aria-expanded, fermeture Échap + clic extérieur.
 // ---------------------------------------------------------------------------
 
@@ -33,9 +38,11 @@ const POLL_INTERVAL_MS = 30000;
 const memory: {
   state: "checking" | "hidden" | "visible";
   kind: "member" | "admin" | null;
+  role: string | null;
   items: NotificationItem[];
   unread: number;
-} = { state: "checking", kind: null, items: [], unread: 0 };
+  total: number;
+} = { state: "checking", kind: null, role: null, items: [], unread: 0, total: 0 };
 
 export function NotificationBell() {
   const t = useT();
@@ -44,12 +51,22 @@ export function NotificationBell() {
   const [state, setState] = useState(memory.state);
   const [items, setItems] = useState<NotificationItem[]>(memory.items);
   const [unread, setUnread] = useState(memory.unread);
+  const [total, setTotal] = useState(memory.total);
 
   useEffect(() => {
     memory.state = state;
     memory.items = items;
     memory.unread = unread;
-  }, [state, items, unread]);
+    memory.total = total;
+  }, [state, items, unread, total]);
+
+  // Sélection (masquer / supprimer) dans le menu.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allAcross, setAllAcross] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const isAdmin = memory.role === "ADMIN";
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +78,7 @@ export function NotificationBell() {
     try {
       const page = await fetchNotifications({ page: 1, perPage: 5 });
       setItems(page.items);
+      setTotal(Number(page.meta.total ?? page.items.length));
       const unreadMeta = Number(page.meta.unread ?? 0);
       setUnread(
         Number.isFinite(unreadMeta) && unreadMeta >= 0
@@ -91,6 +109,7 @@ export function NotificationBell() {
     void resolveSession().then((session) => {
       if (!active) return;
       memory.kind = session?.kind ?? null;
+      memory.role = session?.user.role ?? null;
       if (!session) {
         setState("hidden");
         return;
@@ -153,7 +172,46 @@ export function NotificationBell() {
     }
   }
 
+  function stopSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
+    setAllAcross(false);
+    setConfirmDelete(false);
+  }
+
+  function toggleItem(id: string) {
+    setAllAcross(false);
+    setConfirmDelete(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function applySelection(kind: "hide" | "delete") {
+    if (busy) return;
+    const selection: NotificationSelection = allAcross ? { all: true, unreadOnly: false } : { ids: [...selected] };
+    setBusy(true);
+    setError(null);
+    try {
+      const count = kind === "delete" ? (await deleteNotifications(selection)).deleted : (await hideNotifications(selection)).hidden;
+      stopSelecting();
+      setDone(t(kind === "delete" ? "notif.deletedDone" : "notif.hiddenDone", { count: count.toLocaleString(t.intl) }));
+      await load();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openItem(item: NotificationItem) {
+    if (selecting) {
+      toggleItem(item.id);
+      return;
+    }
     if (busy) return;
     setBusy(true);
     const wasUnread = !item.readAt;
@@ -188,7 +246,11 @@ export function NotificationBell() {
         aria-label={unread > 0 ? `Notifications — ${unread} non lues` : "Notifications"}
         aria-haspopup="true"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          setOpen((value) => !value);
+          stopSelecting();
+          setDone(null);
+        }}
         className="relative grid h-9 w-9 place-items-center rounded-xl border sm:h-10 sm:w-10 border-[rgba(255,255,255,0.1)] bg-white/[0.03] text-stone-300 transition-colors hover:border-[rgba(232,71,36,0.45)] hover:text-[var(--lux-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lux-gold)]/60"
       >
         <svg
@@ -223,7 +285,7 @@ export function NotificationBell() {
             <button
               type="button"
               onClick={() => void markAll()}
-              disabled={busy || unread === 0}
+              disabled={busy || unread === 0 || selecting}
               className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--lux-gold-light)] transition hover:opacity-80 disabled:opacity-40"
             >
               Tout marquer comme lu
@@ -232,19 +294,26 @@ export function NotificationBell() {
 
           <div className="max-h-[52vh] overflow-y-auto">
             {error && <p className="px-4 py-4 text-xs leading-relaxed text-[#fca5a5]">{error}</p>}
+            {done && !selecting && <p className="border-b border-white/[0.05] px-4 py-2.5 text-[12px] text-[#6ee7b7]">{done}</p>}
             {!error && items.length === 0 && (
               <p className="px-4 py-6 text-center text-xs text-stone-400">
                 {t("bell.empty")}
               </p>
             )}
             <ul>
-              {items.map((item) => (
+              {items.map((item) => {
+                const checked = allAcross || selected.has(item.id);
+                return (
                 <li key={item.id}>
                   <button
                     type="button"
                     onClick={() => void openItem(item)}
-                    className="flex w-full gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.04]"
+                    aria-pressed={selecting ? checked : undefined}
+                    className={`flex w-full gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition ${
+                      selecting && checked ? "bg-[rgba(232,71,36,0.08)]" : "hover:bg-white/[0.04]"
+                    }`}
                   >
+                    {selecting && <BellCheck checked={checked} />}
                     <span className="mt-1.5 shrink-0" aria-hidden>
                       {item.priority === "CRITICAL" ? (
                         <span className="block h-2 w-2 rounded-full bg-[var(--lux-gold)] shadow-[0_0_0_3px_rgba(232,71,36,0.18)]" />
@@ -269,21 +338,118 @@ export function NotificationBell() {
                     </span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
 
-          <div className="border-t border-white/[0.08] px-4 py-3 text-center">
-            <Link
-              href="/notifications"
-              onClick={() => setOpen(false)}
-              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--lux-gold-light)] hover:underline"
-            >
-              {t("bell.seeAll")}
-            </Link>
-          </div>
+          {selecting ? (
+            <div className="border-t border-white/[0.08] px-4 py-3">
+              {confirmDelete ? (
+                <div className="space-y-2.5">
+                  <p className="text-[12px] leading-snug text-[#fca5a5]">
+                    {t("notif.deleteConfirm", { count: (allAcross ? total : selected.size).toLocaleString(t.intl) })}
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setConfirmDelete(false)} disabled={busy} className="rounded-full px-3 py-1.5 text-[12px] text-stone-300 hover:text-white">
+                      {t("notif.cancelSelect")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void applySelection("delete")}
+                      disabled={busy}
+                      className="rounded-full bg-[#b91c1c] px-3.5 py-1.5 text-[12px] font-semibold text-white transition hover:bg-[#dc2626] disabled:opacity-60"
+                    >
+                      {t("bell.confirmYes")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllAcross((value) => !value);
+                      setSelected(new Set());
+                    }}
+                    className="flex items-center gap-2 text-[12px] font-medium text-stone-100"
+                  >
+                    <BellCheck checked={allAcross} />
+                    {t("bell.allCount", { total: total.toLocaleString(t.intl) })}
+                  </button>
+                  <span className="flex items-center gap-1.5">
+                    <button type="button" onClick={stopSelecting} disabled={busy} className="rounded-full px-2.5 py-1.5 text-[12px] text-stone-300 hover:text-white">
+                      {t("notif.cancelSelect")}
+                    </button>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(true)}
+                        disabled={busy || (!allAcross && selected.size === 0)}
+                        className="rounded-full border border-[rgba(239,68,68,0.45)] px-3 py-1.5 text-[12px] font-semibold text-[#fca5a5] transition hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-40"
+                      >
+                        {t("notif.delete")}
+                        {!allAcross && selected.size > 0 ? ` (${selected.size})` : ""}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void applySelection("hide")}
+                        disabled={busy || (!allAcross && selected.size === 0)}
+                        className="rounded-full bg-[linear-gradient(120deg,#ff8a5c,#e84724)] px-3 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+                      >
+                        {t("notif.hide")}
+                        {!allAcross && selected.size > 0 ? ` (${selected.size})` : ""}
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 border-t border-white/[0.08] px-4 py-3">
+              {items.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelecting(true);
+                    setDone(null);
+                  }}
+                  className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-300 transition hover:text-white"
+                >
+                  {t("notif.select")}
+                </button>
+              ) : (
+                <span />
+              )}
+              <Link
+                href="/notifications"
+                onClick={() => setOpen(false)}
+                className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--lux-gold-light)] hover:underline"
+              >
+                {t("bell.seeAll")}
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+function BellCheck({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border transition ${
+        checked ? "border-[#ff8a5c] bg-[linear-gradient(135deg,#ff8a5c,#e84724)] text-white" : "border-white/25 bg-black/30"
+      }`}
+    >
+      {checked && (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.2 4.2L19 7" />
+        </svg>
+      )}
+    </span>
   );
 }
