@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
-import { badRequest, notFound } from "../../lib/errors.js";
+import { badRequest, forbidden, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 
 const TAG = "Notifications";
@@ -34,6 +34,24 @@ const pushTokenSchema = z.object({
 
 const tokenSchema = z.object({ token: z.string().trim().min(10).max(400) });
 
+// Sélection : des notifications précises, ou toutes (éventuellement les non lues seulement).
+const selectionSchema = z
+  .object({
+    ids: z.array(z.string().uuid()).max(200).optional(),
+    all: z.boolean().optional(),
+    unreadOnly: z.boolean().optional(),
+  })
+  .refine((v) => v.all === true || (v.ids?.length ?? 0) > 0, { message: "Aucune notification sélectionnée." });
+
+/** Notifications visibles du membre visées par la sélection. */
+function selectionWhere(userId: string, input: z.infer<typeof selectionSchema>) {
+  return {
+    userId,
+    hiddenAt: null,
+    ...(input.all ? (input.unreadOnly ? { readAt: null } : {}) : { id: { in: input.ids ?? [] } }),
+  };
+}
+
 export async function registerNotificationRoutes(app: FastifyInstance) {
   // --- Centre de notifications (§47) ---
   app.get(
@@ -43,7 +61,8 @@ export async function registerNotificationRoutes(app: FastifyInstance) {
       const auth = requireAuth(request);
       const args = listQuery.parse(request.query);
       const unreadOnly = args.unreadOnly === "true" || args.unreadOnly === "1";
-      const where = { userId: auth.user.id, ...(unreadOnly ? { readAt: null } : {}) };
+      // Les notifications masquées par le membre n'apparaissent plus.
+      const where = { userId: auth.user.id, hiddenAt: null, ...(unreadOnly ? { readAt: null } : {}) };
       const [items, total, unread] = await Promise.all([
         prisma.notification.findMany({
           where,
@@ -63,7 +82,7 @@ export async function registerNotificationRoutes(app: FastifyInstance) {
           },
         }),
         prisma.notification.count({ where }),
-        prisma.notification.count({ where: { userId: auth.user.id, readAt: null } }),
+        prisma.notification.count({ where: { userId: auth.user.id, hiddenAt: null, readAt: null } }),
       ]);
       return sendOk(reply, items, { page: args.page, perPage: args.perPage, total, unread });
     },
@@ -99,6 +118,39 @@ export async function registerNotificationRoutes(app: FastifyInstance) {
         data: { readAt: new Date() },
       });
       return sendOk(reply, { updated: result.count });
+    },
+  );
+
+  // --- Masquer des notifications (tout membre) : elles quittent sa liste ---
+  app.post(
+    "/notifications/hide",
+    { schema: { tags: [TAG], summary: "Masquer des notifications (sélection ou toutes)", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      const auth = requireAuth(request);
+      const parsed = selectionSchema.safeParse(request.body);
+      if (!parsed.success) throw badRequest("VALIDATION_ERROR", "Aucune notification sélectionnée.");
+      const now = new Date();
+      const result = await prisma.notification.updateMany({
+        where: selectionWhere(auth.user.id, parsed.data),
+        data: { hiddenAt: now },
+      });
+      // Une notification masquée ne compte plus comme non lue.
+      await prisma.notification.updateMany({ where: { userId: auth.user.id, hiddenAt: now, readAt: null }, data: { readAt: now } });
+      return sendOk(reply, { hidden: result.count });
+    },
+  );
+
+  // --- Supprimer définitivement (administrateur seulement) ---
+  app.post(
+    "/notifications/delete",
+    { schema: { tags: [TAG], summary: "Supprimer définitivement des notifications (administrateur)", security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      const auth = requireAuth(request);
+      if (auth.user.role?.name !== "ADMIN") throw forbidden("Seul l'administrateur peut supprimer des notifications : vous pouvez les masquer.");
+      const parsed = selectionSchema.safeParse(request.body);
+      if (!parsed.success) throw badRequest("VALIDATION_ERROR", "Aucune notification sélectionnée.");
+      const result = await prisma.notification.deleteMany({ where: selectionWhere(auth.user.id, parsed.data) });
+      return sendOk(reply, { deleted: result.count });
     },
   );
 

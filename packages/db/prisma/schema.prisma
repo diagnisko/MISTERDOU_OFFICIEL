@@ -462,6 +462,8 @@ model Notification {
   priority  NotificationPriority @default(NORMAL)
   actionUrl String?
   readAt    DateTime?
+  // Masquée par son destinataire : n'apparaît plus dans sa liste (l'administrateur, lui, supprime).
+  hiddenAt  DateTime?
   createdAt DateTime             @default(now())
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 

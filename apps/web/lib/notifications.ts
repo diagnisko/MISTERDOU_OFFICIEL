@@ -80,6 +80,19 @@ export function markAllNotificationsRead(): Promise<unknown> {
   });
 }
 
+/** Sélection : des notifications précises, ou toutes (de l'onglet affiché). */
+export type NotificationSelection = { ids: string[] } | { all: true; unreadOnly: boolean };
+
+/** Membre : les notifications quittent sa liste. */
+export function hideNotifications(selection: NotificationSelection): Promise<{ hidden: number }> {
+  return request("/api/v1/notifications/hide", { method: "POST", body: JSON.stringify(selection) });
+}
+
+/** Administrateur : suppression définitive. */
+export function deleteNotifications(selection: NotificationSelection): Promise<{ deleted: number }> {
+  return request("/api/v1/notifications/delete", { method: "POST", body: JSON.stringify(selection) });
+}
+
 export function fetchNotificationPreferences(): Promise<NotificationPreferences> {
   return request<NotificationPreferences>("/api/v1/notifications/preferences");
 }

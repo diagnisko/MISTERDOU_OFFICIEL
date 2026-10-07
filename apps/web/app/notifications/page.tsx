@@ -9,14 +9,17 @@ import { errorMessage, isPermissionError, type PageMeta } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { resolveSession, isAuthError, type SessionUser } from "@/lib/session";
 import {
+  deleteNotifications,
   fetchNotificationPreferences,
   fetchNotifications,
+  hideNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   notificationTypeLabel,
   saveNotificationPreferences,
   type NotificationItem,
   type NotificationPreferences,
+  type NotificationSelection,
 } from "@/lib/notifications";
 import { useT } from "@/lib/i18n";
 
@@ -24,6 +27,8 @@ import { useT } from "@/lib/i18n";
 // Centre de notifications — GET /notifications (filtre unreadOnly, pagination),
 // POST /notifications/:id/read, POST /notifications/read-all,
 // GET|PATCH /notifications/preferences. Session obligée → /login.
+// Mode « Sélectionner » : cocher une à une ou tout (toutes les pages), puis
+// Masquer (membres, équipe) ou Supprimer définitivement (administrateur).
 // ---------------------------------------------------------------------------
 
 const PER_PAGE = 20;
@@ -50,6 +55,13 @@ export default function NotificationsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+
+  // Sélection : ids cochés de la page, ou « toutes » (toutes les pages de l'onglet).
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allAcross, setAllAcross] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [acting, setActing] = useState(false);
 
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
@@ -80,6 +92,9 @@ export default function NotificationsPage() {
     if (!session) return;
     let active = true;
     setLoading(true);
+    setSelected(new Set());
+    setAllAcross(false);
+    setConfirmDelete(false);
     fetchNotifications({ page, perPage: PER_PAGE, unreadOnly: tab === "unread" })
       .then((result) => {
         if (!active) return;
@@ -103,9 +118,11 @@ export default function NotificationsPage() {
     };
   }, [session, tab, page, router]);
 
-  const reload = useCallback(() => {
-    setNotice(null);
+  const reload = useCallback((keepNotice = false) => {
+    if (!keepNotice) setNotice(null);
     setLoading(true);
+    setSelected(new Set());
+    setAllAcross(false);
     fetchNotifications({ page, perPage: PER_PAGE, unreadOnly: tab === "unread" })
       .then((result) => {
         setItems(result.items);
@@ -122,7 +139,53 @@ export default function NotificationsPage() {
       .finally(() => setLoading(false));
   }, [page, tab, router]);
 
+  function toggleItem(id: string) {
+    setAllAcross(false);
+    setConfirmDelete(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePage() {
+    setAllAcross(false);
+    setConfirmDelete(false);
+    setSelected((prev) => (prev.size === items.length ? new Set() : new Set(items.map((item) => item.id))));
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
+    setAllAcross(false);
+    setConfirmDelete(false);
+  }
+
+  async function applySelection(kind: "hide" | "delete") {
+    const selection: NotificationSelection = allAcross ? { all: true, unreadOnly: tab === "unread" } : { ids: [...selected] };
+    setActing(true);
+    setError(null);
+    try {
+      const count =
+        kind === "delete" ? (await deleteNotifications(selection)).deleted : (await hideNotifications(selection)).hidden;
+      stopSelecting();
+      setNotice(t(kind === "delete" ? "notif.deletedDone" : "notif.hiddenDone", { count: count.toLocaleString(t.intl) }));
+      if (page !== 1) setPage(1);
+      else reload(true);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setActing(false);
+    }
+  }
+
   async function openItem(item: NotificationItem) {
+    if (selecting) {
+      toggleItem(item.id);
+      return;
+    }
     if (busyId) return;
     if (!item.readAt) {
       setBusyId(item.id);
@@ -210,6 +273,8 @@ export default function NotificationsPage() {
   }
 
   const unread = Number(meta.unread ?? 0);
+  // L'administrateur supprime ; l'équipe et les membres masquent.
+  const isAdmin = session?.role === "ADMIN";
 
   return (
     <LuxShell>
@@ -234,15 +299,20 @@ export default function NotificationsPage() {
             }
             action={
               <>
-                {unread > 0 && (
+                {unread > 0 && !selecting && (
                   <Button variant="outline" loading={markingAll} onClick={() => void markAll()}>
                     {t("notif.markAll")}
+                  </Button>
+                )}
+                {items.length > 0 && !selecting && (
+                  <Button variant="outline" onClick={() => setSelecting(true)}>
+                    {t("notif.select")}
                   </Button>
                 )}
                 {/* Actions secondaires en icônes : une seule ligne, même sur téléphone. */}
                 <button
                   type="button"
-                  onClick={reload}
+                  onClick={() => reload()}
                   disabled={loading}
                   aria-label={t("notif.refresh")}
                   title={t("notif.refresh")}
@@ -323,6 +393,26 @@ export default function NotificationsPage() {
             </div>
           </div>
 
+          {selecting && items.length > 0 && (
+            <SelectionBar
+              isAdmin={isAdmin}
+              count={allAcross ? meta.total : selected.size}
+              pageCount={items.length}
+              total={meta.total}
+              pageAllSelected={selected.size === items.length}
+              allAcross={allAcross}
+              confirmDelete={confirmDelete}
+              acting={acting}
+              onTogglePage={togglePage}
+              onSelectAcross={() => setAllAcross(true)}
+              onHide={() => void applySelection("hide")}
+              onAskDelete={() => setConfirmDelete(true)}
+              onDelete={() => void applySelection("delete")}
+              onCancelDelete={() => setConfirmDelete(false)}
+              onCancel={stopSelecting}
+            />
+          )}
+
           <div className="mt-4 overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#101825]/80">
             {loading ? (
               <p className="flex items-center gap-3 p-6 text-sm text-stone-400">
@@ -338,14 +428,21 @@ export default function NotificationsPage() {
               </p>
             ) : (
               <ul className="divide-y divide-white/[0.06]">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const checked = allAcross || selected.has(item.id);
+                  return (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => void openItem(item)}
                       disabled={busyId === item.id}
-                      className="flex w-full gap-3 px-4 py-4 text-left transition hover:bg-white/[0.03] disabled:opacity-60"
+                      aria-pressed={selecting ? checked : undefined}
+                      aria-label={selecting ? `${t("notif.selectItem")} : ${item.title}` : undefined}
+                      className={`flex w-full gap-3 px-4 py-4 text-left transition disabled:opacity-60 ${
+                        selecting && checked ? "bg-[rgba(232,71,36,0.08)]" : "hover:bg-white/[0.03]"
+                      }`}
                     >
+                      {selecting && <CheckMark checked={checked} />}
                       <span className="mt-1.5 shrink-0" aria-hidden>
                         {item.priority === "CRITICAL" ? (
                           <span className="block h-2 w-2 rounded-full bg-[var(--lux-gold)] shadow-[0_0_0_3px_rgba(232,71,36,0.18)]" />
@@ -380,7 +477,8 @@ export default function NotificationsPage() {
                       </span>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -527,5 +625,112 @@ function Toggle({
         className="h-4 w-4 shrink-0 accent-[var(--lux-gold)]"
       />
     </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Barre du mode sélection : tout cocher, compteur, Masquer / Supprimer.
+// ---------------------------------------------------------------------------
+
+function SelectionBar(props: {
+  isAdmin: boolean;
+  count: number;
+  pageCount: number;
+  total: number;
+  pageAllSelected: boolean;
+  allAcross: boolean;
+  confirmDelete: boolean;
+  acting: boolean;
+  onTogglePage: () => void;
+  onSelectAcross: () => void;
+  onHide: () => void;
+  onAskDelete: () => void;
+  onDelete: () => void;
+  onCancelDelete: () => void;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  const none = props.count === 0;
+  const countText = t(props.count > 1 ? "notif.selectedMany" : "notif.selectedOne", { count: props.count.toLocaleString(t.intl) });
+  return (
+    <div className="mt-4 rounded-[18px] border border-[rgba(255,138,92,0.3)] bg-[rgba(232,71,36,0.06)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={props.onTogglePage} className="flex items-center gap-2.5 text-[13px] font-medium text-stone-100">
+          <CheckMark checked={props.allAcross || props.pageAllSelected} />
+          {t("notif.selectAll")}
+        </button>
+        <span className="text-[12.5px] tabular-nums text-stone-300">{countText}</span>
+        <span className="flex flex-wrap items-center gap-2">
+          {props.confirmDelete ? (
+            <>
+              <span className="text-[12.5px] text-[#fca5a5]">{t("notif.deleteConfirm", { count: props.count.toLocaleString(t.intl) })}</span>
+              <Button variant="ghost" onClick={props.onCancelDelete} disabled={props.acting}>
+                {t("notif.cancelSelect")}
+              </Button>
+              <button
+                type="button"
+                onClick={props.onDelete}
+                disabled={props.acting}
+                className="inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#b91c1c] px-4 text-[13px] font-semibold text-white transition hover:bg-[#dc2626] disabled:opacity-60"
+              >
+                {props.acting && <Spinner />} {t("notif.delete")}
+              </button>
+            </>
+          ) : (
+            <>
+              {props.isAdmin ? (
+                <button
+                  type="button"
+                  onClick={props.onAskDelete}
+                  disabled={none || props.acting}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[rgba(239,68,68,0.45)] px-4 text-[13px] font-semibold text-[#fca5a5] transition hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-40"
+                >
+                  {t("notif.delete")}
+                </button>
+              ) : (
+                <Button onClick={props.onHide} disabled={none} loading={props.acting}>
+                  {t("notif.hide")}
+                </Button>
+              )}
+              <Button variant="ghost" onClick={props.onCancel} disabled={props.acting}>
+                {t("notif.cancelSelect")}
+              </Button>
+            </>
+          )}
+        </span>
+      </div>
+      {props.pageAllSelected && props.total > props.pageCount && (
+        <p className="mt-2 text-[12.5px] text-stone-300">
+          {props.allAcross ? (
+            t("notif.allAcross", { total: props.total.toLocaleString(t.intl) })
+          ) : (
+            <>
+              {t("notif.pageSelected", { count: props.pageCount.toLocaleString(t.intl) })}{" "}
+              <button type="button" onClick={props.onSelectAcross} className="font-semibold text-[var(--lux-gold-light)] hover:underline">
+                {t("notif.selectAcross", { total: props.total.toLocaleString(t.intl) })}
+              </button>
+            </>
+          )}
+        </p>
+      )}
+      {!props.isAdmin && <p className="mt-1.5 text-[11.5px] text-stone-500">{t("notif.hideHint")}</p>}
+    </div>
+  );
+}
+
+function CheckMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
+        checked ? "border-[#ff8a5c] bg-[linear-gradient(135deg,#ff8a5c,#e84724)] text-white" : "border-white/25 bg-black/20"
+      }`}
+    >
+      {checked && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.2 4.2L19 7" />
+        </svg>
+      )}
+    </span>
   );
 }
