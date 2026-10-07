@@ -380,18 +380,26 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
         peerId = a && sideOf(a) !== "ADMIN" ? a.id : b && sideOf(b) !== "ADMIN" ? b.id : null;
       }
       const senderName = displayName(auth.user) || "Nouveau message";
+      const sender = await loadParticipant(auth.user.id);
+      const fromMember = Boolean(sender && sideOf(sender) !== "ADMIN");
       if (peerId && peerId !== auth.user.id) {
-        await notifyUser(peerId, "NEW_MESSAGE", {
-          title: senderName,
-          message: input.content.slice(0, 120),
-          actionUrl: "/messages",
-          priority: "NORMAL",
-        });
+        // Message d'un membre : l'équipe est prévenue sur son téléphone juste
+        // en dessous (selon les créneaux) — pas de seconde notification ici.
+        await notifyUser(
+          peerId,
+          "NEW_MESSAGE",
+          {
+            title: senderName,
+            message: input.content.slice(0, 120),
+            actionUrl: "/messages",
+            priority: "NORMAL",
+          },
+          fromMember ? { push: false } : { push: { tag: `conversation-${id}` } },
+        );
       }
 
       // Côté non-admin d'une conversation *_TO_ADMIN → l'équipe en service (Support).
-      const sender = await loadParticipant(auth.user.id);
-      if (sender && sideOf(sender) !== "ADMIN") {
+      if (sender && fromMember) {
         await notifyTeam(
           "SUPPORT",
           "ADMIN_ALERT",

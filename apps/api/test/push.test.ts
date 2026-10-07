@@ -14,7 +14,7 @@ vi.mock("../src/lib/email.js", () => ({
   }),
 }));
 
-const { notifyTeam, teamOnDuty } = await import("../src/lib/notify.js");
+const { notifyActiveAdmins, notifyTeam, notifyUser, teamOnDuty } = await import("../src/lib/notify.js");
 const { setPushTransport, vapidKeys } = await import("../src/lib/push.js");
 const { dakarClock, forgetShifts } = await import("../src/lib/shifts.js");
 const { resetShiftDigest, runShiftDigest, shiftStartsAt } = await import("../src/lib/shift-digest.js");
@@ -115,7 +115,7 @@ describe("Alerte d'équipe selon les créneaux", () => {
 });
 
 describe("Abonnement d'un appareil", () => {
-  it("l'équipe s'abonne puis se désabonne ; un client ne peut pas s'abonner", async () => {
+  it("l'équipe s'abonne puis se désabonne ; un client aussi peut s'abonner", async () => {
     const admin = await createAdmin(t);
     const app = await buildMiniApp({ auth: admin.session }, async (a) => {
       await a.register(registerPushRoutes, { prefix: "/api/v1" });
@@ -135,9 +135,25 @@ describe("Abonnement d'un appareil", () => {
     const clientApp = await buildMiniApp({ auth: await authFor(client.id) }, async (a) => {
       await a.register(registerPushRoutes, { prefix: "/api/v1" });
     });
-    const refused = await clientApp.inject({ method: "POST", url: "/api/v1/push/subscribe", payload: { endpoint: "https://push.example.test/x", keys: { p256dh: "p".repeat(40), auth: "a".repeat(16) } } });
-    expect(refused.statusCode).toBe(403);
+    const clientEndpoint = `https://push.example.test/client-${Date.now()}`;
+    const ok = await clientApp.inject({ method: "POST", url: "/api/v1/push/subscribe", payload: { endpoint: clientEndpoint, keys: { p256dh: "p".repeat(40), auth: "a".repeat(16) } } });
+    expect(ok.json().data).toMatchObject({ subscribed: true, devices: 1 });
     await clientApp.close();
+  });
+
+  it("un client abonné reçoit ses notifications sur le téléphone, et garde ses e-mails", async () => {
+    const client = await createUser(t);
+    const endpoint = await subscribe(client.id);
+    await notifyUser(client.id, "PAYMENT_CONFIRMED", { title: "Paiement confirmé", message: "Votre paiement de 55 000 FCFA est confirmé.", actionUrl: "/account/orders" });
+    expect(pushed.find((p) => p.endpoint === endpoint)?.body).toMatchObject({ title: "Paiement confirmé", url: "/account/orders" });
+    expect(sentEmails).toContain(client.email);
+  });
+
+  it("les informations aux administrateurs (nouvel inscrit) restent hors du téléphone", async () => {
+    const admin = await createAdmin(t);
+    const endpoint = await subscribe(admin.user.id);
+    await notifyActiveAdmins("ADMIN_ALERT", { title: "Nouveau client", message: "x@example.com vient de créer un compte.", actionUrl: "/admin/clients" });
+    expect(pushed.some((p) => p.endpoint === endpoint)).toBe(false);
   });
 });
 

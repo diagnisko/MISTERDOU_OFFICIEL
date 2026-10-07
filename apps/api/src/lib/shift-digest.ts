@@ -105,7 +105,7 @@ export async function runShiftDigest(now: Date = new Date()): Promise<number> {
     await notifyMany(
       "ADMIN_ALERT",
       [{ userId: member.userId, params: { title: "Début de votre créneau", message: `En attente : ${parts.join(", ")}.`, actionUrl: "/admin", priority: "NORMAL" } }],
-      { push: { tag: "shift-start" } },
+      { push: { tag: "shift-start", emailFallback: true } },
     );
     sent += 1;
   }

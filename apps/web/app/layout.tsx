@@ -30,8 +30,8 @@ export const metadata: Metadata = {
   keywords: ["eFootball", "comptes", "KONAMI", "achat", "vente", "western"],
   robots: "index, follow",
   // Écran d'accueil de l'iPhone : icône, nom et ouverture en plein écran (notifications).
+  // Logos : app/icon.svg et app/favicon.ico (onglet, Google), app/apple-icon.png (iPhone).
   appleWebApp: { capable: true, title: "MISTERDOU", statusBarStyle: "black-translucent" },
-  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

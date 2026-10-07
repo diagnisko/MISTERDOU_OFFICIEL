@@ -6,6 +6,7 @@ import { ApiClientError, request } from "@/lib/api";
 import { refreshAccount, useAccount } from "@/lib/account";
 import { useT } from "@/lib/i18n";
 import { LOCALES, setLocale, setTheme, usePreferences, type Theme } from "@/lib/preferences";
+import { PushSettingsCard } from "@/components/account/push-settings";
 
 const field =
   "w-full min-h-[46px] rounded-xl border border-[rgba(255,236,229,0.1)] bg-white/[0.035] px-4 text-sm text-white outline-none transition focus:border-[rgba(255,106,50,0.55)] focus:ring-2 focus:ring-[rgba(232,71,36,0.18)]";
@@ -78,6 +79,8 @@ export default function SettingsPage() {
         </div>
         {prefs.locale !== "fr" && <p className="mt-3 text-[12px] text-[#8f7d77]">{t("settings.languageNote")}</p>}
       </section>
+
+      <PushSettingsCard team={account.user.role === "STAFF"} />
 
       <PasswordCard hasPassword={account.profile.hasPassword} />
     </div>

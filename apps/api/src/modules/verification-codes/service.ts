@@ -155,7 +155,7 @@ export async function requestVerificationCode(orderId: string, actor: CodeActor)
               priority: "CRITICAL" as const,
             },
       })),
-  ], { push: { tag: `code-${order.id}` } });
+  ], { push: { tag: `code-${order.id}`, emailFallback: true } });
 
   return toClientView(created);
 }

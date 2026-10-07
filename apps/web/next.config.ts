@@ -23,12 +23,13 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
-      {
-        // Hash content-addressé : le navigateur peut garder les assets Next en cache
-        // immuablement (défaut de `next start`, ici explicite pour tout hébergeur).
-        source: "/_next/static/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
+      // Hash content-addressé : le navigateur peut garder les assets Next en cache
+      // immuablement (défaut de `next start`, ici explicite pour tout hébergeur).
+      // Production seulement : en développement les noms ne changent pas et le
+      // navigateur garderait d'anciennes versions des pages.
+      ...(process.env.NODE_ENV === "production"
+        ? [{ source: "/_next/static/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }]
+        : []),
       {
         source: "/:path*",
         headers: [

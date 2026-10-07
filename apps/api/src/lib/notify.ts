@@ -21,9 +21,13 @@ export interface NotifyParams {
   actionUrl?: string;
 }
 
-/** Notification sur le téléphone en plus de la cloche (alertes d'équipe). */
+/**
+ * Téléphone : chaque notification part aussi sur les appareils abonnés du
+ * membre (préférence push), sauf `push: false`. `emailFallback` (alertes
+ * d'équipe) : l'e-mail ne part qu'à ceux qu'aucun appareil n'a atteints.
+ */
 export interface NotifyOptions {
-  push?: { tag?: string };
+  push?: false | { tag?: string; emailFallback?: boolean };
 }
 
 export interface NotifyBatchEntry {
@@ -45,8 +49,7 @@ export interface NotifyBatchEntry {
 // Les règles de préférence restent évaluées LIGNE PAR LIGNE : une entrée
 // CRITICAL n'élève pas la priorité de ses voisines.
 //
-// Avec `push` : notification sur les téléphones abonnés (préférence push), et
-// l'e-mail ne part qu'en secours, aux membres qu'aucun appareil n'a atteints.
+// Téléphone : voir NotifyOptions (envoyé par défaut aux appareils abonnés).
 export async function notifyMany(type: NotificationType, entries: NotifyBatchEntry[], opts: NotifyOptions = {}): Promise<void> {
   if (entries.length === 0) return;
   try {
@@ -102,24 +105,25 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
 
     // Téléphones : un envoi par message distinct (les entrées d'un lot peuvent différer).
     const reached = new Set<string>();
-    if (opts.push) {
+    const push = opts.push === false ? null : (opts.push ?? {});
+    if (push) {
       const groups = new Map<string, { params: NotifyParams; userIds: string[] }>();
       for (const { userId, params } of entries) {
-        if (prefByUser.get(userId)?.push === false) continue;
+        if (prefByUser.get(userId)?.push === false || params.channel === "EMAIL") continue;
         const key = JSON.stringify([params.title, params.message, params.actionUrl ?? ""]);
         const group = groups.get(key) ?? { params, userIds: [] };
         group.userIds.push(userId);
         groups.set(key, group);
       }
       for (const { params, userIds: ids } of groups.values()) {
-        const hit = await pushToUsers(ids, { title: params.title, body: params.message, url: params.actionUrl ?? "/admin", tag: opts.push.tag });
+        const hit = await pushToUsers(ids, { title: params.title, body: params.message, url: params.actionUrl ?? "/", tag: push.tag });
         for (const id of hit) reached.add(id);
       }
     }
 
     // Un e-mail en échec n'empêche jamais les suivants.
     await Promise.all(
-      emails.filter((mail) => !reached.has(mail.userId)).map(async (mail) => {
+      emails.filter((mail) => !(push?.emailFallback && reached.has(mail.userId))).map(async (mail) => {
         try {
           await sendEmail({
             to: mail.to,
@@ -142,8 +146,9 @@ export async function notifyUser(
   userId: string,
   type: NotificationType,
   params: NotifyParams,
+  opts: NotifyOptions = {},
 ): Promise<void> {
-  await notifyMany(type, [{ userId, params }]);
+  await notifyMany(type, [{ userId, params }], opts);
 }
 
 // Alerte poussée à TOUS les administrateurs actifs (§58 « notifications des
@@ -158,9 +163,11 @@ export async function notifyActiveAdmins(
       where: { status: "ACTIVE", deletedAt: null, role: { name: "ADMIN" } },
       select: { id: true },
     });
+    // Informations (nouveaux inscrits…) : cloche et e-mail, pas le téléphone.
     await notifyMany(
       type,
       admins.map((admin) => ({ userId: admin.id, params })),
+      { push: false },
     );
   } catch (err) {
     logger.warn({ err, type }, "[notify] échec d'alerte des administrateurs");
@@ -209,7 +216,7 @@ export async function notifyTeam(
     await notifyMany(
       type,
       ids.map((userId) => ({ userId, params })),
-      { push: { tag: opts.tag } },
+      { push: { tag: opts.tag, emailFallback: true } },
     );
   } catch (err) {
     logger.warn({ err, type, permission }, "[notify] échec d'alerte de l'équipe");

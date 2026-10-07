@@ -2,12 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
-import { requireAuth, type AuthContext } from "../../lib/auth-context.js";
-import { forbidden } from "../../lib/errors.js";
+import { requireAuth } from "../../lib/auth-context.js";
 import { vapidKeys } from "../../lib/push.js";
 
 // ---------------------------------------------------------------------------
-// Notifications sur le téléphone de l'équipe (centre de notifications).
+// Notifications sur le téléphone (centre de notifications), pour tout membre
+// connecté : clients, vendeurs et équipe.
 // GET  /push/key        clé publique pour l'abonnement du navigateur
 // POST /push/subscribe  enregistre cet appareil   DELETE : l'oublie
 // ---------------------------------------------------------------------------
@@ -21,12 +21,6 @@ const subscriptionSchema = z.object({
 
 const endpointSchema = z.object({ endpoint: z.string().url().max(1000) });
 
-/** Réservé à l'équipe (les alertes ne concernent qu'elle pour l'instant). */
-function requireTeam(auth: AuthContext): void {
-  const role = auth.user.role?.name;
-  if (role !== "ADMIN" && role !== "STAFF") throw forbidden("Réservé à l'équipe.");
-}
-
 export async function registerPushRoutes(app: FastifyInstance) {
   const rate = (max: number) => ({ rateLimit: { max, timeWindow: "1 minute" } });
 
@@ -39,7 +33,6 @@ export async function registerPushRoutes(app: FastifyInstance) {
     { schema: { tags: [TAG], summary: "Recevoir les notifications sur cet appareil", security: [{ bearerAuth: [] }] }, config: rate(10) },
     async (request, reply) => {
       const auth = requireAuth(request);
-      requireTeam(auth);
       const input = subscriptionSchema.parse(request.body);
       const userAgent = String(request.headers["user-agent"] ?? "").slice(0, 300) || null;
       // Un même appareil peut changer de compte : l'abonnement suit le compte connecté.
