@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { CSRF_COOKIE_NAME } from "@misterdou/shared";
 import { readSessionFromRequest } from "../lib/auth-context.js";
 import { forbidden } from "../lib/errors.js";
+import { assertOnShift } from "../lib/shifts.js";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -16,11 +17,28 @@ const CSRF_EXEMPT = new Set<string>([
   "/api/v1/auth/email/verify",
 ]);
 
+// Toujours accessibles à un manager hors de ses créneaux.
+const SHIFT_FREE = new Set<string>(["/api/v1/auth/me", "/api/v1/auth/logout"]);
+
 export function attachRequestHooks(app: FastifyInstance) {
   // 1) Authentification : résout la session pour TOUTES les routes API.
   app.addHook("preValidation", async (request) => {
     if (!request.url.includes("/api/v1")) return;
     request.auth = await readSessionFromRequest(request);
+
+    // Manager hors de ses créneaux : la console répond « fermée » ; ailleurs il
+    // n'est plus reconnu (visiteur), donc aucune action d'équipe possible.
+    // Restent ouverts : « qui suis-je » (l'écran explique) et la déconnexion.
+    if (request.auth?.user.role?.name === "STAFF") {
+      const url = request.url.split("?")[0] ?? "";
+      if (SHIFT_FREE.has(url)) return;
+      try {
+        await assertOnShift(request.auth.user);
+      } catch (err) {
+        if (url.startsWith("/api/v1/admin/")) throw err;
+        request.auth = null;
+      }
+    }
   });
 
   // 2) CSRF — double-submit : le header x-csrf-token doit être égal à la valeur du cookie md_csrf.

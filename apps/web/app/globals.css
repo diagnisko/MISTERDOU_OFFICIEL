@@ -1077,6 +1077,42 @@ html:not([data-theme="light"]) {
   color-scheme: dark;
 }
 
+/* Listes déroulantes natives : le menu ouvert est dessiné par le navigateur,
+   qui ne suit pas toujours le thème (texte clair sur fond blanc, illisible).
+   Couleurs et police fixées ici pour toutes les listes du site. */
+select {
+  color-scheme: dark;
+  cursor: pointer;
+}
+select option,
+select optgroup {
+  background-color: #1c1412;
+  color: #f3e9e5;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+select option:checked {
+  background-color: #5a2416;
+  color: #ffffff;
+}
+select option:disabled,
+select option[value=""] {
+  color: #8f7d77;
+}
+html[data-theme="light"] select {
+  color-scheme: light;
+}
+html[data-theme="light"] select option,
+html[data-theme="light"] select optgroup {
+  background-color: #ffffff;
+  color: #1d1210;
+}
+html[data-theme="light"] select option:checked {
+  background-color: #fde3d8;
+  color: #1d1210;
+}
+
 html[data-theme="light"] {
   color-scheme: light;
   --color-white: #1d1210;

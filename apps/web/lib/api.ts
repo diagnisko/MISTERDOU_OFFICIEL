@@ -24,7 +24,26 @@ export class ApiClientError extends Error {
     this.name = "ApiClientError";
     this.code = code;
     this.details = details;
+    // Créneau d'un manager terminé en pleine session : la console se ferme (admin/layout.tsx).
+    if (code === "OUTSIDE_SHIFT" && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent<ShiftClosed>(OUTSIDE_SHIFT_EVENT, { detail: shiftClosed(message, details) }));
+    }
   }
+}
+
+/** Émis quand l'API répond OUTSIDE_SHIFT (detail : ShiftClosed). */
+export const OUTSIDE_SHIFT_EVENT = "misterdou:outside-shift";
+
+/** Espace de gestion fermé hors des créneaux d'un manager (titre, message, horaires). */
+export type ShiftClosed = { title: string; message: string; schedule: string | null };
+
+export function shiftClosed(message: string, details: unknown): ShiftClosed {
+  const d = (details ?? {}) as Partial<ShiftClosed>;
+  return {
+    title: typeof d.title === "string" ? d.title : "Espace de gestion fermé",
+    message: typeof d.message === "string" ? d.message : message,
+    schedule: typeof d.schedule === "string" ? d.schedule : null,
+  };
 }
 
 // CSRF double-submit : renvoie le header attendu par l'API depuis le cookie md_csrf

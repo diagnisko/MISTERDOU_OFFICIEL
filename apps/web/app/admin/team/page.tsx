@@ -21,8 +21,9 @@ import { PasswordConfirmDialog } from "@/components/password-confirm";
 // ---------------------------------------------------------------------------
 // Équipe — GET /admin/managers (liste), POST/PATCH/DELETE /admin/managers[/:id].
 // Une barre par membre, trois boutons : Permissions (et compte), Créneaux,
-// Supprimer. Validations client calquées sur managerCreateSchema /
-// managerUpdateSchema (packages/shared) : mêmes règles que l'API.
+// Supprimer. Hors de ses créneaux (heure de Dakar), la console est fermée au
+// membre : c'est l'API qui refuse (lib/shifts.ts). Validations client calquées
+// sur managerCreateSchema / managerUpdateSchema (packages/shared).
 // Un e-mail déjà inscrit (client) rejoint l'équipe avec son compte ; retiré de
 // l'équipe, il redevient client. Les créneaux se saisissent en plages de jours
 // (« du lundi au mercredi, 14:00 – 18:00 ») et sont enregistrés jour par jour.
@@ -274,7 +275,7 @@ function MemberBar({
   const initials = [row.user.firstName, row.user.lastName].map((part) => part?.[0] ?? "").join("").toUpperCase() || "?";
   const ranges = toRanges(row.shifts);
   const active = row.user.status === "ACTIVE";
-  const presence = ranges.length === 0 ? "Toujours disponible" : ranges.length === 1 ? rangeLabel(ranges[0]!) : `${ranges.length} créneaux`;
+  const presence = ranges.length === 0 ? "Accès à toute heure" : ranges.length === 1 ? rangeLabel(ranges[0]!) : `${ranges.length} créneaux`;
 
   return (
     <li className="dash-card flex flex-wrap items-center gap-x-4 gap-y-3 !rounded-2xl px-4 py-3.5 sm:flex-nowrap">
@@ -378,7 +379,7 @@ function ShiftEditor({ value, onChange }: { value: FormShift[]; onChange: (next:
     <div>
       {value.length === 0 ? (
         <p className="rounded-xl border border-dashed border-white/10 px-4 py-3 text-xs text-stone-500">
-          Aucun créneau : disponible à toute heure.
+          Aucun créneau : accès à la console à toute heure.
         </p>
       ) : (
         <div className="space-y-2.5">
@@ -572,7 +573,7 @@ function ShiftsModal({
         className="space-y-5"
       >
         <p className="text-[12.5px] leading-relaxed text-stone-400">
-          Jours et heures de présence de ce membre, pour savoir qui est disponible et quand.
+          Jours et heures où ce membre peut utiliser la console (heure de Dakar). En dehors, la console lui est fermée ; il la retrouve au début de son créneau suivant.
         </p>
         <ShiftEditor value={ranges} onChange={setRanges} />
         <ModalFooter error={error} pending={pending} onClose={onClose} submitLabel="Enregistrer" />

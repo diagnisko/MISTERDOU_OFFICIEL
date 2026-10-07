@@ -302,6 +302,8 @@ export const API_ERROR_CODES = [
   "ALREADY_TEAM_MEMBER",
   "SELLER_CANNOT_BE_MANAGER",
   "EMAIL_NOT_REGISTERED",
+  // Manager hors de ses créneaux : console fermée
+  "OUTSIDE_SHIFT",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 

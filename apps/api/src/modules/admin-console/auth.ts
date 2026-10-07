@@ -67,6 +67,8 @@ export async function loginAdmin(
 
   // L'équipe (STAFF) n'a pas de MFA : session standard, entrée par /admin.
   if (user.role.name === "STAFF") {
+    // Connexion permise à toute heure : hors de ses créneaux, c'est l'espace de
+    // gestion qui reste fermé (contrôle de chaque requête, lib/shifts.ts).
     const sid = await createSession({ userId: user.id, kind: "COOKIE", ip: ctx.ip, userAgent: ctx.userAgent, ttlSeconds: env.SESSION_TTL_SECONDS });
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined } });
     await logAudit({ actorId: user.id, actorRole: "STAFF", ip: ctx.ip, userAgent: ctx.userAgent, action: "LOGIN", resourceType: "User", resourceId: user.id });

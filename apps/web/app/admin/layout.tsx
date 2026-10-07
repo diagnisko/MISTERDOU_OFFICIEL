@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { request } from "@/lib/api";
+import { ApiClientError, OUTSIDE_SHIFT_EVENT, request, shiftClosed, type ShiftClosed } from "@/lib/api";
 import { logoutAccount, refreshAccount } from "@/lib/account";
 import { Spinner } from "@/components/ui";
 import { DashShell, type DashNavItem } from "@/components/dash/dash-ui";
@@ -71,6 +71,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sessionKind, setSessionKind] = useState<"admin" | "staff">("admin");
   const [resolved, setResolved] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  // Manager hors de ses créneaux : message du serveur (avec ses horaires).
+  const [closed, setClosed] = useState<ShiftClosed | null>(null);
+
+  useEffect(() => {
+    const onClosed = (event: Event) => setClosed((event as CustomEvent<ShiftClosed>).detail);
+    window.addEventListener(OUTSIDE_SHIFT_EVENT, onClosed);
+    return () => window.removeEventListener(OUTSIDE_SHIFT_EVENT, onClosed);
+  }, []);
+
+  // Espace fermé : nouvel essai chaque minute, la console s'ouvre au début du créneau.
+  useEffect(() => {
+    if (!closed) return;
+    const timer = setInterval(() => {
+      request("/api/v1/admin/me/access")
+        .then(() => window.location.reload())
+        .catch(() => undefined);
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [closed]);
 
   // Les deux requêtes sont exécutées AVANT toute redirection : aucune boucle.
   useEffect(() => {
@@ -101,13 +120,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       // Modules visibles (un manager sans accès lisible ne voit que la vue d'ensemble).
       let rights: AdminAccess | null = null;
+      let closedNotice: ShiftClosed | null = null;
       if (session) {
-        rights = await request<AdminAccess>("/api/v1/admin/me/access").catch(() => ({ role: kind === "staff" ? "STAFF" : "ADMIN", permissions: [] }) as AdminAccess);
+        rights = await request<AdminAccess>("/api/v1/admin/me/access").catch((err) => {
+          if (err instanceof ApiClientError && err.code === "OUTSIDE_SHIFT") {
+            closedNotice = shiftClosed(err.message, err.details);
+            return null;
+          }
+          return { role: kind === "staff" ? "STAFF" : "ADMIN", permissions: [] } as AdminAccess;
+        });
       }
 
       if (!active) return;
       setResolved(true);
-      if (session) {
+      if (session && closedNotice) {
+        setUser(session);
+        setClosed(closedNotice);
+      } else if (session) {
         setAccess(rights);
         setUser(session);
         setSessionKind(kind);
@@ -133,6 +162,39 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Administrateur";
+
+  if (closed) {
+    return (
+      <div data-lux className="dash-root grid min-h-dvh place-items-center px-4 py-10">
+        <div className="dash-card w-full max-w-md p-7 text-center sm:p-8">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[rgba(255,138,92,0.35)] bg-[rgba(232,71,36,0.08)] text-[#ff8a5c]">
+            <svg aria-hidden width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 7.5V12l3 2" />
+            </svg>
+          </span>
+          {user?.firstName && <p className="mt-5 text-[13px] text-[#b8a6a1]">Bonjour {user.firstName},</p>}
+          <h1 className="mt-1 text-[19px] font-semibold leading-snug text-stone-50">{closed.title}</h1>
+          <p className="mt-3 text-[14px] leading-relaxed text-[#cdbab3]">{closed.message}</p>
+          {closed.schedule && (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8f7d77]">Vos heures de travail</p>
+              <p className="mt-1 text-[13.5px] text-stone-200">{closed.schedule}</p>
+            </div>
+          )}
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Link href="/" className="dash-btn dash-btn-ghost">
+              Aller sur le site
+            </Link>
+            <button type="button" onClick={() => void logout()} disabled={loggingOut} className="dash-btn dash-btn-primary disabled:opacity-60">
+              {loggingOut && <Spinner />} Se déconnecter
+            </button>
+          </div>
+          <p className="mt-5 text-[11.5px] text-[#8f7d77]">Cette page se rouvre d’elle-même au début de votre créneau.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!resolved || !user || !access) {
     return (

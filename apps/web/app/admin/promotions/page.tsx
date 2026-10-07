@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatXof, request } from "@/lib/api";
-import { Alert, Button, SelectInput, StatusBadge, TextInput } from "@/components/ui";
+import { Alert, Button, StatusBadge, TextInput } from "@/components/ui";
 import { buildQuery, requestPaged } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import {
@@ -466,19 +466,14 @@ function CreatePromotionModal({
   return (
     <AdminModal title="Créer une promotion" onClose={onClose} width="max-w-xl">
       <form onSubmit={(event) => void submit(event)} className="space-y-4">
-        <label className="block">
+        <div>
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
             Offre <span className="ml-1 text-[var(--lux-gold, #ff6a32)]">*</span>
           </span>
-          {offerings && offerings.length > 0 ? (
-            <SelectInput value={productId} onChange={(event) => setProductId(event.target.value)} required>
-              <option value="">Choisir une offre…</option>
-              {offerings.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} · {formatXof(item.basePrice)}
-                </option>
-              ))}
-            </SelectInput>
+          {offerings === null ? (
+            <p className="text-sm text-stone-500">Chargement des offres…</p>
+          ) : offerings.length > 0 ? (
+            <OfferPicker offerings={offerings} value={productId} onChange={setProductId} />
           ) : (
             <TextInput
               value={productId}
@@ -486,7 +481,7 @@ function CreatePromotionModal({
               placeholder="Identifiant (UUID) de l’offre"
             />
           )}
-        </label>
+        </div>
 
         <label className="block">
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-400">
@@ -559,5 +554,91 @@ function CreatePromotionModal({
         </div>
       </form>
     </AdminModal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Choix de l'offre : recherche + liste lisible (titre, prix, statut) au lieu de
+// la longue liste déroulante du navigateur.
+// ---------------------------------------------------------------------------
+
+function OfferPicker({
+  offerings,
+  value,
+  onChange,
+}: {
+  offerings: OfferingRow[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? offerings.filter((item) => item.title.toLowerCase().includes(needle) || item.slug.toLowerCase().includes(needle))
+    : offerings;
+  // Titres en double : un repère court les distingue.
+  const titleCount = new Map<string, number>();
+  for (const item of offerings) titleCount.set(item.title, (titleCount.get(item.title) ?? 0) + 1);
+  const selected = offerings.find((item) => item.id === value);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+      <div className="border-b border-white/[0.07] p-2">
+        <TextInput
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={`Rechercher parmi ${offerings.length} offres`}
+          aria-label="Rechercher une offre"
+          className="!rounded-xl !border-transparent !bg-white/[0.04]"
+        />
+      </div>
+      {/* Colonne minmax(0,1fr) : les titres longs se coupent au lieu d'élargir la fenêtre. */}
+      <ul role="listbox" aria-label="Offres" className="grid max-h-60 grid-cols-[minmax(0,1fr)] overflow-y-auto py-1">
+        {shown.length === 0 ? (
+          <li className="px-4 py-3 text-sm text-stone-500">Aucune offre ne correspond.</li>
+        ) : (
+          shown.map((item) => {
+            const active = item.id === value;
+            return (
+              <li key={item.id} role="option" aria-selected={active}>
+                <button
+                  type="button"
+                  onClick={() => onChange(item.id)}
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition ${
+                    active ? "bg-[rgba(232,71,36,0.16)]" : "hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                      active ? "border-[#ff8a5c] bg-[#ff8a5c]" : "border-white/25"
+                    }`}
+                  >
+                    {active && <span className="h-1.5 w-1.5 rounded-full bg-[#1a0503]" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[14px] font-medium ${active ? "text-white" : "text-stone-100"}`}>
+                      {item.title}
+                    </span>
+                    {(titleCount.get(item.title) ?? 0) > 1 && (
+                      <span className="block text-[11px] text-stone-500">Réf. {item.id.slice(0, 8).toUpperCase()}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-[13px] tabular-nums text-[#ffb08a]">{formatXof(item.basePrice)}</span>
+                  <span className="hidden shrink-0 sm:inline">
+                    <StatusBadge status={item.status} />
+                  </span>
+                </button>
+              </li>
+            );
+          })
+        )}
+      </ul>
+      {selected && (
+        <p className="border-t border-white/[0.07] px-4 py-2 text-[12px] text-stone-400">
+          Choisie : <span className="text-stone-200">{selected.title}</span> · {formatXof(selected.basePrice)}
+        </p>
+      )}
+    </div>
   );
 }

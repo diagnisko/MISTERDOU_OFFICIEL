@@ -16,6 +16,7 @@ import { notifyUser } from "../../lib/notify.js";
 import { decryptString, getFile } from "../../lib/storage.js";
 import { assertOwnedProof } from "../identity-verification/service.js";
 import { hashPassword } from "../../lib/password.js";
+import { forgetShifts } from "../../lib/shifts.js";
 import { settlePayment } from "../payments/service.js";
 import { isWaveLink } from "../settings/service.js";
 
@@ -357,6 +358,8 @@ export async function updateManager(id: string, input: ManagerUpdateInput, actor
       }
     }
   });
+  // Nouveaux créneaux appliqués tout de suite (pas d'attente du cache).
+  if (input.shifts !== undefined) forgetShifts(profile.userId);
 
   await audit(actor, "MANAGER_UPDATED", {
     resourceType: "ManagerProfile",
