@@ -7,6 +7,7 @@ import { buildSchedule } from "../installments/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { mediaKind, publicUrl } from "../../lib/media.js";
 import { PLATFORM_KEY, PLATFORM_PROFILE_ID, reputations, sellerCode, sellerIdentities } from "../reviews/service.js";
+import { houseAvatarUrl } from "../../lib/house.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -209,9 +210,10 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       // Note affichée : réputation du vendeur (un compte n'est vendu qu'une
       // fois, il n'a jamais d'avis propre avant sa vente). Requêtes groupées
       // restreintes aux vendeurs de la page renvoyée.
-      const [rep, identities] = await Promise.all([
+      const [rep, identities, houseAvatar] = await Promise.all([
         reputations(pageRows.map((p) => p.sellerId)),
         sellerIdentities(pageRows.map((p) => p.sellerId)),
+        houseAvatarUrl(),
       ]);
 
       const items = pageRows.map((p) => {
@@ -237,7 +239,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
           // Qui vend : MISTERDOU, ou le vendeur (prénom + initiale, photo) → sa page.
           seller: p.sellerId
             ? { kind: "SELLER" as const, id: p.sellerId, name: identities.get(p.sellerId)?.name ?? sellerCode(p.sellerId), avatarUrl: identities.get(p.sellerId)?.avatarUrl ?? null }
-            : { kind: "MISTERDOU" as const },
+            : { kind: "MISTERDOU" as const, avatarUrl: houseAvatar },
         };
       });
 
@@ -288,7 +290,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
         select: { id: true, objectKey: true, mimeType: true },
       });
-      const [repMap, identities] = await Promise.all([reputations([p.sellerId]), sellerIdentities([p.sellerId])]);
+      const [repMap, identities, houseAvatar] = await Promise.all([reputations([p.sellerId]), sellerIdentities([p.sellerId]), houseAvatarUrl()]);
       const rep = repMap.get(p.sellerId ?? PLATFORM_KEY);
       const { price, promoPrice } = resolvePrice(p);
 
@@ -324,7 +326,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
               sales: rep?.sales ?? 0,
               since: rep?.since ?? null,
             }
-          : { kind: "MISTERDOU" as const, sales: rep?.sales ?? 0 },
+          : { kind: "MISTERDOU" as const, avatarUrl: houseAvatar, sales: rep?.sales ?? 0 },
         media: media.map((m) => ({
           id: m.id,
           url: publicUrl(m.objectKey),

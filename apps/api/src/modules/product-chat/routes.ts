@@ -4,6 +4,8 @@ import { prisma } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { getThread, listInbox, listMyThreads, messageSchema, myThreadForProduct, postInThread, sendToSeller } from "./service.js";
+import { houseAvatarUrl } from "../../lib/house.js";
+import { publicUrl } from "../../lib/media.js";
 
 const TAG = "Discussions produit";
 const idParams = z.object({ id: z.string().uuid() });
@@ -99,22 +101,29 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
       select: {
         id: true,
         updatedAt: true,
+        participantAUserId: true,
+        User_Conversation_participantAUserIdToUser: { select: { firstName: true, lastName: true, avatarKey: true } },
+        User_Conversation_participantBUserIdToUser: { select: { firstName: true, lastName: true, avatarKey: true } },
         message: { orderBy: { createdAt: "desc" }, take: 1, select: { content: true, createdAt: true } },
         _count: { select: { message: { where: { senderId: { not: viewer.user.id }, readAt: null } } } },
       },
     });
+    const houseAvatar = await houseAvatarUrl();
     for (const c of convos) {
       const last = c.message[0];
+      // L'équipe voit le membre (nom, photo) ; le membre voit MISTERDOU (photo de la boutique).
+      const peer = c.participantAUserId === viewer.user.id ? c.User_Conversation_participantBUserIdToUser : c.User_Conversation_participantAUserIdToUser;
+      const peerName = [peer.firstName, peer.lastName].filter(Boolean).join(" ");
       items.push({
         key: `c:${c.id}`,
         kind: "support",
         title: "Support MISTERDOU",
-        counterpart: team ? "Client" : "Équipe MISTERDOU",
+        counterpart: team ? peerName || "Client" : "Équipe MISTERDOU",
         preview: last ? last.content.slice(0, 120) : null,
         at: (last?.createdAt ?? c.updatedAt).toISOString(),
         unread: c._count.message,
         href: `/messages?c=${c.id}`,
-        imageUrl: null,
+        imageUrl: team ? (peer.avatarKey ? publicUrl(peer.avatarKey) : null) : houseAvatar,
         counterpartKind: team ? "client" : "platform",
       });
     }

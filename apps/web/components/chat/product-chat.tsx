@@ -142,6 +142,15 @@ export function ChatAvatar({
   size?: number;
 }) {
   const style = { width: size, height: size };
+  // Boutique officielle avec photo : la photo, cerclée de l'anneau braise.
+  if (kind === "platform" && url) {
+    return (
+      <span aria-hidden style={style} className="grid shrink-0 place-items-center rounded-full bg-[conic-gradient(from_0deg,#ffb08a,#e84724,#7a1712,#e84724,#ffb08a)] p-[2px]">
+        {/* eslint-disable-next-line @next/next/no-img-element -- bucket public R2 */}
+        <img src={url} alt="" className="h-full w-full rounded-full object-cover" />
+      </span>
+    );
+  }
   if (kind === "platform") {
     return (
       <span

@@ -8,8 +8,9 @@ import { useT } from "@/lib/i18n";
 import type { CatalogueSeller } from "@/lib/lux-catalogue";
 
 // ---------------------------------------------------------------------------
-// Qui vend ce compte : MISTERDOU, ou le vendeur (prénom + initiale, photo)
-// avec sa réputation (note, ventes, ancienneté) et un lien vers son profil.
+// Qui vend ce compte : MISTERDOU (photo de la boutique officielle, sinon « M. »),
+// ou le vendeur (prénom + initiale, photo) avec sa réputation (note, ventes,
+// ancienneté) et un lien vers son profil.
 // ---------------------------------------------------------------------------
 
 /** Photo du vendeur dans un anneau braise (tourne au survol), coche « vérifié ». */
@@ -23,11 +24,11 @@ export function SellerAvatar({ name, avatarUrl, house = false, size = 30 }: { na
       .join("") || "?";
   return (
     <span className="lux-seller-avatar" style={{ width: size, height: size }} aria-hidden>
-      {house ? (
-        <span className="lux-seller-ini lux-serif">M.</span>
-      ) : avatarUrl ? (
+      {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- bucket public R2
         <img src={avatarUrl} alt="" loading="lazy" decoding="async" />
+      ) : house ? (
+        <span className="lux-seller-ini lux-serif">M.</span>
       ) : (
         <span className="lux-seller-ini">{initials}</span>
       )}
@@ -50,7 +51,7 @@ export function SellerChip({ seller, className }: { seller: CardSeller; classNam
       aria-label={t("card.sellerLink", { name })}
       className={cx("lux-seller-chip absolute z-10", className)}
     >
-      <SellerAvatar name={name} avatarUrl={seller.kind === "SELLER" ? seller.avatarUrl : null} house={seller.kind !== "SELLER"} />
+      <SellerAvatar name={name} avatarUrl={seller.avatarUrl ?? null} house={seller.kind !== "SELLER"} />
       <span className="max-w-[150px] truncate">{name}</span>
     </Link>
   );
@@ -58,7 +59,7 @@ export function SellerChip({ seller, className }: { seller: CardSeller; classNam
 
 /** Vendeur de la fiche détaillée → format de la pastille. */
 export function toCardSeller(seller: CatalogueSeller | undefined): CardSeller {
-  if (!seller || seller.kind !== "SELLER") return { kind: "MISTERDOU" };
+  if (!seller || seller.kind !== "SELLER") return { kind: "MISTERDOU", avatarUrl: seller?.avatarUrl ?? null };
   return { kind: "SELLER", id: seller.id, name: seller.name ?? seller.code, avatarUrl: seller.avatarUrl ?? null };
 }
 
@@ -85,7 +86,7 @@ export function SellerBadge({ seller, rating, reviewCount }: { seller: Catalogue
         <p className="flex items-center gap-2.5 text-[13.5px] font-semibold text-stone-100">
           <SellerAvatar
             name={seller.kind === "SELLER" ? (seller.name ?? seller.code) : "MISTERDOU"}
-            avatarUrl={seller.kind === "SELLER" ? seller.avatarUrl : null}
+            avatarUrl={seller.avatarUrl ?? null}
             house={seller.kind !== "SELLER"}
             size={34}
           />

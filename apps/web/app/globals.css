@@ -1235,3 +1235,81 @@ html[data-theme="light"] [class*="border-[rgba(255,236,229"],
 html[data-theme="light"] [class*="border-[rgba(255,255,255"] {
   border-color: rgba(70, 25, 15, 0.12);
 }
+
+/* ============================================================
+   Cadrage de la photo de profil (components/account/avatar-cropper.tsx)
+   ============================================================ */
+.crop-stage {
+  background:
+    repeating-conic-gradient(#1a1311 0% 25%, #140e0c 0% 50%) 0 0 / 22px 22px;
+}
+/* Voile sombre autour du cercle, anneau braise et repères discrets. */
+.crop-ring {
+  box-shadow:
+    0 0 0 9999px rgba(8, 5, 4, 0.72),
+    0 0 0 2px rgba(255, 176, 138, 0.95),
+    0 0 28px 2px rgba(232, 71, 36, 0.35);
+}
+.crop-ring::before,
+.crop-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.crop-ring::before {
+  background:
+    linear-gradient(90deg, transparent calc(33.33% - 0.5px), rgba(255, 255, 255, 0.28) calc(33.33% - 0.5px), rgba(255, 255, 255, 0.28) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), rgba(255, 255, 255, 0.28) calc(66.66% - 0.5px), rgba(255, 255, 255, 0.28) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)),
+    linear-gradient(0deg, transparent calc(33.33% - 0.5px), rgba(255, 255, 255, 0.28) calc(33.33% - 0.5px), rgba(255, 255, 255, 0.28) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), rgba(255, 255, 255, 0.28) calc(66.66% - 0.5px), rgba(255, 255, 255, 0.28) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px));
+}
+.crop-stage:active .crop-ring::before,
+.crop-stage:focus-visible .crop-ring::before {
+  opacity: 1;
+}
+
+/* Curseur de zoom : piste fine, partie remplie braise, pastille lumineuse. */
+.crop-range {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.crop-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #ff8a5c var(--fill, 0%), rgba(255, 255, 255, 0.12) var(--fill, 0%));
+}
+.crop-range::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.crop-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: #ff8a5c;
+}
+.crop-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #ffd2bd, #ff6a32 60%, #c83a24);
+  box-shadow: 0 0 0 4px rgba(255, 106, 50, 0.18), 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 150ms ease;
+}
+.crop-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #ffd2bd, #ff6a32 60%, #c83a24);
+  box-shadow: 0 0 0 4px rgba(255, 106, 50, 0.18), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.crop-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px rgba(255, 106, 50, 0.35), 0 2px 8px rgba(0, 0, 0, 0.5);
+}

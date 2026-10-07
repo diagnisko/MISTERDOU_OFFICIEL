@@ -5,6 +5,7 @@ import { conflict, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 import { publicUrl } from "../../lib/media.js";
+import { houseAvatarUrl } from "../../lib/house.js";
 
 // ---------------------------------------------------------------------------
 // Avis clients et réputation des vendeurs.
@@ -258,17 +259,18 @@ export async function sellerPublicProfile(sellerId: string) {
 
 /** Boutique officielle MISTERDOU : même vitrine que les vendeurs, pour les offres maison. */
 export async function platformPublicProfile() {
-  const [rep, reviews, sold] = await Promise.all([
+  const [rep, reviews, sold, avatarUrl] = await Promise.all([
     reputations([null]),
     prisma.productReview.findMany({ where: { product: { sellerId: null } }, orderBy: { createdAt: "desc" }, take: 20, select: REVIEW_SELECT }),
     soldShowcase(null),
+    houseAvatarUrl(),
   ]);
   return {
     id: PLATFORM_PROFILE_ID,
     code: "MISTERDOU",
     official: true,
     name: "MISTERDOU",
-    avatarUrl: null,
+    avatarUrl,
     ...(rep.get(PLATFORM_KEY) ?? { rating: null, reviewCount: 0, sales: 0, since: null }),
     reviews: reviews.map(publicReview),
     sold,

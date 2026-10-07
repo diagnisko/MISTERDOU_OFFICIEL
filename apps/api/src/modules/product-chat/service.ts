@@ -4,6 +4,7 @@ import type { RoleName } from "@misterdou/db";
 import { badRequest, forbidden, notFound } from "../../lib/errors.js";
 import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { publicUrl } from "../../lib/media.js";
+import { houseAvatarUrl } from "../../lib/house.js";
 
 // ---------------------------------------------------------------------------
 // Discussion à propos d'un compte en vente.
@@ -104,10 +105,10 @@ const clientName = (c: { firstName: string | null; lastName: string | null }) =>
 const sellerLabel = (thread: ThreadRow) => (platformThread(thread) ? "MISTERDOU" : publicName(thread.product.seller!.user, "Vendeur"));
 
 /** Interlocuteur affiché (nom, photo, nature) selon le côté du lecteur. */
-function counterpartOf(thread: ThreadRow, side: ChatSide) {
+function counterpartOf(thread: ThreadRow, side: ChatSide, houseAvatar: string | null) {
   if (side === "client") {
     return platformThread(thread)
-      ? { counterpart: "MISTERDOU", counterpartKind: "platform" as const, counterpartAvatarUrl: null }
+      ? { counterpart: "MISTERDOU", counterpartKind: "platform" as const, counterpartAvatarUrl: houseAvatar }
       : {
           counterpart: sellerLabel(thread),
           counterpartKind: "seller" as const,
@@ -151,7 +152,11 @@ async function lastMessage(threadId: string) {
 
 async function toSummary(thread: ThreadRow, side: ChatSide) {
   // L'administrateur observateur ne « doit » rien : pas de pastille de non-lus.
-  const [unread, last] = await Promise.all([side === "observer" ? 0 : unreadFor(thread, side), lastMessage(thread.id)]);
+  const [unread, last, houseAvatar] = await Promise.all([
+    side === "observer" ? 0 : unreadFor(thread, side),
+    lastMessage(thread.id),
+    houseAvatarUrl(),
+  ]);
   return {
     id: thread.id,
     product: {
@@ -162,7 +167,7 @@ async function toSummary(thread: ThreadRow, side: ChatSide) {
       available: thread.product.status === "ACTIVE",
     },
     // Le client voit le vendeur (nom, photo) ou MISTERDOU ; le côté vente voit le client.
-    ...counterpartOf(thread, side),
+    ...counterpartOf(thread, side, houseAvatar),
     // Observateur : suit la discussion sans pouvoir y écrire.
     readOnly: side === "observer",
     // Pour l'équipe : vendeur du compte (null = MISTERDOU).

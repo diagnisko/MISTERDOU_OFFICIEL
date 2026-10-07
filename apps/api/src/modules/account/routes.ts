@@ -9,6 +9,7 @@ import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 import { hashPassword, verifyPassword } from "../../lib/password.js";
 import { confirmUpload, createUpload, deleteMedia, publicUrl } from "../../lib/media.js";
+import { forgetHouseAvatar } from "../../lib/house.js";
 
 // ---------------------------------------------------------------------------
 // Compte du membre : profil, mot de passe, photo. L'e-mail n'est jamais
@@ -144,6 +145,7 @@ export async function registerAccountRoutes(app: FastifyInstance) {
     await prisma.user.update({ where: { id: auth.user.id }, data: { avatarKey: input.data.key } });
     if (previous.avatarKey && previous.avatarKey !== input.data.key) await deleteMedia(previous.avatarKey).catch(() => undefined);
     await logAudit({ ...audit, action: "AVATAR_UPDATED" });
+    forgetHouseAvatar();
     return sendOk(reply, { avatarUrl: publicUrl(input.data.key) });
   });
 
@@ -154,6 +156,7 @@ export async function registerAccountRoutes(app: FastifyInstance) {
       await prisma.user.update({ where: { id: auth.user.id }, data: { avatarKey: null } });
       await deleteMedia(user.avatarKey).catch(() => undefined);
       await logAudit({ ...audit, action: "AVATAR_REMOVED" });
+      forgetHouseAvatar();
     }
     return sendOk(reply, { avatarUrl: null });
   });

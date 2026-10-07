@@ -5,6 +5,7 @@ import { getPublicMeta } from "../settings/service.js";
 import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { publicUrl } from "../../lib/media.js";
 import { sellerIdentities } from "../reviews/service.js";
+import { houseAvatarUrl } from "../../lib/house.js";
 
 // ---------------------------------------------------------------------------
 // GET /api/seed — une seule requête publique pour alimenter la landing.
@@ -140,13 +141,13 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
         seller: p.sellerId
           ? { kind: "SELLER" as const, id: p.sellerId, name: identities.get(p.sellerId)?.name ?? "", avatarUrl: identities.get(p.sellerId)?.avatarUrl ?? null }
-          : { kind: "MISTERDOU" as const },
+          : { kind: "MISTERDOU" as const, avatarUrl: houseAvatar },
       });
 
       // Les offres mises en avant passent en tête de l'accueil, puis les plus récentes.
       const seen = new Set<string>();
       const products = [...boosted, ...latest].filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true))).slice(0, 6);
-      const identities = await sellerIdentities(products.map((p) => p.sellerId));
+      const [identities, houseAvatar] = await Promise.all([sellerIdentities(products.map((p) => p.sellerId)), houseAvatarUrl()]);
       const home = products.map(toItem);
 
       const first = home[0];

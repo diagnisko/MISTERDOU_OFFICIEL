@@ -6,6 +6,7 @@ import { ApiClientError, request } from "@/lib/api";
 import { displayName, refreshAccount, useAccount } from "@/lib/account";
 import { putFile } from "@/lib/upload";
 import { Avatar } from "@/components/account/account-menu";
+import { AvatarCropper } from "@/components/account/avatar-cropper";
 import { IconBadgeCheck } from "@/components/dash/dash-icons";
 import { useT, type MessageKey } from "@/lib/i18n";
 
@@ -27,6 +28,8 @@ export default function ProfilePage() {
   const [form, setForm] = useState({ firstName: "", lastName: "", country: "", city: "" });
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  // Photo choisie, en cours de cadrage (envoyée seulement une fois cadrée).
+  const [cropping, setCropping] = useState<File | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [verifyNote, setVerifyNote] = useState<string | null>(null);
 
@@ -72,25 +75,34 @@ export default function ProfilePage() {
     }
   }
 
-  async function changePhoto(file: File | undefined) {
+  function pickPhoto(file: File | undefined) {
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return;
+    setMessage(null);
+    setCropping(file);
+  }
+
+  /** Photo cadrée (carré JPEG 512 px) → envoi. */
+  async function uploadPhoto(photo: Blob) {
     setPhotoBusy(true);
     setMessage(null);
     try {
-      if (file.size > 2 * 1024 * 1024) throw new Error(t("profile.photoTooBig"));
+      if (photo.size > 2 * 1024 * 1024) throw new Error(t("profile.photoTooBig"));
+      const mimeType = "image/jpeg";
       const ticket = await request<{ key: string; uploadUrl: string; headers: Record<string, string> }>(
         "/api/v1/account/avatar/upload-url",
-        { method: "POST", body: JSON.stringify({ mimeType: file.type, sizeBytes: file.size }) },
+        { method: "POST", body: JSON.stringify({ mimeType, sizeBytes: photo.size }) },
       );
-      await putFile(ticket.uploadUrl, file, ticket.headers);
-      await request("/api/v1/account/avatar", { method: "POST", body: JSON.stringify({ key: ticket.key, mimeType: file.type }) });
+      await putFile(ticket.uploadUrl, photo, ticket.headers);
+      await request("/api/v1/account/avatar", { method: "POST", body: JSON.stringify({ key: ticket.key, mimeType }) });
       await refreshAccount();
+      setCropping(null);
       setMessage({ tone: "ok", text: t("profile.photoUpdated") });
     } catch (err) {
+      setCropping(null);
       setMessage({ tone: "error", text: err instanceof Error ? err.message : t("profile.sendFailed") });
     } finally {
       setPhotoBusy(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -106,6 +118,7 @@ export default function ProfilePage() {
 
   return (
     <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+      {cropping && <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onConfirm={uploadPhoto} />}
       <section className="dash-card p-6 text-center">
         <div className="mx-auto w-fit">
           <Avatar user={user} url={profile.avatarUrl} size={112} />
@@ -135,9 +148,9 @@ export default function ProfilePage() {
             <input
               ref={fileRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               className="sr-only"
-              onChange={(e) => void changePhoto(e.target.files?.[0])}
+              onChange={(e) => pickPhoto(e.target.files?.[0])}
             />
           </label>
           {profile.avatarUrl && (

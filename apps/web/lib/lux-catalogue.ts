@@ -131,7 +131,7 @@ export async function fetchCatalogueServer(
 
 /** Qui vend : MISTERDOU, ou un vendeur partenaire (code public, jamais son nom). */
 export type CatalogueSeller =
-  | { kind: "MISTERDOU"; sales: number }
+  | { kind: "MISTERDOU"; avatarUrl?: string | null; sales: number }
   | { kind: "SELLER"; id: string; code: string; name?: string; avatarUrl?: string | null; sales: number; since: string | null };
 
 export interface CatalogueDetail {
