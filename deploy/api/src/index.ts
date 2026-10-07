@@ -52,7 +52,7 @@ export class ApiContainer extends Container {
 }
 
 // Doit correspondre au second déclencheur de wrangler.jsonc.
-const KEEP_DB_AWAKE_CRON = "*/4 15-22 * * *";
+const KEEP_DB_AWAKE_CRON = "*/4 12-19 * * *";
 
 // Une seule instance : les tâches de fond ne doivent jamais tourner en double.
 function api(env: Env) {
