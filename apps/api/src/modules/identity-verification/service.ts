@@ -5,7 +5,7 @@ import { kycSubmitSchema } from "@misterdou/shared";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { getFile, keyOwner } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyUser, notifyActiveAdmins } from "../../lib/notify.js";
+import { notifyUser, notifyTeam } from "../../lib/notify.js";
 
 export type KycActor = { actorId: string; actorRole?: RoleName; ip?: string; userAgent?: string };
 
@@ -112,7 +112,7 @@ export async function submitVerification(input: unknown, actor: KycActor) {
     return created;
   });
   await logAudit({ actorId: actor.actorId, actorRole: actor.actorRole, ip: actor.ip, userAgent: actor.userAgent, action: "KYC_SUBMITTED", resourceType: "IdentityVerification", resourceId: record.id });
-  await notifyActiveAdmins("ADMIN_ALERT", {
+  await notifyTeam("KYC", "ADMIN_ALERT", {
     title: "Nouvelle vérification",
     message: "Un dossier de vérification d'identité attend une revue.",
     actionUrl: "/admin/verifications",

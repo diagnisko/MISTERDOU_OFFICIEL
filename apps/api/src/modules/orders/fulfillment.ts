@@ -3,7 +3,7 @@ import { runningContract } from "../seller/contract.js";
 import type { Prisma } from "@misterdou/db";
 import { logger } from "../../lib/logger.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
+import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { getIntSetting } from "../settings/service.js";
 
 // ---------------------------------------------------------------------------
@@ -176,7 +176,7 @@ export async function recordSellerSale(tx: Tx, orderId: string): Promise<Array<{
 /** Double vente détectée : l'équipe doit rembourser l'un des deux acheteurs. */
 export async function alertDoubleSale(orderNumber: string, productIds: string[]) {
   logger.error({ orderNumber, productIds }, "[orders] produit déjà vendu : paiement à rembourser");
-  await notifyActiveAdmins("ADMIN_ALERT", {
+  await notifyTeam(null, "ADMIN_ALERT", {
     title: "Paiement sur un compte déjà vendu",
     message: `La commande ${orderNumber} a été payée pour un compte déjà vendu. Remboursez l’acheteur depuis la console.`,
     actionUrl: "/admin/orders",

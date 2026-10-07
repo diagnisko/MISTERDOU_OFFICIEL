@@ -218,6 +218,18 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
       : "Réglez votre commande pour recevoir votre accès.",
     actionUrl: `/checkout/${transactionToken}`,
   });
+  // L'équipe en service (Commandes) : le paiement Wave suit en général de près.
+  await notifyTeam(
+    "ORDERS",
+    "ADMIN_ALERT",
+    {
+      title: "Nouvelle commande",
+      message: `${orderNumber} · « ${product.title} » · ${totalAmount.toLocaleString("fr-FR")} FCFA${split ? " en mensualités" : ""}.`,
+      actionUrl: "/admin/orders",
+      priority: "NORMAL",
+    },
+    { tag: `order-${order.id}` },
+  );
   logger.info(
     { orderNumber, totalAmount, paymentMode: split ? "INSTALLMENTS" : "ONE_TIME", planId: plan?.id },
     "[orders] commande créée (PENDING_PAYMENT)",

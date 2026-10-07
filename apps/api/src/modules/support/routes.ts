@@ -6,7 +6,7 @@ import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, requirePermission, type AuthContext } from "../../lib/auth-context.js";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
+import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
 import { openStaffConversation, postStaffMessage } from "../messaging/service.js";
 
 const TAG = "Support";
@@ -118,7 +118,7 @@ export async function registerSupportRoutes(app: FastifyInstance) {
         ticketId: ticket.id,
         category: input.category,
       });
-      await notifyActiveAdmins("ADMIN_ALERT", {
+      await notifyTeam("SUPPORT", "ADMIN_ALERT", {
         title: "Nouvelle demande de support",
         message: input.subject,
         actionUrl: "/admin/support",

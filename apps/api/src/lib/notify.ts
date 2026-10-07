@@ -4,6 +4,8 @@ import { logger } from "./logger.js";
 import { sendEmail } from "./email.js";
 import { EMAIL_TEMPLATES, isCriticalEmailType } from "./email-templates.js";
 import { env } from "../env.js";
+import { pushToUsers } from "./push.js";
+import { isOnShift } from "./shifts.js";
 
 /** « /account/orders » → « https://site/account/orders » pour les e-mails. */
 function absoluteUrl(actionUrl: string | undefined): string | undefined {
@@ -17,6 +19,11 @@ export interface NotifyParams {
   channel?: NotificationChannel;
   priority?: NotificationPriority;
   actionUrl?: string;
+}
+
+/** Notification sur le téléphone en plus de la cloche (alertes d'équipe). */
+export interface NotifyOptions {
+  push?: { tag?: string };
 }
 
 export interface NotifyBatchEntry {
@@ -37,7 +44,10 @@ export interface NotifyBatchEntry {
 // partait en N+1 dès le premier message d'une nouvelle conversation).
 // Les règles de préférence restent évaluées LIGNE PAR LIGNE : une entrée
 // CRITICAL n'élève pas la priorité de ses voisines.
-export async function notifyMany(type: NotificationType, entries: NotifyBatchEntry[]): Promise<void> {
+//
+// Avec `push` : notification sur les téléphones abonnés (préférence push), et
+// l'e-mail ne part qu'en secours, aux membres qu'aucun appareil n'a atteints.
+export async function notifyMany(type: NotificationType, entries: NotifyBatchEntry[], opts: NotifyOptions = {}): Promise<void> {
   if (entries.length === 0) return;
   try {
     const userIds = [...new Set(entries.map((entry) => entry.userId))];
@@ -46,7 +56,7 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
     const [prefs, users] = await Promise.all([
       prisma.notificationPreference.findMany({
         where: { userId: { in: userIds } },
-        select: { userId: true, inApp: true, email: true },
+        select: { userId: true, inApp: true, email: true, push: true },
       }),
       emailWanted
         ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } })
@@ -64,7 +74,7 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
       priority: NotificationPriority;
       actionUrl: string | null;
     }> = [];
-    const emails: Array<{ to: string; params: NotifyParams }> = [];
+    const emails: Array<{ userId: string; to: string; params: NotifyParams }> = [];
     const template = EMAIL_TEMPLATES[type];
 
     for (const { userId, params } of entries) {
@@ -85,14 +95,31 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
       }
       const emailAllowed = explicitChannel ? params.channel === "EMAIL" : pref?.email !== false;
       const email = userById.get(userId)?.email;
-      if (emailWanted && email && emailAllowed && template) emails.push({ to: email, params: { ...params, actionUrl: absoluteUrl(params.actionUrl) } });
+      if (emailWanted && email && emailAllowed && template) emails.push({ userId, to: email, params: { ...params, actionUrl: absoluteUrl(params.actionUrl) } });
     }
 
     if (rows.length > 0) await prisma.notification.createMany({ data: rows });
 
+    // Téléphones : un envoi par message distinct (les entrées d'un lot peuvent différer).
+    const reached = new Set<string>();
+    if (opts.push) {
+      const groups = new Map<string, { params: NotifyParams; userIds: string[] }>();
+      for (const { userId, params } of entries) {
+        if (prefByUser.get(userId)?.push === false) continue;
+        const key = JSON.stringify([params.title, params.message, params.actionUrl ?? ""]);
+        const group = groups.get(key) ?? { params, userIds: [] };
+        group.userIds.push(userId);
+        groups.set(key, group);
+      }
+      for (const { params, userIds: ids } of groups.values()) {
+        const hit = await pushToUsers(ids, { title: params.title, body: params.message, url: params.actionUrl ?? "/admin", tag: opts.push.tag });
+        for (const id of hit) reached.add(id);
+      }
+    }
+
     // Un e-mail en échec n'empêche jamais les suivants.
     await Promise.all(
-      emails.map(async (mail) => {
+      emails.filter((mail) => !reached.has(mail.userId)).map(async (mail) => {
         try {
           await sendEmail({
             to: mail.to,
@@ -140,25 +167,49 @@ export async function notifyActiveAdmins(
   }
 }
 
-// Alerte à ceux qui peuvent agir : administrateurs actifs et managers qui ont
-// la permission demandée (ex. PAYMENTS pour valider une preuve de paiement).
+/**
+ * Membres de l'équipe à prévenir maintenant : les administrateurs actifs
+ * (toujours) et les managers qui ont la permission et sont en service (dans
+ * un de leurs créneaux, ou sans créneau). Un manager hors créneau n'est pas
+ * dérangé : son espace est fermé ; il retrouve le travail en attente au début
+ * de son créneau (lib/shift-digest.ts). `null` : administrateurs seuls.
+ */
+export async function teamOnDuty(permission: ManagerPermission | null, now: Date = new Date()): Promise<string[]> {
+  const members = await prisma.user.findMany({
+    where: {
+      status: "ACTIVE",
+      deletedAt: null,
+      OR: [
+        { role: { name: "ADMIN" } },
+        ...(permission ? [{ role: { name: "STAFF" as const }, managerProfile: { permissions: { has: permission } } }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      role: { select: { name: true } },
+      managerProfile: { select: { managerShift: { select: { day: true, startMinute: true, endMinute: true } } } },
+    },
+  });
+  return members
+    .filter((m) => m.role.name === "ADMIN" || isOnShift(m.managerProfile?.managerShift ?? [], now))
+    .map((m) => m.id);
+}
+
+// Alerte à ceux qui peuvent agir maintenant (voir teamOnDuty) : cloche,
+// notification sur le téléphone, e-mail de secours. `tag` regroupe les
+// notifications d'un même sujet (ex. une conversation) sur le téléphone.
 export async function notifyTeam(
-  permission: ManagerPermission,
+  permission: ManagerPermission | null,
   type: NotificationType,
   params: NotifyParams,
+  opts: { tag?: string } = {},
 ): Promise<void> {
   try {
-    const team = await prisma.user.findMany({
-      where: {
-        status: "ACTIVE",
-        deletedAt: null,
-        OR: [{ role: { name: "ADMIN" } }, { role: { name: "STAFF" }, managerProfile: { permissions: { has: permission } } }],
-      },
-      select: { id: true },
-    });
+    const ids = await teamOnDuty(permission);
     await notifyMany(
       type,
-      team.map((member) => ({ userId: member.id, params })),
+      ids.map((userId) => ({ userId, params })),
+      { push: { tag: opts.tag } },
     );
   } catch (err) {
     logger.warn({ err, type, permission }, "[notify] échec d'alerte de l'équipe");

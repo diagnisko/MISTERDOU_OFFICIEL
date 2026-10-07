@@ -5,7 +5,7 @@ import type { RoleName } from "@misterdou/db";
 import { conflict, forbidden, notFound } from "../../lib/errors.js";
 import { decryptString, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyMany, notifyUser } from "../../lib/notify.js";
+import { notifyMany, notifyUser, teamOnDuty } from "../../lib/notify.js";
 import { getIntSetting } from "../settings/service.js";
 
 // ---------------------------------------------------------------------------
@@ -120,14 +120,8 @@ export async function requestVerificationCode(orderId: string, actor: CodeActor)
 
   // Prévenir : le vendeur en premier (c'est son travail), l'équipe en appui.
   const title = order.items[0]?.title ?? "un compte";
-  const team = await prisma.user.findMany({
-    where: {
-      status: "ACTIVE",
-      deletedAt: null,
-      OR: [{ role: { name: "ADMIN" } }, { role: { name: "STAFF" }, managerProfile: { permissions: { has: "ORDERS" } } }],
-    },
-    select: { id: true },
-  });
+  // Équipe en service (créneaux) avec la permission Commandes.
+  const team = (await teamOnDuty("ORDERS")).map((id) => ({ id }));
   const sellerUserId = order.items[0]?.product.seller?.userId ?? null;
   await notifyMany("ADMIN_ALERT", [
     ...(sellerUserId
@@ -161,7 +155,7 @@ export async function requestVerificationCode(orderId: string, actor: CodeActor)
               priority: "CRITICAL" as const,
             },
       })),
-  ]);
+  ], { push: { tag: `code-${order.id}` } });
 
   return toClientView(created);
 }

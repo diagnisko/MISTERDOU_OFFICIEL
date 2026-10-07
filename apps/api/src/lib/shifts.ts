@@ -89,9 +89,17 @@ async function shiftsOf(userId: string): Promise<Shift[]> {
   return shifts;
 }
 
+let version = 0;
+
 /** Après une modification des créneaux d'un membre (prise en compte immédiate). */
 export function forgetShifts(userId: string): void {
   cache.delete(userId);
+  version += 1;
+}
+
+/** Change à chaque modification de l'équipe (rappels de début de créneau à relire). */
+export function shiftsVersion(): number {
+  return version;
 }
 
 /** Prochaine ouverture : dans combien de jours, quel jour, à quelle heure. */

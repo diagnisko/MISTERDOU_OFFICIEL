@@ -6,6 +6,7 @@ import { logger } from "./lib/logger.js";
 import { startInstallmentJobs } from "./modules/installments/service.js";
 import { startPromotionJobs } from "./modules/promotions/service.js";
 import { startSellerPayoutJobs } from "./modules/orders/fulfillment.js";
+import { startShiftDigestJob } from "./lib/shift-digest.js";
 import { ensureDefaultSettings } from "./modules/settings/service.js";
 import { startProofCleanupJob } from "./modules/payments/proofs.js";
 import { startContractJobs } from "./modules/seller/contract.js";
@@ -31,6 +32,8 @@ async function main() {
   // Fonds vendeurs : libération automatique après le délai de sécurité ;
   // commandes jamais réglées annulées après le délai configuré.
   startSellerPayoutJobs();
+  // Rappel aux managers au début de leur créneau (contrôle en mémoire, sans réveiller la base).
+  startShiftDigestJob();
 
   // Captures de paiement et d'envoi : supprimées une fois devenues inutiles.
   startProofCleanupJob();

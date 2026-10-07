@@ -262,7 +262,7 @@ export async function registerSellerRoutes(app: FastifyInstance) {
         metadata: { amount: withdrawal.amount, method: input.data.method },
         severity: "WARNING",
       });
-      await notifyActiveAdmins("ADMIN_ALERT", {
+      await notifyTeam("WITHDRAWALS", "ADMIN_ALERT", {
         title: "Nouvelle demande de retrait",
         message: `${withdrawal.amount.toLocaleString("fr-FR")} FCFA à envoyer par ${METHOD_LABEL[input.data.method]}.`,
         actionUrl: "/admin/withdrawals",

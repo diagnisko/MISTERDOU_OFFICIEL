@@ -218,7 +218,7 @@ export async function sendToSeller(productId: string, viewer: ChatViewer, conten
   };
   // Compte d'un vendeur : c'est à lui de répondre. Compte MISTERDOU : l'équipe.
   if (product.seller) await notifyUser(product.seller.userId, "NEW_MESSAGE", { ...notice, actionUrl: `/seller/messages?thread=${thread.id}` });
-  else await notifyTeam("SUPPORT", "NEW_MESSAGE", { ...notice, actionUrl: `/admin/discussions?thread=${thread.id}` });
+  else await notifyTeam("SUPPORT", "NEW_MESSAGE", { ...notice, actionUrl: `/admin/discussions?thread=${thread.id}` }, { tag: `thread-${thread.id}` });
 
   return { threadId: thread.id, messageId: message.id };
 }
@@ -362,7 +362,7 @@ export async function postInThread(threadId: string, viewer: ChatViewer, content
         message: preview,
         actionUrl: `/admin/discussions?thread=${threadId}`,
         priority: "NORMAL",
-      });
+      }, { tag: `thread-${threadId}` });
     }
   } else {
     await notifyUser(thread.clientId, "NEW_MESSAGE", {

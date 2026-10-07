@@ -18,6 +18,7 @@ import { buildQuery, errorMessage } from "./_lib/api";
 import { useAdminList } from "./_lib/hooks";
 import { AdminModal, ErrorAlert, PAYMENT_TYPE_LABELS } from "./_lib/ui";
 import { PAGE_REQUIREMENTS, useAdminAccess } from "./_lib/access";
+import { PushSetupCard } from "@/components/admin/push-setup";
 
 // ---------------------------------------------------------------------------
 // Vue d'ensemble — GET /admin/finance (STATS) + GET /admin/receivables
@@ -141,8 +142,12 @@ export default function AdminOverviewPage() {
   const { can } = useAdminAccess();
   const seeStats = can("STATS");
   const seePayments = can("PAYMENTS");
-  if (!seeStats && !seePayments) return <TeamHome />;
-  return <FinanceOverview seeStats={seeStats} seePayments={seePayments} />;
+  return (
+    <>
+      <PushSetupCard />
+      {!seeStats && !seePayments ? <TeamHome /> : <FinanceOverview seeStats={seeStats} seePayments={seePayments} />}
+    </>
+  );
 }
 
 /** Accueil d'un manager sans accès aux chiffres : ses modules, rien d'autre. */

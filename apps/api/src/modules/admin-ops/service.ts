@@ -287,6 +287,7 @@ export async function createManager(input: ManagerCreateInput, actor: OpsActor) 
     if (isPrismaCode(err, "P2002")) throw conflict("EMAIL_ALREADY_REGISTERED", "Cet e-mail est déjà enregistré.");
     throw err;
   }
+  forgetShifts(created.userId);
   await audit(actor, created.promoted ? "MANAGER_PROMOTED" : "MANAGER_CREATED", {
     resourceType: "ManagerProfile",
     resourceId: created.id,
@@ -358,8 +359,8 @@ export async function updateManager(id: string, input: ManagerUpdateInput, actor
       }
     }
   });
-  // Nouveaux créneaux appliqués tout de suite (pas d'attente du cache).
-  if (input.shifts !== undefined) forgetShifts(profile.userId);
+  // Créneaux, permissions ou statut : appliqués tout de suite (contrôle d'accès, rappels).
+  forgetShifts(profile.userId);
 
   await audit(actor, "MANAGER_UPDATED", {
     resourceType: "ManagerProfile",
@@ -398,6 +399,7 @@ export async function deleteManager(id: string, actor: OpsActor) {
     await tx.managerProfile.delete({ where: { id } });
   });
 
+  forgetShifts(profile.userId);
   await audit(actor, "MANAGER_DELETED", {
     resourceType: "ManagerProfile",
     resourceId: id,

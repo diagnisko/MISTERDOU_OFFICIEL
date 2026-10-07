@@ -7,7 +7,7 @@ import { publicUrl } from "../../lib/media.js";
 import { requireAuth, requirePermission, type AuthContext } from "../../lib/auth-context.js";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
-import { notifyActiveAdmins, notifyUser } from "../../lib/notify.js";
+import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
 import {
   assertKindParticipants,
   displayName,
@@ -229,10 +229,12 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
         });
         await audit(request, "CONVERSATION_CREATED", "Conversation", conversation.id, { kind: input.kind });
         if (mySide !== "ADMIN") {
+          // Cloche seulement : le premier message suit et, lui, prévient l'équipe.
           await notifyActiveAdmins("ADMIN_ALERT", {
             title: "Nouvelle conversation",
             message: `${displayName(me)} vous a ouvert une conversation.`,
             actionUrl: "/admin/messages",
+            channel: "IN_APP",
             priority: "CRITICAL",
           });
         }
@@ -387,15 +389,20 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
         });
       }
 
-      // Côté non-admin d'une conversation *_TO_ADMIN → tous les admin à la rescousse.
+      // Côté non-admin d'une conversation *_TO_ADMIN → l'équipe en service (Support).
       const sender = await loadParticipant(auth.user.id);
       if (sender && sideOf(sender) !== "ADMIN") {
-        await notifyActiveAdmins("ADMIN_ALERT", {
-          title: "Nouveau message à répondre",
-          message: input.content.slice(0, 120),
-          actionUrl: "/admin/messages",
-          priority: "NORMAL",
-        });
+        await notifyTeam(
+          "SUPPORT",
+          "ADMIN_ALERT",
+          {
+            title: `Nouveau message de ${displayName(sender) || "un membre"}`,
+            message: input.content.slice(0, 120),
+            actionUrl: "/admin/messages",
+            priority: "NORMAL",
+          },
+          { tag: `conversation-${id}` },
+        );
       }
 
       await audit(request, "MESSAGE_SENT", "Conversation", id, { conversationId: id });

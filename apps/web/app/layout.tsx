@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
@@ -29,6 +29,13 @@ export const metadata: Metadata = {
     "Achetez et vendez des comptes eFootball en toute sécurité : vérification d'identité, paiement par Wave, support dédié.",
   keywords: ["eFootball", "comptes", "KONAMI", "achat", "vente", "western"],
   robots: "index, follow",
+  // Écran d'accueil de l'iPhone : icône, nom et ouverture en plein écran (notifications).
+  appleWebApp: { capable: true, title: "MISTERDOU", statusBarStyle: "black-translucent" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0605",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
