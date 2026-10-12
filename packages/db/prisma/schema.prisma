@@ -64,6 +64,8 @@ model User {
   notifications                                      Notification[]
   notificationPreference                             NotificationPreference?
   pushSubscriptions                                  PushSubscription[]
+  teamPosts                                          TeamPost[]
+  teamRoomRead                                       TeamRoomRead?
   orders                                             Order[]                 @relation("OrderBuyer")
   payments                                           Payment[]
   paymentProofs                                      PaymentProof[]
@@ -156,6 +158,24 @@ model NotificationPreference {
   sms       Boolean  @default(false)
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Salon « Toute l'équipe » : discussion commune aux administrateurs et managers.
+model TeamPost {
+  id        String   @id @default(uuid())
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+// Dernière lecture du salon par membre (pastille « non lus »).
+model TeamRoomRead {
+  userId     String   @id
+  lastReadAt DateTime
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Téléphone ou navigateur abonné aux notifications (centre de notifications).
@@ -1040,6 +1060,8 @@ enum CaptureMethod {
 enum ConversationKind {
   CLIENT_TO_ADMIN
   VENDOR_TO_ADMIN
+  // Message privé entre deux membres de l'équipe (administrateurs, managers).
+  TEAM
 }
 
 enum ManagerPermission {

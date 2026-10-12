@@ -7,6 +7,7 @@ import { publicUrl } from "../../lib/media.js";
 import { requireAuth, requirePermission, type AuthContext } from "../../lib/auth-context.js";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
+import { isOnDuty } from "../../lib/shifts.js";
 import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
 import {
   assertKindParticipants,
@@ -143,7 +144,9 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = requireAuth(request);
       const { page, perPage } = pageQuery.parse(request.query);
+      // Les messages privés d'équipe vivent dans la console (Discussion d'équipe).
       const where = {
+        kind: { not: "TEAM" as const },
         OR: [{ participantAUserId: auth.user.id }, { participantBUserId: auth.user.id }],
       };
       const [convos, total] = await Promise.all([
@@ -256,7 +259,8 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
       if (!convo) throw notFound("Conversation introuvable.");
       const isParticipant =
         convo.participantAUserId === auth.user.id || convo.participantBUserId === auth.user.id;
-      if (!isParticipant && !(await canModerate(auth))) throw notFound("Conversation introuvable.");
+      // Échange privé d'équipe : ses deux membres seulement, jamais la modération.
+      if (!isParticipant && (convo.kind === "TEAM" || !(await canModerate(auth)))) throw notFound("Conversation introuvable.");
       return sendOk(reply, toDto(convo, auth.user.id));
     },
   );
@@ -271,12 +275,12 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
       const args = messagesQuery.parse(request.query);
       const convo = await prisma.conversation.findUnique({
         where: { id },
-        select: { participantAUserId: true, participantBUserId: true },
+        select: { kind: true, participantAUserId: true, participantBUserId: true },
       });
       if (!convo) throw notFound("Conversation introuvable.");
       const isParticipant =
         convo.participantAUserId === auth.user.id || convo.participantBUserId === auth.user.id;
-      if (!isParticipant && !(await canModerate(auth))) throw notFound("Conversation introuvable.");
+      if (!isParticipant && (convo.kind === "TEAM" || !(await canModerate(auth)))) throw notFound("Conversation introuvable.");
 
       // Côté reçu → lu (seulement pour l'expéditeur réel de la fenêtre).
       await prisma.message.updateMany({
@@ -347,12 +351,13 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
       const input = postMessageSchema.parse(request.body);
       const convo = await prisma.conversation.findUnique({
         where: { id },
-        select: { participantAUserId: true, participantBUserId: true },
+        select: { kind: true, participantAUserId: true, participantBUserId: true },
       });
       if (!convo) throw notFound("Conversation introuvable.");
       const isParticipant =
         convo.participantAUserId === auth.user.id || convo.participantBUserId === auth.user.id;
-      if (!isParticipant && !(await canModerate(auth))) throw notFound("Conversation introuvable.");
+      if (!isParticipant && (convo.kind === "TEAM" || !(await canModerate(auth)))) throw notFound("Conversation introuvable.");
+      const team = convo.kind === "TEAM";
 
       const message = await prisma.message.create({
         data: { conversationId: id, senderId: auth.user.id, content: input.content, attachmentKey: input.attachmentKey },
@@ -382,7 +387,23 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
       const senderName = displayName(auth.user) || "Nouveau message";
       const sender = await loadParticipant(auth.user.id);
       const fromMember = Boolean(sender && sideOf(sender) !== "ADMIN");
-      if (peerId && peerId !== auth.user.id) {
+      if (peerId && peerId !== auth.user.id && team) {
+        // Collègue : la notification ouvre l'échange dans la console ; sur le
+        // téléphone seulement s'il est en service (créneaux).
+        const peer = await loadParticipant(peerId);
+        const onDuty = peer ? await isOnDuty({ id: peer.id, role: { name: peer.role } }) : false;
+        await notifyUser(
+          peerId,
+          "NEW_MESSAGE",
+          {
+            title: senderName,
+            message: input.content.slice(0, 120),
+            actionUrl: `/admin/chat?with=${auth.user.id}`,
+            priority: "NORMAL",
+          },
+          onDuty ? { push: { tag: `conversation-${id}` } } : { push: false },
+        );
+      } else if (peerId && peerId !== auth.user.id) {
         // Message d'un membre : l'équipe est prévenue sur son téléphone juste
         // en dessous (selon les créneaux) — pas de seconde notification ici.
         await notifyUser(
@@ -480,13 +501,15 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
       const auth = await requirePermission(request, "SUPPORT");
       const { page, perPage } = pageQuery.parse(request.query);
       const [convos, total] = await Promise.all([
+        // Hors messages privés d'équipe (Discussion d'équipe).
         prisma.conversation.findMany({
+          where: { kind: { not: "TEAM" } },
           orderBy: { updatedAt: "desc" },
           skip: (page - 1) * perPage,
           take: perPage,
           include: conversationInclude(auth.user.id),
         }),
-        prisma.conversation.count(),
+        prisma.conversation.count({ where: { kind: { not: "TEAM" } } }),
       ]);
       return sendOk(reply, convos.map((c) => toDto(c, auth.user.id)), { page, perPage, total });
     },

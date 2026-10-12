@@ -100,8 +100,10 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
       take: 10,
       select: {
         id: true,
+        kind: true,
         updatedAt: true,
         participantAUserId: true,
+        participantBUserId: true,
         User_Conversation_participantAUserIdToUser: { select: { firstName: true, lastName: true, avatarKey: true } },
         User_Conversation_participantBUserIdToUser: { select: { firstName: true, lastName: true, avatarKey: true } },
         message: { orderBy: { createdAt: "desc" }, take: 1, select: { content: true, createdAt: true } },
@@ -114,6 +116,23 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
       // L'équipe voit le membre (nom, photo) ; le membre voit MISTERDOU (photo de la boutique).
       const peer = c.participantAUserId === viewer.user.id ? c.User_Conversation_participantBUserIdToUser : c.User_Conversation_participantAUserIdToUser;
       const peerName = [peer.firstName, peer.lastName].filter(Boolean).join(" ");
+      if (c.kind === "TEAM") {
+        // Collègue : son nom, sa photo ; ouvre la Discussion d'équipe.
+        const peerId = c.participantAUserId === viewer.user.id ? c.participantBUserId : c.participantAUserId;
+        items.push({
+          key: `c:${c.id}`,
+          kind: "support",
+          title: "Discussion d'équipe",
+          counterpart: peerName || "Membre de l'équipe",
+          preview: last ? last.content.slice(0, 120) : null,
+          at: (last?.createdAt ?? c.updatedAt).toISOString(),
+          unread: c._count.message,
+          href: `/admin/chat?with=${peerId}`,
+          imageUrl: peer.avatarKey ? publicUrl(peer.avatarKey) : null,
+          counterpartKind: "client",
+        });
+        continue;
+      }
       items.push({
         key: `c:${c.id}`,
         kind: "support",

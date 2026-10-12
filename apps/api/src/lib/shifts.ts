@@ -143,6 +143,12 @@ export function outsideShiftError(shifts: Shift[], now: Date = new Date()): ApiE
   return new ApiError("OUTSIDE_SHIFT", 403, `${notice.title}. ${notice.message}`, notice);
 }
 
+/** En service maintenant : toujours pour un administrateur, selon ses créneaux pour un manager. */
+export async function isOnDuty(user: { id: string; role?: { name: string } | null }, now: Date = new Date()): Promise<boolean> {
+  if (user.role?.name !== "STAFF") return true;
+  return isOnShift(await shiftsOf(user.id), now);
+}
+
 /** Lève OUTSIDE_SHIFT si ce manager est hors de ses créneaux (sans effet pour les autres rôles). */
 export async function assertOnShift(user: { id: string; role?: { name: string } | null }, now: Date = new Date()): Promise<void> {
   if (user.role?.name !== "STAFF") return;

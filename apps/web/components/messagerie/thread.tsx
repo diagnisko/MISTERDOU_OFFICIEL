@@ -11,13 +11,14 @@ import {
   mergeMessages,
   sendConversationMessage,
 } from "./api";
-import type { MessageItem } from "./types";
+import type { MessageItem, MessagePage } from "./types";
 import { useT } from "@/lib/i18n";
 import { documentIntl } from "@/lib/i18n-core";
 
 // ---------------------------------------------------------------------------
-// Fil de discussion — implémentation unique partagée par /messages (membre)
-// et /admin/messages (administration).
+// Fil de discussion — implémentation unique partagée par /messages (membre),
+// /admin/messages (administration) et /admin/chat (équipe). `source` remplace
+// les appels /conversations/:id (ex. salon « Toute l'équipe »).
 // Recharge les nouveaux messages toutes les 8 s (onglet visible uniquement),
 // monte les messages plus anciens avec `before` (curseur nextBefore) quand on
 // remonte en haut du fil, et nettoie ses intervalles au démontage.
@@ -59,20 +60,31 @@ function timeOf(value: string): string {
   return date.toLocaleTimeString(documentIntl(), { hour: "2-digit", minute: "2-digit" });
 }
 
+export type ThreadSource = {
+  fetch: (params: { before?: string | null; limit?: number }) => Promise<MessagePage>;
+  send: (content: string) => Promise<MessageItem>;
+};
+
 export function ConversationThread({
   conversationId,
   currentUserId,
   header,
   onSent,
+  source,
   className = "",
 }: {
   conversationId: string;
   currentUserId?: string | null;
   header?: ReactNode;
   onSent?: () => void;
+  source?: ThreadSource;
   className?: string;
 }) {
   const t = useT();
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const fetchPage = (id: string, params: { before?: string | null; limit?: number }) =>
+    sourceRef.current ? sourceRef.current.fetch(params) : fetchMessages(id, params);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +120,7 @@ export function ConversationThread({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchMessages(conversationId, { limit: MESSAGES_PAGE_SIZE })
+    fetchPage(conversationId, { limit: MESSAGES_PAGE_SIZE })
       .then((page) => {
         if (!active) return;
         setMessages(page.items);
@@ -148,7 +160,7 @@ export function ConversationThread({
     async () => {
       const target = conversationId;
       try {
-        const page = await fetchMessages(target, { limit: MESSAGES_PAGE_SIZE });
+        const page = await fetchPage(target, { limit: MESSAGES_PAGE_SIZE });
         if (activeConversationRef.current !== target) return;
         setMessages((prev) => mergeMessages(prev, page.items));
         setNextBefore((prev) => prev ?? page.nextBefore);
@@ -176,7 +188,7 @@ export function ConversationThread({
     const top = el.scrollTop;
     const height = el.scrollHeight;
     setLoadingMore(true);
-    fetchMessages(conversationId, { before: nextBefore, limit: MESSAGES_PAGE_SIZE })
+    fetchPage(conversationId, { before: nextBefore, limit: MESSAGES_PAGE_SIZE })
       .then((page) => {
         restoreRef.current = { top, height };
         setMessages((prev) => mergeMessages(page.items, prev));
@@ -201,7 +213,7 @@ export function ConversationThread({
     setSending(true);
     setSendError(null);
     try {
-      const created = await sendConversationMessage(conversationId, content);
+      const created = sourceRef.current ? await sourceRef.current.send(content) : await sendConversationMessage(conversationId, content);
       setMessages((prev) => mergeMessages(prev, [created]));
       setDraft("");
       stickToBottomRef.current = true;

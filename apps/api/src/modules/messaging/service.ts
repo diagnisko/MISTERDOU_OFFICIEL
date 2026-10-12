@@ -80,6 +80,10 @@ export function assertKindParticipants(
   if (sides.includes("CLIENT") && sides.includes("VENDOR") && !sides.includes("ADMIN")) {
     throw forbidden("Conversation client↔vendeur interdite.");
   }
+  if (kind === "TEAM") {
+    if (sides.some((side) => side !== "ADMIN")) throw badRequest("VALIDATION_ERROR", "Échange réservé à l'équipe.");
+    return;
+  }
   const required = kind === "CLIENT_TO_ADMIN" ? "CLIENT" : "VENDOR";
   if (!sides.includes(required) || !sides.includes("ADMIN")) {
     throw badRequest("VALIDATION_ERROR", "Type de conversation incompatible avec les participants.");
@@ -111,6 +115,25 @@ export async function openStaffConversation(staffId: string, memberId: string): 
   if (existing) return { id: existing.id, created: false };
   const created = await prisma.conversation.create({
     data: { kind, participantAUserId: first, participantBUserId: second },
+    select: { id: true },
+  });
+  return { id: created.id, created: true };
+}
+
+/** Échange privé entre deux membres de l'équipe (créé au premier besoin). */
+export async function openTeamConversation(meId: string, otherId: string): Promise<{ id: string; created: boolean }> {
+  const [me, other] = await Promise.all([loadParticipant(meId), loadParticipant(otherId)]);
+  if (!me || sideOf(me) !== "ADMIN") throw forbidden("Réservé à l'équipe.");
+  if (!other || other.status !== "ACTIVE") throw badRequest("VALIDATION_ERROR", "Membre de l'équipe introuvable.");
+  assertKindParticipants("TEAM", me, other);
+  const [first, second] = [me.id, other.id].sort() as [string, string];
+  const existing = await prisma.conversation.findFirst({
+    where: { kind: "TEAM", participantAUserId: first, participantBUserId: second },
+    select: { id: true },
+  });
+  if (existing) return { id: existing.id, created: false };
+  const created = await prisma.conversation.create({
+    data: { kind: "TEAM", participantAUserId: first, participantBUserId: second },
     select: { id: true },
   });
   return { id: created.id, created: true };

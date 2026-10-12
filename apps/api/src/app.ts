@@ -26,6 +26,7 @@ import { registerAccountRoutes } from "./modules/account/routes.js";
 import { registerVerificationCodeRoutes } from "./modules/verification-codes/routes.js";
 import { registerProductChatRoutes } from "./modules/product-chat/routes.js";
 import { registerPushRoutes } from "./modules/push/routes.js";
+import { registerTeamChatRoutes } from "./modules/team-chat/routes.js";
 import { env } from "./env.js";
 import { isDev, REDACT_PATHS } from "./lib/logger.js";
 
@@ -156,6 +157,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       await registerVerificationCodeRoutes(api);
       await registerProductChatRoutes(api);
       await registerPushRoutes(api);
+      await registerTeamChatRoutes(api);
       await registerReviewRoutes(api);
     },
     { prefix: API_PREFIX },

@@ -28,6 +28,8 @@ export interface NotifyParams {
  */
 export interface NotifyOptions {
   push?: false | { tag?: string; emailFallback?: boolean };
+  /** false : téléphone seulement, pas de ligne dans la cloche (discussion très active). */
+  bell?: false;
 }
 
 export interface NotifyBatchEntry {
@@ -101,7 +103,7 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
       if (emailWanted && email && emailAllowed && template) emails.push({ userId, to: email, params: { ...params, actionUrl: absoluteUrl(params.actionUrl) } });
     }
 
-    if (rows.length > 0) await prisma.notification.createMany({ data: rows });
+    if (rows.length > 0 && opts.bell !== false) await prisma.notification.createMany({ data: rows });
 
     // Téléphones : un envoi par message distinct (les entrées d'un lot peuvent différer).
     const reached = new Set<string>();
@@ -191,6 +193,21 @@ export async function teamOnDuty(permission: ManagerPermission | null, now: Date
         ...(permission ? [{ role: { name: "STAFF" as const }, managerProfile: { permissions: { has: permission } } }] : []),
       ],
     },
+    select: {
+      id: true,
+      role: { select: { name: true } },
+      managerProfile: { select: { managerShift: { select: { day: true, startMinute: true, endMinute: true } } } },
+    },
+  });
+  return members
+    .filter((m) => m.role.name === "ADMIN" || isOnShift(m.managerProfile?.managerShift ?? [], now))
+    .map((m) => m.id);
+}
+
+/** Toute l'équipe en service maintenant (administrateurs et managers dans leur créneau). */
+export async function wholeTeamOnDuty(now: Date = new Date()): Promise<string[]> {
+  const members = await prisma.user.findMany({
+    where: { status: "ACTIVE", deletedAt: null, role: { name: { in: ["ADMIN", "STAFF"] } } },
     select: {
       id: true,
       role: { select: { name: true } },

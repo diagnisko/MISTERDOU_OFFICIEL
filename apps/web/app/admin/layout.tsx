@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { ApiClientError, OUTSIDE_SHIFT_EVENT, request, shiftClosed, type ShiftClosed } from "@/lib/api";
 import { logoutAccount, refreshAccount } from "@/lib/account";
 import { Spinner } from "@/components/ui";
@@ -44,6 +45,8 @@ type SessionUser = {
 
 const NAV: DashNavItem[] = [
   { href: "/admin", label: "Vue d’ensemble", icon: IconHome },
+  // Toute l'équipe, quelle que soit sa permission (aucune exigence de page).
+  { href: "/admin/chat", label: "Discussion d’équipe", icon: IconChat },
   { href: "/offres", label: "Voir la boutique", icon: IconStore },
   { href: "/admin/plans", label: "Paiements échelonnés", icon: IconCalendar, group: "Argent" },
   { href: "/admin/payments", label: "Paiements", icon: IconCard, group: "Argent" },
@@ -73,6 +76,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [loggingOut, setLoggingOut] = useState(false);
   // Manager hors de ses créneaux : message du serveur (avec ses horaires).
   const [closed, setClosed] = useState<ShiftClosed | null>(null);
+  // Messages d'équipe non lus (pastille « Discussion d'équipe »).
+  const [teamUnread, setTeamUnread] = useState(0);
 
   useEffect(() => {
     const onClosed = (event: Event) => setClosed((event as CustomEvent<ShiftClosed>).detail);
@@ -90,6 +95,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }, 60_000);
     return () => clearInterval(timer);
   }, [closed]);
+
+  useVisiblePoll(
+    async () => {
+      const res = await request<{ total: number }>("/api/v1/admin/team-chat/unread").catch(() => null);
+      if (res) setTeamUnread(res.total);
+    },
+    30_000,
+    { enabled: Boolean(access) && !closed, immediate: true },
+  );
 
   // Les deux requêtes sont exécutées AVANT toute redirection : aucune boucle.
   useEffect(() => {
@@ -206,7 +220,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const nav = NAV.filter((item) => allows(access, requirementFor(item.href)));
+  const nav = NAV.filter((item) => allows(access, requirementFor(item.href))).map((item) =>
+    item.href === "/admin/chat" ? { ...item, count: teamUnread } : item,
+  );
   const allowed = allows(access, requirementFor(pathname));
 
   return (
