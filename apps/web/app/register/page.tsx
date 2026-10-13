@@ -5,7 +5,9 @@ import { useT } from "@/lib/i18n";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { request, ApiClientError } from "@/lib/api";
+import { request } from "@/lib/api";
+import { FieldError } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 import { GoogleButton, googleEnabled } from "@/components/auth/google-button";
 import { homeForRole, setGreeting } from "@/lib/greeting";
@@ -19,13 +21,32 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const errors = useFormErrors();
+  const error = errors.general;
+  const setError = (value: null) => value === null && errors.reset();
+  const bad = (key: string) => (errors.fields[key] ? " !border-[rgba(239,68,68,0.75)]" : "");
+
+  /** Contrôle avant l'envoi, en français, sous chaque champ. */
+  function check(): Record<string, string> {
+    const found: Record<string, string> = {};
+    if (!firstName.trim()) found.firstName = t("form.required");
+    if (!email.trim()) found.email = t("form.required");
+    else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) found.email = t("form.emailInvalid");
+    if (!password) found.password = t("form.required");
+    else if (password.length < 8) found.password = t("form.minChars", { n: 8 });
+    return found;
+  }
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    const found = check();
+    if (Object.keys(found).length > 0) {
+      errors.show(found);
+      return;
+    }
+    errors.reset();
     setLoading(true);
     try {
       await request("/api/v1/auth/register", {
@@ -36,7 +57,7 @@ export default function RegisterPage() {
       await refreshAccount();
       router.push(homeForRole("CLIENT"));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+      errors.fromError(err, t("auth.network"), { EMAIL_ALREADY_REGISTERED: "email" });
       setLoading(false);
     }
   }
@@ -69,44 +90,57 @@ export default function RegisterPage() {
           </>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} noValidate className="space-y-4">
           <label className="block">
             <span className={fieldLabelClass}>{t("auth.firstName")}</span>
             <input
-              required
+              name="firstName"
               autoComplete="given-name"
               maxLength={80}
               value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className={inputClass}
+              onChange={(e) => {
+                setFirstName(e.target.value);
+                errors.clear("firstName");
+              }}
+              aria-invalid={Boolean(errors.fields.firstName)}
+              className={inputClass + bad("firstName")}
               placeholder={t("auth.firstNamePlaceholder")}
             />
+            <FieldError message={errors.fields.firstName} />
           </label>
 
           <label className="block">
             <span className={fieldLabelClass}>{t("auth.email")}</span>
             <input
-              required
+              name="email"
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                errors.clear("email");
+              }}
+              aria-invalid={Boolean(errors.fields.email)}
+              className={inputClass + bad("email")}
               placeholder="vous@exemple.com"
             />
+            <FieldError message={errors.fields.email} />
           </label>
 
           <label className="block">
             <span className={fieldLabelClass}>{t("auth.password")}</span>
             <span className="relative block">
               <input
-                required
+                name="password"
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
-                minLength={8}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`${inputClass} pr-12`}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  errors.clear("password");
+                }}
+                aria-invalid={Boolean(errors.fields.password)}
+                className={`${inputClass} pr-12${bad("password")}`}
                 placeholder={t("auth.passwordPlaceholder")}
               />
               <button
@@ -127,6 +161,7 @@ export default function RegisterPage() {
                 )}
               </button>
             </span>
+            <FieldError message={errors.fields.password} />
           </label>
 
           {notice && (

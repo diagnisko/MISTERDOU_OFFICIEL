@@ -148,7 +148,7 @@ export async function registerTeamChatRoutes(app: FastifyInstance) {
     let before: Date | undefined;
     if (args.before) {
       before = new Date(args.before);
-      if (Number.isNaN(before.getTime())) throw badRequest("VALIDATION_ERROR", "Curseur de messages invalide.");
+      if (Number.isNaN(before.getTime())) throw badRequest("VALIDATION_ERROR", "Impossible de charger les anciens messages : rechargez la page.");
     }
     const rows = await prisma.teamPost.findMany({
       where: before ? { createdAt: { lt: before } } : {},

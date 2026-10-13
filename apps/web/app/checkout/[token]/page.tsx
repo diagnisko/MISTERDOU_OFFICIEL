@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiClientError, errorMessage, formatXof, request, uploadFile } from "@/lib/api";
-import { Alert, Button, Field, Spinner, StatusBadge, TextInput } from "@/components/ui";
+import { Alert, Button, Field, Spinner, StatusBadge, TextInput, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { refreshAccount } from "@/lib/account";
@@ -250,22 +251,35 @@ function WavePayment({
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fields = useFormErrors();
   const price = formatXof(amount);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!file) return setError(t("wave.needScreenshot"));
-    setBusy(true);
     setError(null);
+    const found: Record<string, string> = {};
+    if (!file) found.proofKey = t("wave.needScreenshot");
+    if (!phone.trim()) found.senderPhone = t("form.required");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
+    setBusy(true);
     try {
-      const uploaded = await uploadFile(file, "payment_proof");
+      let uploaded: { key: string };
+      try {
+        uploaded = await uploadFile(file!, "payment_proof");
+      } catch (uploadError) {
+        // Capture refusée (format, poids) : le message va sous la capture.
+        fields.show({ proofKey: errorMessage(uploadError, t("wave.failed")) });
+        return;
+      }
       await request(`/api/v1/payments/${token}/proof`, {
         method: "POST",
         body: JSON.stringify({ proofKey: uploaded.key, senderPhone: phone.trim(), waveReference: reference.trim() || undefined }),
       });
       await onSent();
     } catch (err) {
-      setError(err instanceof ApiClientError && err.code === "UNAUTHORIZED" ? t("pay.loginBody") : errorMessage(err, t("wave.failed")));
+      if (err instanceof ApiClientError && err.code === "UNAUTHORIZED") setError(t("pay.loginBody"));
+      else fields.fromError(err, t("wave.failed"), { PROOF_REFERENCE_USED: "waveReference" });
     } finally {
       setBusy(false);
     }
@@ -303,33 +317,53 @@ function WavePayment({
         <p className="mt-2 text-center text-xs text-stone-400">{t("wave.exactAmount", { amount: price })}</p>
       </section>
 
-      <form onSubmit={(e) => void submit(e)} className="lux-glass space-y-4 rounded-[24px] p-6">
+      <form onSubmit={(e) => void submit(e)} noValidate className="lux-glass space-y-4 rounded-[24px] p-6">
         <h2 className="text-base font-semibold text-stone-50">{t("wave.proofTitle")}</h2>
-        <Field label={t("wave.screenshot")} hint={t("wave.screenshotHint")} required>
+        <Field label={t("wave.screenshot")} hint={t("wave.screenshotHint")} required error={fields.fields.proofKey}>
           <TextInput
-            required
+            name="proofKey"
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            className="file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200"
+            onChange={(event) => {
+              setFile(event.target.files?.[0] ?? null);
+              fields.clear("proofKey");
+            }}
+            aria-invalid={Boolean(fields.fields.proofKey)}
+            className={`file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200 ${invalidCls(fields.fields.proofKey)}`}
           />
         </Field>
-        <Field label={t("wave.phone")} required>
+        <Field label={t("wave.phone")} required error={fields.fields.senderPhone}>
           <TextInput
-            required
+            name="senderPhone"
+            aria-invalid={Boolean(fields.fields.senderPhone)}
+            className={invalidCls(fields.fields.senderPhone)}
             type="tel"
             inputMode="tel"
             autoComplete="tel"
             dir="ltr"
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(event) => {
+              setPhone(event.target.value);
+              fields.clear("senderPhone");
+            }}
             placeholder={t("wave.phonePlaceholder")}
           />
         </Field>
-        <Field label={t("wave.reference")} hint={t("wave.referenceHint")}>
-          <TextInput dir="ltr" maxLength={80} value={reference} onChange={(event) => setReference(event.target.value)} />
+        <Field label={t("wave.reference")} hint={t("wave.referenceHint")} error={fields.fields.waveReference}>
+          <TextInput
+            name="waveReference"
+            dir="ltr"
+            maxLength={80}
+            value={reference}
+            onChange={(event) => {
+              setReference(event.target.value);
+              fields.clear("waveReference");
+            }}
+            aria-invalid={Boolean(fields.fields.waveReference)}
+            className={invalidCls(fields.fields.waveReference)}
+          />
         </Field>
-        {error && <Alert tone="danger">{error}</Alert>}
+        {(error ?? fields.general) && <Alert tone="danger">{error ?? fields.general}</Alert>}
         <Button type="submit" className="w-full" loading={busy} disabled={busy}>
           {busy ? t("wave.sending") : t("wave.send")}
         </Button>

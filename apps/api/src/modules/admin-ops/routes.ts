@@ -4,6 +4,7 @@ import { managerCreateSchema, managerUpdateSchema, planCollectSchema, planSettle
 import type { ManagerPermission } from "@misterdou/shared";
 import { sendOk } from "../../lib/envelope.js";
 import { badRequest } from "../../lib/errors.js";
+import { validationError } from "../../lib/validation-messages.js";
 import { requireAdminSession, requireAuth, requirePermission } from "../../lib/auth-context.js";
 import {
   approveWithdrawal,
@@ -292,7 +293,7 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       await requireTeamPassword(request);
       const input = planCancelSchema.safeParse(request.body ?? {});
-      if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Motif invalide.");
+      if (!input.success) throw validationError(input.error.issues);
       const { id } = request.params as { id: string };
       return sendOk(reply, await cancelPlan(id, input.data.reason, actor(request)));
     },

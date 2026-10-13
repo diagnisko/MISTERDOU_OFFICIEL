@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import { Prisma } from "@misterdou/db";
 import { ApiError } from "./errors.js";
+import { validationError } from "./validation-messages.js";
 import { env } from "../env.js";
 
 export function registerErrorHandler(app: FastifyInstance) {
@@ -19,13 +20,12 @@ export function registerErrorHandler(app: FastifyInstance) {
     }
 
     if (error instanceof ZodError) {
-      const details = error.issues.map((i) => ({
-        path: i.path.join("."),
-        message: i.message,
-      }));
+      // Message en français simple, avec le nom du champ ; détail champ par champ
+      // pour que le formulaire affiche chaque erreur sous le bon champ.
+      const invalid = validationError(error.issues);
       return reply.status(400).send({
         ok: false,
-        error: { code: "VALIDATION_ERROR", message: "Données invalides", details },
+        error: { code: invalid.code, message: invalid.message, details: invalid.details },
       });
     }
 
@@ -50,13 +50,13 @@ export function registerErrorHandler(app: FastifyInstance) {
       if (error.code === "P2002") {
         return reply.status(409).send({
           ok: false,
-          error: { code: "CONFLICT", message: "Cette valeur existe déjà" },
+          error: { code: "CONFLICT", message: "Cette information est déjà utilisée par un autre compte ou une autre fiche." },
         });
       }
       if (error.code === "P2025") {
         return reply.status(404).send({
           ok: false,
-          error: { code: "NOT_FOUND", message: "Ressource introuvable" },
+          error: { code: "NOT_FOUND", message: "Élément introuvable : il a peut-être été supprimé. Rechargez la page." },
         });
       }
     }
@@ -64,7 +64,7 @@ export function registerErrorHandler(app: FastifyInstance) {
     if (error instanceof Prisma.PrismaClientValidationError) {
       return reply.status(400).send({
         ok: false,
-        error: { code: "VALIDATION_ERROR", message: "Requête invalide" },
+        error: { code: "VALIDATION_ERROR", message: "Certaines informations ne sont pas valides : vérifiez le formulaire." },
       });
     }
 
@@ -94,13 +94,13 @@ export function registerErrorHandler(app: FastifyInstance) {
         : status === 409 ? "CONFLICT"
         : "VALIDATION_ERROR";
       const message =
-        status === 429 ? "Trop de requêtes. Réessayez dans un instant."
-        : status === 413 ? "Corps de requête trop volumineux."
-        : status === 401 ? "Non authentifié"
-        : status === 403 ? "Accès refusé"
-        : status === 404 ? "Ressource introuvable"
-        : status === 409 ? "Conflit d'état"
-        : "Requête invalide";
+        status === 429 ? "Trop de tentatives en peu de temps. Patientez une minute, puis réessayez."
+        : status === 413 ? "Le fichier ou le texte envoyé est trop lourd."
+        : status === 401 ? "Connectez-vous pour continuer."
+        : status === 403 ? "Vous n’avez pas accès à cette action."
+        : status === 404 ? "Élément introuvable : rechargez la page."
+        : status === 409 ? "Cette action n’est plus possible : rechargez la page."
+        : "Certaines informations ne sont pas valides : vérifiez le formulaire.";
       return reply.status(status).send({
         ok: false,
         error: {
@@ -119,20 +119,20 @@ export function registerErrorHandler(app: FastifyInstance) {
         ok: false,
         error: {
           code: "INTERNAL_ERROR",
-          message: "Erreur interne du serveur",
+          message: "Un problème est survenu de notre côté. Réessayez dans un instant.",
           ...(env.NODE_ENV === "development" ? { details: (error as Error)?.message ?? String(error) } : {}),
         },
       });
     }
 
-    return reply.status(500).send({ ok: false, error: { code: "INTERNAL_ERROR", message: "Erreur interne" } });
+    return reply.status(500).send({ ok: false, error: { code: "INTERNAL_ERROR", message: "Un problème est survenu de notre côté. Réessayez dans un instant." } });
   });
 
   app.setNotFoundHandler((request, reply) => {
     if (request.url.includes("/api/v1")) {
       return reply.status(404).send({
         ok: false,
-        error: { code: "NOT_FOUND", message: `Route introuvable : ${request.method} ${request.url}` },
+        error: { code: "NOT_FOUND", message: "Cette page ou cette action n’existe pas (ou plus). Rechargez la page." },
       });
     }
     return reply.status(404).send("Not Found");

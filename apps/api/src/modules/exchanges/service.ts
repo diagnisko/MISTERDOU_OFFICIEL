@@ -13,6 +13,7 @@ import { confirmPrivateUpload, createPrivateUpload, deletePrivate, privateReadUr
 import type { AuthContext } from "../../lib/auth-context.js";
 import { getIntSetting } from "../settings/service.js";
 import { assertSplittable, createInstallmentPlan } from "../installments/service.js";
+import { fieldError } from "../../lib/validation-messages.js";
 import { deliverOrder } from "../orders/service.js";
 import { holdsReservation } from "../orders/fulfillment.js";
 import { findGameIdConflict, lockGameId, parseGameId } from "../offers/game-id.js";
@@ -416,10 +417,10 @@ export async function createExchange(input: z.infer<typeof createExchangeSchema>
       actionUrl: hit.kind === "product" ? `/admin/offers?gameId=${encodeURIComponent(gameAccountId)}` : "/admin/echanges",
       priority: "CRITICAL",
     });
-    throw conflict("GAME_ID_IN_USE", `Ce compte (ID ${gameAccountId}) est déjà en vente sur MISTERDOU : il ne peut pas servir à un échange.`);
+    throw fieldError("gameAccountId", `Ce compte (ID ${gameAccountId}) est déjà en vente sur MISTERDOU : il ne peut pas servir à un échange.`, "GAME_ID_IN_USE", 409);
   }
 
-  if (!input.videoKey.startsWith(`exchange/${userId}/`)) throw badRequest("VALIDATION_ERROR", "Vidéo invalide : relancez l’envoi.");
+  if (!input.videoKey.startsWith(`exchange/${userId}/`)) throw fieldError("videoKey", "Vidéo invalide : choisissez-la de nouveau.");
   const { sizeBytes } = await confirmPrivateUpload(input.videoKey, input.videoMime, await videoRules());
   const used = await prisma.exchangeRequest.count({ where: { videoKey: input.videoKey } });
   if (used > 0) throw conflict("MEDIA_EXISTS", "Cette vidéo est déjà utilisée par une autre demande.");

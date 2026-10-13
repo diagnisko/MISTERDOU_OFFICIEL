@@ -184,8 +184,7 @@ export async function requestPaged<T, M extends PageMeta = PageMeta>(
 
 // --- Typed helpers ---
 
-export const PERMISSION_MESSAGE =
-  "Permission insuffisante — ce module est réservé aux rôles autorisés.";
+export const PERMISSION_MESSAGE = "Vous n’avez pas accès à cette action. Demandez-la à l’administrateur.";
 
 /** Message lisible pour toute erreur (403 → alerte de permission imposée). */
 export function errorMessage(err: unknown, fallback?: string): string {
@@ -198,6 +197,25 @@ export function errorMessage(err: unknown, fallback?: string): string {
   if (typeof err === "string" && err.trim().length > 0) return err;
   if (err instanceof Error && err.message.trim().length > 0) return err.message;
   return fallback;
+}
+
+/**
+ * Erreurs champ par champ renvoyées par le serveur (clé = nom du champ, par
+ * exemple « basePrice » ou « credentials.loginId ») : le formulaire affiche
+ * chacune sous le bon champ.
+ */
+export function fieldErrors(err: unknown): Record<string, string> {
+  if (!(err instanceof ApiClientError)) return {};
+  const fields = (err.details as { fields?: unknown } | undefined)?.fields;
+  if (!fields || typeof fields !== "object") return {};
+  const locale = documentLocale();
+  const out: Record<string, string> = {};
+  for (const [key, message] of Object.entries(fields as Record<string, unknown>)) {
+    if (typeof message !== "string") continue;
+    // Le serveur écrit en français ; en anglais ou en arabe, un texte général.
+    out[key] = locale === "fr" ? message : translate(locale, "form.fieldInvalid");
+  }
+  return out;
 }
 
 export function isPermissionError(err: unknown): boolean {

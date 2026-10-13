@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, requirePermission } from "../../lib/auth-context.js";
 import { badRequest } from "../../lib/errors.js";
+import { validationError } from "../../lib/validation-messages.js";
 import { getCheckoutState, listMyPayments, type PaymentContext } from "./service.js";
 import {
   approvePaymentProof,
@@ -64,7 +65,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { token } = request.params as { token: string };
       const parsed = paymentProofSchema.safeParse(request.body);
-      if (!parsed.success) throw badRequest("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Preuve de paiement invalide.");
+      if (!parsed.success) throw validationError(parsed.error.issues);
       const c = ctx(request);
       return sendOk(reply, await submitPaymentProof(token, parsed.data, { ...c, actorId: c.actorId! }));
     },

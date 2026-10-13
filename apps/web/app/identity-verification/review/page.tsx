@@ -52,7 +52,7 @@ export default function VerificationReviewPage() {
   }
 
   return <LuxShell>
-    <LuxTopBar label="Revue KYC" links={[{ href: "/account", label: "Espace membre" }]} />
+    <LuxTopBar label="Vérification des pièces d’identité" links={[{ href: "/account", label: "Espace membre" }]} />
     <main className="relative z-10 mx-auto max-w-5xl px-5 pb-20 pt-10 md:px-8">
       <LuxBack href="/account" label="Espace membre" />
       <div className="flex flex-wrap items-end justify-between gap-4">

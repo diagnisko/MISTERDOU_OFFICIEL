@@ -300,11 +300,11 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
             where: { id: args.before },
             select: { createdAt: true },
           });
-          if (!anchor) throw badRequest("VALIDATION_ERROR", "Curseur de messages invalide.");
+          if (!anchor) throw badRequest("VALIDATION_ERROR", "Impossible de charger les anciens messages : rechargez la page.");
           beforeDate = anchor.createdAt;
         } else {
           const parsed = new Date(args.before);
-          if (Number.isNaN(parsed.getTime())) throw badRequest("VALIDATION_ERROR", "Curseur de messages invalide.");
+          if (Number.isNaN(parsed.getTime())) throw badRequest("VALIDATION_ERROR", "Impossible de charger les anciens messages : rechargez la page.");
           beforeDate = parsed;
         }
       }

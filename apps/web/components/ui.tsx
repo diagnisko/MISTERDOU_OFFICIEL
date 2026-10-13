@@ -76,10 +76,27 @@ export function Field({
       </span>
       {children}
       {hint && !error && <span className="mt-1.5 block text-xs text-stone-400">{hint}</span>}
-      {error && <span className="mt-1.5 block text-xs text-[#fca5a5]">{error}</span>}
+      <FieldError message={error} />
     </label>
   );
 }
+
+/** Message d'erreur placé juste sous le champ concerné. */
+export function FieldError({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return (
+    <span role="alert" className="mt-1.5 flex items-start gap-1.5 text-[12px] leading-snug text-[#fca5a5]">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden className="mt-px shrink-0">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7.5v5.5M12 16.5h.01" />
+      </svg>
+      {message}
+    </span>
+  );
+}
+
+/** Contour rouge d'un champ en erreur. */
+export const invalidCls = (bad: unknown) => (bad ? "!border-[rgba(239,68,68,0.75)]" : "");
 
 const INPUT_CLS =
   "glass w-full rounded-[14px] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors border-[rgba(255,255,255,0.12)] focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400";
@@ -173,6 +190,17 @@ const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   BANNED: { label: "Banni", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
   OVERDUE: { label: "En retard", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
   WAIVED: { label: "Annulée", cls: "text-stone-400 border-white/15 bg-white/5" },
+  // Autres statuts (codes, téléphone, commissions, tranches, échanges)
+  UNVERIFIED: { label: "Non vérifié", cls: "text-stone-400 border-white/15 bg-white/5" },
+  PROVIDED: { label: "Envoyé", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
+  RECORDED: { label: "Enregistrée", cls: "text-[#fbbf24] border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.1)]" },
+  RELEASED: { label: "Versée", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
+  DEFAULTED: { label: "Impayé", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
+  QUOTED: { label: "Prix proposé", cls: "text-[#f59e0b] border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.1)]" },
+  ACCEPTED: { label: "Accepté", cls: "text-[#6ee7b7] border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.1)]" },
+  AWAITING_PAYMENT: { label: "En attente de paiement", cls: "text-[#fbbf24] border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.1)]" },
+  DECLINED: { label: "Refusé par le client", cls: "text-stone-400 border-white/15 bg-white/5" },
+  CUSTODY_REFUSED: { label: "Compte refusé", cls: "text-[#fca5a5] border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)]" },
 };
 
 /** Libellé français d'un statut (inconnu : renvoyé tel quel). */

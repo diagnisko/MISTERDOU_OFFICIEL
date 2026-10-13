@@ -11,6 +11,7 @@ import type { AuditSeverity, PlanStatus, RoleName, WithdrawalStatus } from "@mis
 import { AUDIT_ACTIONS, AUDIT_HIDDEN_ACTIONS, auditActionsOf } from "@misterdou/shared";
 import type { AuditCategory, ManagerCreateInput, ManagerUpdateInput, PlanCollectInput } from "@misterdou/shared";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
+import { fieldError } from "../../lib/validation-messages.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 import { decryptString, getFile } from "../../lib/storage.js";
@@ -71,6 +72,29 @@ function matchesValueType(valueType: string, value: unknown): boolean {
   }
 }
 
+/**
+ * Limites des réglages chiffrés (un réglage absent d'ici : 0 au minimum).
+ * Évite une commission de 150 % ou un délai de 0 heure tapé par erreur.
+ */
+const SETTING_BOUNDS: Record<string, { min: number; max?: number; unit?: string }> = {
+  sellerCommissionPercent: { min: 0, max: 100, unit: "%" },
+  maxInstallments: { min: 2, max: 24, unit: "mois" },
+  payoutHoldDays: { min: 0, max: 60, unit: "jours" },
+  verificationCodeTtlMinutes: { min: 1, max: 120, unit: "minutes" },
+  unpaidOrderExpiryHours: { min: 1, max: 720, unit: "heures" },
+  exchangeReplyHours: { min: 1, max: 720, unit: "heures" },
+  exchangeQuoteHours: { min: 1, max: 720, unit: "heures" },
+  exchangeVideoMaxMb: { min: 1, max: 1000, unit: "Mo" },
+  exchangeVideoRetentionDays: { min: 1, max: 3650, unit: "jours" },
+  chatImageRetentionDays: { min: 1, max: 3650, unit: "jours" },
+  minWithdrawalAmount: { min: 0, unit: "FCFA" },
+  sellerRegistrationFee: { min: 0, unit: "FCFA" },
+  featuredDailyRate: { min: 0, unit: "FCFA" },
+  resellerContract6Price: { min: 0, unit: "FCFA" },
+  resellerContract12Price: { min: 0, unit: "FCFA" },
+  resellerContract18Price: { min: 0, unit: "FCFA" },
+};
+
 export async function listSettings() {
   return prisma.settings.findMany({
     orderBy: [{ group: "asc" }, { key: "asc" }],
@@ -85,14 +109,26 @@ export async function updateSetting(key: string, value: unknown, actor: OpsActor
   // Verrou : on ne peut pas réécrire un secret interne (ex. secret TOTP d'un
   // administrateur) depuis l'API de paramètres — sinon un opérateur SETTINGS
   // pourrait rendre la MFA illisible et verrouiller la connexion admin.
-  if (key.startsWith(INTERNAL_SETTINGS_PREFIX)) throw notFound("Paramètre introuvable.");
+  if (key.startsWith(INTERNAL_SETTINGS_PREFIX)) throw notFound("Ce réglage n’existe pas (ou plus) : rechargez la page.");
   const row = await prisma.settings.findUnique({ where: { key } });
-  if (!row) throw notFound("Paramètre introuvable.");
+  if (!row) throw notFound("Ce réglage n’existe pas (ou plus) : rechargez la page.");
   if (!matchesValueType(row.valueType, value)) {
-    throw badRequest("VALIDATION_ERROR", `Valeur invalide : ce paramètre attend une valeur de type « ${row.valueType} ».`);
+    const expected =
+      row.valueType === "int" ? "un nombre entier (sans lettres ni espaces)" : row.valueType === "bool" ? "oui ou non" : "un texte";
+    throw fieldError("value", `Écrivez ${expected}.`);
+  }
+  const bounds = SETTING_BOUNDS[key];
+  if (typeof value === "number" && (value < (bounds?.min ?? 0) || (bounds?.max !== undefined && value > bounds.max))) {
+    const min = bounds?.min ?? 0;
+    const unit = bounds?.unit ? ` ${bounds.unit}` : "";
+    const fr = (n: number) => new Intl.NumberFormat("fr-FR").format(n);
+    throw fieldError("value", bounds?.max !== undefined ? `Entre ${fr(min)} et ${fr(bounds.max)}${unit}.` : `${fr(min)}${unit} au minimum.`);
+  }
+  if (key === "installmentRounding" && !["FIRST", "LAST", "BALANCED"].includes(String(value))) {
+    throw fieldError("value", "Choisissez une des propositions de la liste.");
   }
   if (key === "waveMerchantLink" && typeof value === "string" && value.trim() !== "" && !isWaveLink(value.trim())) {
-    throw badRequest("VALIDATION_ERROR", "Le lien Wave doit commencer par https://pay.wave.com/");
+    throw fieldError("value", "Le lien Wave doit commencer par https://pay.wave.com/ (copiez-le depuis votre application Wave Business).");
   }
   await prisma.settings.update({
     where: { key },

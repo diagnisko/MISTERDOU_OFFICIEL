@@ -5,6 +5,7 @@ import type { RoleName } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { badRequest } from "../../lib/errors.js";
+import { fieldError, validationError } from "../../lib/validation-messages.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 import { hashPassword, verifyPassword } from "../../lib/password.js";
@@ -66,7 +67,7 @@ export async function registerAccountRoutes(app: FastifyInstance) {
   app.patch("/account/profile", async (request, reply) => {
     const { auth, audit } = ctx(request);
     const input = profileBody.safeParse(request.body);
-    if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Profil invalide.");
+    if (!input.success) throw validationError(input.error.issues);
     const before = await prisma.user.findUniqueOrThrow({
       where: { id: auth.user.id },
       select: { firstName: true, lastName: true, country: true, city: true },
@@ -92,12 +93,12 @@ export async function registerAccountRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { auth, audit } = ctx(request);
       const input = passwordBody.safeParse(request.body);
-      if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Mot de passe invalide.");
+      if (!input.success) throw validationError(input.error.issues);
       const user = await prisma.user.findUniqueOrThrow({ where: { id: auth.user.id }, select: { passwordHash: true } });
       const hadPassword = Boolean(user.passwordHash);
       if (hadPassword) {
         const ok = input.data.currentPassword ? await verifyPassword(input.data.currentPassword, user.passwordHash!) : false;
-        if (!ok) throw badRequest("INVALID_CREDENTIALS", "Mot de passe actuel incorrect.");
+        if (!ok) throw fieldError("currentPassword", "Mot de passe actuel incorrect.", "INVALID_CREDENTIALS");
       }
       await prisma.user.update({ where: { id: auth.user.id }, data: { passwordHash: await hashPassword(input.data.newPassword) } });
       // Un mot de passe changé ferme les sessions ouvertes ailleurs.

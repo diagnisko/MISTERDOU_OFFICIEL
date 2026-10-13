@@ -134,7 +134,7 @@ export async function confirmAdminTotp(actor: { id: string; email: string | null
       data: { isAdminSession: true, expiresAt: new Date(Date.now() + env.ADMIN_SESSION_TTL_SECONDS * 1000) },
     });
   });
-  if (updated.count !== 1) throw notFound("Session temporaire expirée. Reconnectez-vous.");
+  if (updated.count !== 1) throw notFound("Votre connexion a expiré : reconnectez-vous.");
   await logAudit({ actorId: actor.id, actorRole: "ADMIN", action: "ADMIN_TOTP_ENABLED", resourceType: "User", resourceId: actor.id, severity: "CRITICAL" });
   return { enabled: true };
 }

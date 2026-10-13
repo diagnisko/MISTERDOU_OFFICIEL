@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FieldError } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import Link from "next/link";
 import { ApiClientError, request } from "@/lib/api";
 import { displayName, refreshAccount, useAccount } from "@/lib/account";
@@ -31,6 +33,12 @@ export default function ProfilePage() {
   // Photo choisie, en cours de cadrage (envoyée seulement une fois cadrée).
   const [cropping, setCropping] = useState<File | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const fields = useFormErrors();
+  const bad = (key: string) => (fields.fields[key] ? " !border-[rgba(239,68,68,0.75)]" : "");
+  const change = (key: keyof typeof form, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    fields.clear(key);
+  };
   const [verifyNote, setVerifyNote] = useState<string | null>(null);
 
   async function resendVerification() {
@@ -62,14 +70,16 @@ export default function ProfilePage() {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    setSaving(true);
     setMessage(null);
+    if (!form.firstName.trim()) return fields.show({ firstName: t("form.required") });
+    fields.reset();
+    setSaving(true);
     try {
       await request("/api/v1/account/profile", { method: "PATCH", body: JSON.stringify(form) });
       await refreshAccount();
       setMessage({ tone: "ok", text: t("profile.saved") });
     } catch (err) {
-      setMessage({ tone: "error", text: err instanceof ApiClientError ? err.message : t("profile.saveFailed") });
+      fields.fromError(err, t("profile.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -187,24 +197,28 @@ export default function ProfilePage() {
         </section>
         )}
 
-        <form onSubmit={(e) => void save(e)} className="dash-card p-5">
+        <form onSubmit={(e) => void save(e)} noValidate className="dash-card p-5">
           <h2 className="text-[15px] font-semibold text-white">{t("profile.personal")}</h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("profile.firstName")}</span>
-              <input required maxLength={100} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className={field} autoComplete="given-name" />
+              <input name="firstName" maxLength={100} autoComplete="given-name" value={form.firstName} onChange={(e) => change("firstName", e.target.value)} aria-invalid={Boolean(fields.fields.firstName)} className={field + bad("firstName")} />
+              <FieldError message={fields.fields.firstName} />
             </label>
             <label className="block">
               <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("profile.lastName")}</span>
-              <input maxLength={100} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className={field} autoComplete="family-name" />
+              <input name="lastName" maxLength={100} autoComplete="family-name" value={form.lastName} onChange={(e) => change("lastName", e.target.value)} aria-invalid={Boolean(fields.fields.lastName)} className={field + bad("lastName")} />
+              <FieldError message={fields.fields.lastName} />
             </label>
             <label className="block">
               <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("profile.country")}</span>
-              <input maxLength={100} value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className={field} autoComplete="country-name" />
+              <input name="country" maxLength={100} autoComplete="country-name" value={form.country} onChange={(e) => change("country", e.target.value)} aria-invalid={Boolean(fields.fields.country)} className={field + bad("country")} />
+              <FieldError message={fields.fields.country} />
             </label>
             <label className="block">
               <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("profile.city")}</span>
-              <input maxLength={100} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className={field} autoComplete="address-level2" />
+              <input name="city" maxLength={100} autoComplete="address-level2" value={form.city} onChange={(e) => change("city", e.target.value)} aria-invalid={Boolean(fields.fields.city)} className={field + bad("city")} />
+              <FieldError message={fields.fields.city} />
             </label>
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("profile.email")}</span>
@@ -217,6 +231,11 @@ export default function ProfilePage() {
             </label>
           </div>
 
+          {fields.general && (
+            <p role="alert" className="mt-4 text-[13px] text-[#fca5a5]">
+              {fields.general}
+            </p>
+          )}
           {message && (
             <p role={message.tone === "error" ? "alert" : "status"} className={`mt-4 text-[13px] ${message.tone === "error" ? "text-[#fca5a5]" : "text-[#86efac]"}`}>
               {message.text}

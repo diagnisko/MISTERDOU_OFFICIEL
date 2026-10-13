@@ -27,6 +27,9 @@ import {
   type SupportTicket,
 } from "@/lib/support";
 import { formatDateTime } from "@/lib/format";
+
+/** Rôle affiché en clair (jamais le nom technique). */
+const ROLE_FR: Record<string, string> = { CLIENT: "Client", VENDOR: "Vendeur", STAFF: "Équipe", ADMIN: "Administrateur" };
 import { resolveSession } from "@/lib/session";
 import { ConversationThread } from "@/components/messagerie/thread";
 
@@ -308,7 +311,7 @@ function TicketDetailModal({
               <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-500">Signalé par</dt>
               <dd className="mt-1 text-stone-200">
                 {personLabel(ticket.reporter)}
-                {ticket.reporter?.role ? ` · ${ticket.reporter.role}` : ""}
+                {ticket.reporter?.role ? ` · ${ROLE_FR[ticket.reporter.role] ?? "Membre"}` : ""}
               </dd>
             </div>
             <div>

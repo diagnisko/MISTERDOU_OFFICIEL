@@ -3,6 +3,7 @@ import type { RoleName } from "@misterdou/db";
 import { sendOk, sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { badRequest } from "../../lib/errors.js";
+import { validationError } from "../../lib/validation-messages.js";
 import { PLATFORM_PROFILE_ID, platformPublicProfile, reviewSchema, sellerPublicProfile, submitReview } from "./service.js";
 
 export async function registerReviewRoutes(app: FastifyInstance) {
@@ -17,7 +18,7 @@ export async function registerReviewRoutes(app: FastifyInstance) {
       const auth = requireAuth(request);
       const { id } = request.params as { id: string };
       const input = reviewSchema.safeParse(request.body);
-      if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Avis invalide.");
+      if (!input.success) throw validationError(input.error.issues);
       return sendOk(
         reply,
         await submitReview(id, input.data, { actorId: auth.user.id, actorRole: auth.user.role?.name as RoleName | undefined, ip: request.ip }),

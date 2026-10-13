@@ -248,7 +248,7 @@ export default function PlansPage() {
                     <tr>
                       <td colSpan={8} className="bg-black/25 px-4 py-4">
                         <p className="text-[10px] uppercase tracking-[0.14em] text-stone-500">
-                          Échéancier — {plan.order.orderNumber} · {plan.order.paymentMode}
+                          Échéancier — {plan.order.orderNumber} · {plan.order.paymentMode === "INSTALLMENTS" ? "Paiement en mensualités" : "Paiement en une fois"}
                         </p>
                         <div className="dash-scroll mt-3 overflow-x-auto">
                           <table className="dash-table w-full min-w-[640px] border-collapse text-left text-xs">

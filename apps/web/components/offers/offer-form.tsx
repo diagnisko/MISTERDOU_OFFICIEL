@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ApiClientError, formatXof, request } from "@/lib/api";
-import { Alert, Spinner } from "@/components/ui";
+import { formatXof, request } from "@/lib/api";
+import { Alert, FieldError, Spinner, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { MediaManager } from "@/components/media/media-manager";
 import { useT } from "@/lib/i18n";
 
@@ -31,17 +32,19 @@ export type EditableOffer = OfferValues & { id: string; slug: string; hasCredent
 
 const DIVISIONS = ["Division 1", "Division 2", "Division 3", "Division 4", "Division 5", "Legend", "Ikon", "Epic"];
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[12px] font-medium text-[#cdbab3]">{label}</span>
+      <span className={`text-[12px] font-medium ${error ? "text-[#fca5a5]" : "text-[#cdbab3]"}`}>{label}</span>
       <div className="mt-1.5">{children}</div>
-      {hint && <span className="mt-1 block text-[11px] text-[#8f7d77]">{hint}</span>}
+      {error ? <FieldError message={error} /> : hint && <span className="mt-1 block text-[11px] text-[#8f7d77]">{hint}</span>}
     </label>
   );
 }
 
 const toInt = (value: string) => (value.trim() === "" ? NaN : Number(value.replace(/\s/g, "")));
+const MIN_PRICE = 500;
+const GAME_ID_RE = /^[A-Za-z0-9 _-]+$/;
 
 export function OfferForm({
   apiBase,
@@ -74,29 +77,62 @@ export function OfferForm({
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const errors = useFormErrors();
+  const err = errors.fields;
+  // Saisie : la valeur change et l'erreur de ce champ disparaît.
+  const edit = (key: string, set: (value: string) => void) => (e: { target: { value: string } }) => {
+    set(e.target.value);
+    errors.clear(key);
+  };
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
 
   const editing = Boolean(offer);
   const priceValue = toInt(price);
 
+  /** Contrôle avant l'envoi : une erreur par champ, en français simple. */
+  function check(): Record<string, string> {
+    const found: Record<string, string> = {};
+    const id = gameId.trim().replace(/[\s_-]/g, "");
+    if (!gameId.trim()) found.gameAccountId = t("form.required");
+    else if (!GAME_ID_RE.test(gameId.trim()) || id.length < 4 || id.length > 40) found.gameAccountId = t("offer.gameIdInvalid");
+    if (title.trim().length < 3) found.title = title.trim() ? t("form.minChars", { n: 3 }) : t("form.required");
+    if (division.trim().length < 2) found.division = division.trim() ? t("form.minChars", { n: 2 }) : t("form.required");
+    const whole = (value: string, key: string) => {
+      const n = toInt(value);
+      if (value.trim() === "") found[key] = t("form.required");
+      else if (!Number.isInteger(n) || n < 0) found[key] = t("form.number");
+    };
+    whole(teamPower, "teamPower");
+    whole(coins, "coins");
+    if (description.trim().length < 10) found.description = description.trim() ? t("form.minChars", { n: 10 }) : t("form.required");
+    whole(price, "basePrice");
+    if (!found.basePrice && priceValue < MIN_PRICE) found.basePrice = t("form.minAmount", { amount: formatXof(MIN_PRICE) });
+    if (monthly) {
+      whole(months, "installmentMonths");
+      if (!found.installmentMonths && toInt(months) < 2) found.installmentMonths = t("offer.monthsMin");
+      if (downPayment.trim() !== "") whole(downPayment, "installmentDownPayment");
+      if (!found.installmentDownPayment && !found.basePrice && (toInt(downPayment) || 0) >= priceValue) {
+        found.installmentDownPayment = t("offer.downTooHigh");
+      }
+    }
+    const given = loginId.trim() !== "" || password !== "";
+    if (!editing || given) {
+      if (!loginId.trim()) found["credentials.loginId"] = editing ? t("offer.credentialsBoth") : t("form.required");
+      if (!password) found["credentials.password"] = editing ? t("offer.credentialsBoth") : t("form.required");
+    }
+    return found;
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    const found = check();
+    if (Object.keys(found).length > 0) {
+      errors.show(found);
+      return;
+    }
+    errors.reset();
     const numbers = { teamPower: toInt(teamPower), coins: toInt(coins), basePrice: priceValue };
-    if (Object.values(numbers).some((n) => !Number.isInteger(n) || n < 0)) {
-      setError(t("offer.numbersInvalid"));
-      return;
-    }
     const credentialsGiven = loginId.trim() !== "" || password !== "";
-    if (!editing && (!loginId.trim() || !password)) {
-      setError(t("offer.credentialsRequired"));
-      return;
-    }
-    if (credentialsGiven && (!loginId.trim() || !password)) {
-      setError(t("offer.credentialsBoth"));
-      return;
-    }
     const body = {
       gameAccountId: gameId.trim(),
       acceptsExchange,
@@ -119,8 +155,8 @@ export function OfferForm({
       setPassword("");
       if (editing) onDone(result);
       else setCreated(result);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : t("offer.saveFailed"));
+    } catch (caught) {
+      errors.fromError(caught, t("offer.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -144,7 +180,7 @@ export function OfferForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} noValidate className="space-y-5">
       {reviewed && editing && offer?.rejectedReason && (
         <Alert tone="danger">
           <strong className="block">{t("offer.rejectedTitle")}</strong>
@@ -154,40 +190,40 @@ export function OfferForm({
       {reviewed && editing && <p className="text-[12.5px] leading-relaxed text-[#b8a6a1]">{t("offer.reviewNote")}</p>}
       <div className="dash-card space-y-4 p-5">
         <h2 className="text-[15px] font-semibold text-white">{t("offer.sectionAccount")}</h2>
-        <Field label={t("offer.gameId")} hint={t("offer.gameIdHint")}>
-          <input value={gameId} onChange={(e) => setGameId(e.target.value)} required minLength={4} maxLength={60} autoComplete="off" className="dash-input !pl-4" />
+        <Field label={t("offer.gameId")} hint={t("offer.gameIdHint")} error={err.gameAccountId}>
+          <input name="gameAccountId" value={gameId} onChange={edit("gameAccountId", setGameId)} maxLength={60} autoComplete="off" aria-invalid={Boolean(err["gameAccountId"])} className={`dash-input !pl-4 ${invalidCls(err["gameAccountId"])}`} />
         </Field>
-        <Field label={t("offer.title")} hint={t("offer.titleHint")}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required minLength={3} maxLength={120} className="dash-input !pl-4" />
+        <Field label={t("offer.title")} hint={t("offer.titleHint")} error={err.title}>
+          <input name="title" value={title} onChange={edit("title", setTitle)} maxLength={120} aria-invalid={Boolean(err["title"])} className={`dash-input !pl-4 ${invalidCls(err["title"])}`} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label={t("offer.division")}>
-            <input value={division} onChange={(e) => setDivision(e.target.value)} required minLength={2} maxLength={40} list="offer-divisions" className="dash-input !pl-4" />
+          <Field label={t("offer.division")} error={err.division}>
+            <input name="division" value={division} onChange={edit("division", setDivision)} maxLength={40} list="offer-divisions" aria-invalid={Boolean(err["division"])} className={`dash-input !pl-4 ${invalidCls(err["division"])}`} />
             <datalist id="offer-divisions">
               {DIVISIONS.map((d) => (
                 <option key={d} value={d} />
               ))}
             </datalist>
           </Field>
-          <Field label={t("offer.teamPower")}>
-            <input value={teamPower} onChange={(e) => setTeamPower(e.target.value)} required inputMode="numeric" className="dash-input !pl-4" />
+          <Field label={t("offer.teamPower")} error={err.teamPower}>
+            <input name="teamPower" value={teamPower} onChange={edit("teamPower", setTeamPower)} inputMode="numeric" aria-invalid={Boolean(err["teamPower"])} className={`dash-input !pl-4 ${invalidCls(err["teamPower"])}`} />
           </Field>
-          <Field label={t("offer.coins")}>
-            <input value={coins} onChange={(e) => setCoins(e.target.value)} required inputMode="numeric" className="dash-input !pl-4" />
+          <Field label={t("offer.coins")} error={err.coins}>
+            <input name="coins" value={coins} onChange={edit("coins", setCoins)} inputMode="numeric" aria-invalid={Boolean(err["coins"])} className={`dash-input !pl-4 ${invalidCls(err["coins"])}`} />
           </Field>
         </div>
-        <Field label={t("offer.description")}>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} required minLength={10} maxLength={2000} rows={4} className="dash-input !h-auto !pl-4 py-3" />
+        <Field label={t("offer.description")} error={err.description}>
+          <textarea name="description" value={description} onChange={edit("description", setDescription)} maxLength={2000} rows={4} aria-invalid={Boolean(err["description"])} className={`dash-input !h-auto !pl-4 py-3 ${invalidCls(err["description"])}`} />
         </Field>
-        <Field label={t("offer.extra")} hint={t("offer.extraHint")}>
-          <textarea value={extraInfo} onChange={(e) => setExtraInfo(e.target.value)} maxLength={1000} rows={2} className="dash-input !h-auto !pl-4 py-3" />
+        <Field label={t("offer.extra")} hint={t("offer.extraHint")} error={err.extraInfo}>
+          <textarea name="extraInfo" value={extraInfo} onChange={edit("extraInfo", setExtraInfo)} maxLength={1000} rows={2} aria-invalid={Boolean(err["extraInfo"])} className={`dash-input !h-auto !pl-4 py-3 ${invalidCls(err["extraInfo"])}`} />
         </Field>
       </div>
 
       <div className="dash-card space-y-4 p-5">
         <h2 className="text-[15px] font-semibold text-white">{t("offer.sectionPrice")}</h2>
-        <Field label={t("offer.price")} hint={Number.isInteger(priceValue) && priceValue > 0 ? formatXof(priceValue) : undefined}>
-          <input value={price} onChange={(e) => setPrice(e.target.value)} required inputMode="numeric" className="dash-input !pl-4" />
+        <Field label={t("offer.price")} hint={Number.isInteger(priceValue) && priceValue > 0 ? formatXof(priceValue) : undefined} error={err.basePrice}>
+          <input name="basePrice" value={price} onChange={edit("basePrice", setPrice)} inputMode="numeric" aria-invalid={Boolean(err["basePrice"])} className={`dash-input !pl-4 ${invalidCls(err["basePrice"])}`} />
         </Field>
         <label className="flex items-start gap-3 text-[13px] text-[#e9dad3]">
           <input type="checkbox" checked={monthly} onChange={(e) => setMonthly(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#ff6a32]" />
@@ -198,11 +234,11 @@ export function OfferForm({
         </label>
         {monthly && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t("offer.months")}>
-              <input value={months} onChange={(e) => setMonths(e.target.value)} required inputMode="numeric" className="dash-input !pl-4" />
+            <Field label={t("offer.months")} error={err.installmentMonths}>
+              <input name="installmentMonths" value={months} onChange={edit("installmentMonths", setMonths)} inputMode="numeric" aria-invalid={Boolean(err["installmentMonths"])} className={`dash-input !pl-4 ${invalidCls(err["installmentMonths"])}`} />
             </Field>
-            <Field label={t("offer.downPayment")} hint={t("offer.downPaymentHint")}>
-              <input value={downPayment} onChange={(e) => setDownPayment(e.target.value)} inputMode="numeric" className="dash-input !pl-4" />
+            <Field label={t("offer.downPayment")} hint={t("offer.downPaymentHint")} error={err.installmentDownPayment}>
+              <input name="installmentDownPayment" value={downPayment} onChange={edit("installmentDownPayment", setDownPayment)} inputMode="numeric" aria-invalid={Boolean(err["installmentDownPayment"])} className={`dash-input !pl-4 ${invalidCls(err["installmentDownPayment"])}`} />
             </Field>
           </div>
         )}
@@ -225,16 +261,17 @@ export function OfferForm({
           {editing && offer?.hasCredentials ? t("offer.credentialsKeep") : t("offer.credentialsLead")}
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t("offer.loginId")}>
-            <input value={loginId} onChange={(e) => setLoginId(e.target.value)} required={!editing} autoComplete="off" className="dash-input !pl-4" />
+          <Field label={t("offer.loginId")} error={err["credentials.loginId"]}>
+            <input name="credentials.loginId" value={loginId} onChange={edit("credentials.loginId", setLoginId)} autoComplete="off" aria-invalid={Boolean(err["credentials.loginId"])} className={`dash-input !pl-4 ${invalidCls(err["credentials.loginId"])}`} />
           </Field>
-          <Field label={t("offer.password")}>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required={!editing} autoComplete="new-password" className="dash-input !pl-4" />
+          <Field label={t("offer.password")} error={err["credentials.password"]}>
+            <input name="credentials.password" value={password} onChange={edit("credentials.password", setPassword)} type="password" autoComplete="new-password" aria-invalid={Boolean(err["credentials.password"])} className={`dash-input !pl-4 ${invalidCls(err["credentials.password"])}`} />
           </Field>
         </div>
       </div>
 
-      {error && <Alert tone="danger">{error}</Alert>}
+      {errors.hasErrors && <p className="text-[12.5px] font-medium text-[#fca5a5]">{t("form.fixBelow")}</p>}
+      {errors.general && <Alert tone="danger">{errors.general}</Alert>}
 
       <button type="submit" disabled={busy} className="dash-btn dash-btn-primary disabled:opacity-60">
         {busy && <Spinner />} {editing ? t("offer.save") : reviewed ? t("offer.submit") : t("offer.publish")}

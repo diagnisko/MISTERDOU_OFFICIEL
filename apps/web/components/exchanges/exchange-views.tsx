@@ -9,7 +9,8 @@ import {
 } from "react";
 import Link from "next/link";
 import { errorMessage, formatXof } from "@/lib/api";
-import { Alert, Spinner } from "@/components/ui";
+import { Alert, FieldError, Spinner, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { IconCheck, IconSwap } from "@/components/dash/dash-icons";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { useT, type MessageKey } from "@/lib/i18n";
@@ -245,10 +246,11 @@ export function ExchangeDetail({
     enabled: Boolean(exchange && OPEN_STATUSES.includes(exchange.status)),
   });
 
-  async function act(run: () => Promise<Exchange | unknown>, done?: string) {
+  async function act(run: () => Promise<Exchange | unknown>, done?: string, form?: FormErrors): Promise<boolean> {
     setBusy(true);
     setError(null);
     setNotice(null);
+    form?.reset();
     try {
       const result = await run();
       if (
@@ -260,8 +262,11 @@ export function ExchangeDetail({
         setExchange(result as Exchange);
       else await load();
       if (done) setNotice(done);
+      return true;
     } catch (err) {
-      setError(errorMessage(err));
+      if (form) form.fromError(err);
+      else setError(errorMessage(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -384,7 +389,13 @@ export function ExchangeDetail({
   );
 }
 
-type Act = (run: () => Promise<unknown>, done?: string) => Promise<void>;
+type FormErrors = ReturnType<typeof useFormErrors>;
+type Act = (run: () => Promise<unknown>, done?: string, form?: FormErrors) => Promise<boolean>;
+
+/** Message général d'un petit formulaire (erreur sans champ précis). */
+function FormGeneral({ form }: { form: FormErrors }) {
+  return form.general ? <p className="text-[12.5px] text-[#fca5a5]">{form.general}</p> : null;
+}
 
 function SidePanel({
   exchange: e,
@@ -433,6 +444,7 @@ function ClientPanel({
   const [password, setPassword] = useState("");
   const [monthly, setMonthly] = useState(false);
   const [code, setCode] = useState("");
+  const form = useFormErrors();
   const topUp = e.topUpAmount ?? 0;
 
   const cancel = e.actions.cancel && (
@@ -463,12 +475,19 @@ function ClientPanel({
   if (e.status === "QUOTED") {
     const accept = (event: FormEvent) => {
       event.preventDefault();
-      void act(() =>
-        exchangesApi.accept(e.id, {
-          paymentMode: monthly ? "INSTALLMENTS" : "ONE_TIME",
-          login: login.trim(),
-          password,
-        }),
+      const found: Record<string, string> = {};
+      if (login.trim().length < 3) found.login = login.trim() ? t("form.minChars", { n: 3 }) : t("form.required");
+      if (!password) found.password = t("form.required");
+      if (Object.keys(found).length > 0) return form.show(found);
+      void act(
+        () =>
+          exchangesApi.accept(e.id, {
+            paymentMode: monthly ? "INSTALLMENTS" : "ONE_TIME",
+            login: login.trim(),
+            password,
+          }),
+        undefined,
+        form,
       );
     };
     return (
@@ -493,6 +512,7 @@ function ClientPanel({
         )}
         <form
           onSubmit={accept}
+          noValidate
           className="space-y-3 border-t border-white/[0.06] pt-3"
         >
           <h3 className="text-[13.5px] font-semibold text-white">
@@ -505,24 +525,33 @@ function ClientPanel({
             <label className="block text-[12px] text-[#cdbab3]">
               {t("xch.login")}
               <input
+                name="login"
                 value={login}
-                onChange={(ev) => setLogin(ev.target.value)}
-                required
-                minLength={3}
+                onChange={(ev) => {
+                setLogin(ev.target.value);
+                form.clear("login");
+              }}
                 autoComplete="off"
-                className={`${inputCls} mt-1.5`}
+                aria-invalid={Boolean(form.fields.login)}
+                className={`${inputCls} mt-1.5 ${invalidCls(form.fields["login"])}`}
               />
+              <FieldError message={form.fields.login} />
             </label>
             <label className="block text-[12px] text-[#cdbab3]">
               {t("xch.password")}
               <input
+                name="password"
                 type="password"
                 value={password}
-                onChange={(ev) => setPassword(ev.target.value)}
-                required
+                onChange={(ev) => {
+                setPassword(ev.target.value);
+                form.clear("password");
+              }}
                 autoComplete="new-password"
-                className={`${inputCls} mt-1.5`}
+                aria-invalid={Boolean(form.fields.password)}
+                className={`${inputCls} mt-1.5 ${invalidCls(form.fields["password"])}`}
               />
+              <FieldError message={form.fields.password} />
             </label>
           </div>
           {topUp > 0 && e.product.canSplit && (
@@ -547,6 +576,7 @@ function ClientPanel({
               </label>
             </fieldset>
           )}
+          <FormGeneral form={form} />
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
@@ -572,30 +602,34 @@ function ClientPanel({
   if (e.status === "ACCEPTED") {
     const send = (event: FormEvent) => {
       event.preventDefault();
-      void act(
-        () => exchangesApi.provideCode(e.id, code),
-        t("xch.codeSent"),
-      ).then(() => setCode(""));
+      if (code.trim().length < 3) return form.show({ code: code.trim() ? t("form.minChars", { n: 3 }) : t("form.required") });
+      void act(() => exchangesApi.provideCode(e.id, code.trim()), t("xch.codeSent"), form).then((ok) => ok && setCode(""));
     };
     return (
       <Card>
         {e.actions.provideCode && !e.custody.codeProvided ? (
-          <form onSubmit={send} className="space-y-3">
+          <form onSubmit={send} noValidate className="space-y-3">
             <h3 className="text-[14px] font-semibold text-white">
               {t("xch.codeTitle")}
             </h3>
             <p className="text-[12.5px] text-[#b8a6a1]">{t("xch.codeLead")}</p>
             <div className="flex flex-wrap gap-2">
-              <input
-                value={code}
-                onChange={(ev) => setCode(ev.target.value)}
-                required
-                minLength={3}
-                maxLength={30}
-                inputMode="text"
-                placeholder={t("xch.codeInput")}
-                className={`${inputCls} max-w-[220px]`}
-              />
+              <span className="block">
+                <input
+                  name="code"
+                  value={code}
+                  onChange={(ev) => {
+                setCode(ev.target.value);
+                form.clear("code");
+              }}
+                  maxLength={30}
+                  inputMode="text"
+                  placeholder={t("xch.codeInput")}
+                  aria-invalid={Boolean(form.fields.code)}
+                  className={`${inputCls} max-w-[220px] ${invalidCls(form.fields["code"])}`}
+                />
+                <FieldError message={form.fields.code} />
+              </span>
               <button
                 type="submit"
                 disabled={busy}
@@ -690,23 +724,27 @@ function ReplyPanel({
   const [message, setMessage] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const form = useFormErrors();
   const value = Number(amount.replace(/\s/g, ""));
 
   const quote = (event: FormEvent) => {
     event.preventDefault();
-    void act(() =>
-      exchangesApi.reply(e.id, {
-        decision: "quote",
-        topUpAmount: value,
-        message: message.trim() || null,
-      }),
+    if (amount.trim() === "" || !Number.isInteger(value) || value < 0) return form.show({ topUpAmount: t("xch.amountInvalid") });
+    void act(
+      () =>
+        exchangesApi.reply(e.id, {
+          decision: "quote",
+          topUpAmount: value,
+          message: message.trim() || null,
+        }),
+      undefined,
+      form,
     );
   };
   const reject = (event: FormEvent) => {
     event.preventDefault();
-    void act(() =>
-      exchangesApi.reply(e.id, { decision: "reject", message: reason.trim() }),
-    );
+    if (reason.trim().length < 3) return form.show({ message: reason.trim() ? t("form.minChars", { n: 3 }) : t("form.required") });
+    void act(() => exchangesApi.reply(e.id, { decision: "reject", message: reason.trim() }), undefined, form);
   };
 
   return (
@@ -727,16 +765,21 @@ function ReplyPanel({
         </p>
       )}
       {!rejecting ? (
-        <form onSubmit={quote} className="space-y-3">
+        <form onSubmit={quote} noValidate className="space-y-3">
           <label className="block text-[12px] text-[#cdbab3]">
             {t("xch.replyAmount")}
             <input
+              name="topUpAmount"
               value={amount}
-              onChange={(ev) => setAmount(ev.target.value)}
-              required
+              onChange={(ev) => {
+                setAmount(ev.target.value);
+                form.clear("topUpAmount");
+              }}
               inputMode="numeric"
-              className={`${inputCls} mt-1.5 max-w-[220px]`}
+              aria-invalid={Boolean(form.fields.topUpAmount)}
+              className={`${inputCls} mt-1.5 max-w-[220px] ${invalidCls(form.fields["topUpAmount"])}`}
             />
+            <FieldError message={form.fields.topUpAmount} />
             <span className="mt-1 block text-[11px] text-[#8f7d77]">
               {Number.isInteger(value) && value > 0
                 ? formatXof(value) + " · "
@@ -747,16 +790,23 @@ function ReplyPanel({
           <label className="block text-[12px] text-[#cdbab3]">
             {t("xch.replyMessage")}
             <input
+              name="message"
               value={message}
-              onChange={(ev) => setMessage(ev.target.value)}
+              onChange={(ev) => {
+                setMessage(ev.target.value);
+                form.clear("message");
+              }}
               maxLength={500}
-              className={`${inputCls} mt-1.5`}
+              aria-invalid={Boolean(form.fields.message)}
+              className={`${inputCls} mt-1.5 ${invalidCls(form.fields["message"])}`}
             />
+            <FieldError message={form.fields.message} />
           </label>
+          <FormGeneral form={form} />
           <div className="flex flex-wrap gap-3">
             <button
               type="submit"
-              disabled={busy || !Number.isInteger(value) || value < 0}
+              disabled={busy}
               className="dash-btn dash-btn-primary disabled:opacity-60"
             >
               <Busy busy={busy}>{t("xch.replyQuote")}</Busy>
@@ -764,7 +814,10 @@ function ReplyPanel({
             {e.status === "PENDING" && (
               <button
                 type="button"
-                onClick={() => setRejecting(true)}
+                onClick={() => {
+                  form.reset();
+                  setRejecting(true);
+                }}
                 className="dash-btn dash-btn-ghost"
               >
                 {t("xch.replyReject")}
@@ -773,18 +826,23 @@ function ReplyPanel({
           </div>
         </form>
       ) : (
-        <form onSubmit={reject} className="space-y-3">
+        <form onSubmit={reject} noValidate className="space-y-3">
           <label className="block text-[12px] text-[#cdbab3]">
             {t("xch.rejectReason")}
             <input
+              name="message"
               value={reason}
-              onChange={(ev) => setReason(ev.target.value)}
-              required
-              minLength={3}
+              onChange={(ev) => {
+                setReason(ev.target.value);
+                form.clear("message");
+              }}
               maxLength={500}
-              className={`${inputCls} mt-1.5`}
+              aria-invalid={Boolean(form.fields.message)}
+              className={`${inputCls} mt-1.5 ${invalidCls(form.fields["message"])}`}
             />
+            <FieldError message={form.fields.message} />
           </label>
+          <FormGeneral form={form} />
           <div className="flex gap-3">
             <button
               type="submit"
@@ -795,7 +853,10 @@ function ReplyPanel({
             </button>
             <button
               type="button"
-              onClick={() => setRejecting(false)}
+              onClick={() => {
+                form.reset();
+                setRejecting(false);
+              }}
               className="dash-btn dash-btn-ghost"
             >
               ←
@@ -849,6 +910,7 @@ function SellerPanel({
   const t = useT();
   const [account, setAccount] = useState<ClientAccount | null>(null);
   const [report, setReport] = useState("");
+  const form = useFormErrors();
 
   if (e.status === "ACCEPTED")
     return <Alert tone="info">{t("xch.sellerWaitCustody")}</Alert>;
@@ -885,23 +947,27 @@ function SellerPanel({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void act(
-                () => exchangesApi.report(e.id, report.trim()),
-                t("xch.reportSent"),
-              ).then(() => setReport(""));
+              if (report.trim().length < 10) return form.show({ message: report.trim() ? t("form.minChars", { n: 10 }) : t("form.required") });
+              void act(() => exchangesApi.report(e.id, report.trim()), t("xch.reportSent"), form).then((ok) => ok && setReport(""));
             }}
+            noValidate
             className="space-y-2"
           >
             <textarea
+              name="message"
               value={report}
-              onChange={(ev) => setReport(ev.target.value)}
-              required
-              minLength={10}
+              onChange={(ev) => {
+                setReport(ev.target.value);
+                form.clear("message");
+              }}
               maxLength={2000}
               rows={3}
               placeholder={t("xch.reportPlaceholder")}
-              className={`${inputCls} !h-auto py-3`}
+              aria-invalid={Boolean(form.fields.message)}
+              className={`${inputCls} !h-auto py-3 ${invalidCls(form.fields["message"])}`}
             />
+            <FieldError message={form.fields.message} />
+            <FormGeneral form={form} />
             <button
               type="submit"
               disabled={busy}
@@ -931,6 +997,7 @@ function TeamPanel({
   const [note, setNote] = useState("");
   const [refusing, setRefusing] = useState(false);
   const [reason, setReason] = useState("");
+  const form = useFormErrors();
   const reveal = () =>
     act(async () => setAccount(await exchangesApi.clientAccount(e.id)));
 
@@ -1025,17 +1092,26 @@ function TeamPanel({
                       note: note.trim() || null,
                     }),
                   "Compte validé : la suite est envoyée au client.",
+                  form,
                 );
               }}
+              noValidate
               className="space-y-3"
             >
               <input
+                name="note"
                 value={note}
-                onChange={(ev) => setNote(ev.target.value)}
+                onChange={(ev) => {
+                setNote(ev.target.value);
+                form.clear("note");
+              }}
                 maxLength={500}
                 placeholder="Note interne (facultatif)"
-                className={inputCls}
+                aria-invalid={Boolean(form.fields.note)}
+                className={`${inputCls} ${invalidCls(form.fields["note"])}`}
               />
+              <FieldError message={form.fields.note} />
+              <FormGeneral form={form} />
               <p className="text-[12px] text-[#8f7d77]">
                 {(e.topUpAmount ?? 0) > 0
                   ? `Après validation, le client règle ${formatXof(e.topUpAmount ?? 0)} ; l’échange se conclut au paiement.`
@@ -1051,7 +1127,10 @@ function TeamPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRefusing(true)}
+                  onClick={() => {
+                    form.reset();
+                    setRefusing(true);
+                  }}
                   className="dash-btn dash-btn-ghost"
                 >
                   Refuser le compte
@@ -1062,24 +1141,34 @@ function TeamPanel({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                void act(() =>
-                  exchangesApi.custody(e.id, {
-                    decision: "refuse",
-                    reason: reason.trim(),
-                  }),
+                if (reason.trim().length < 5) return form.show({ reason: reason.trim() ? "5 caractères au minimum : expliquez au client pourquoi." : "Écrivez le motif : il est envoyé au client." });
+                void act(
+                  () =>
+                    exchangesApi.custody(e.id, {
+                      decision: "refuse",
+                      reason: reason.trim(),
+                    }),
+                  undefined,
+                  form,
                 );
               }}
+              noValidate
               className="space-y-3"
             >
               <input
+                name="reason"
                 value={reason}
-                onChange={(ev) => setReason(ev.target.value)}
-                required
-                minLength={5}
+                onChange={(ev) => {
+                setReason(ev.target.value);
+                form.clear("reason");
+              }}
                 maxLength={500}
                 placeholder="Motif (envoyé au client)"
-                className={inputCls}
+                aria-invalid={Boolean(form.fields.reason)}
+                className={`${inputCls} ${invalidCls(form.fields["reason"])}`}
               />
+              <FieldError message={form.fields.reason} />
+              <FormGeneral form={form} />
               <div className="flex gap-3">
                 <button
                   type="submit"
@@ -1090,7 +1179,10 @@ function TeamPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRefusing(false)}
+                  onClick={() => {
+                    form.reset();
+                    setRefusing(false);
+                  }}
                   className="dash-btn dash-btn-ghost"
                 >
                   Annuler

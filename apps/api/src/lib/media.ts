@@ -40,7 +40,7 @@ export function maxBytes(kind: MediaKind): number {
 
 function localPath(key: string): string {
   if (!/^(products|avatars)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|webm|mov)$/.test(key)) {
-    throw badRequest("FILE_ACCESS_DENIED", "Clé média invalide");
+    throw badRequest("FILE_ACCESS_DENIED", "Fichier introuvable : envoyez-le de nouveau.");
   }
   return path.join(env.STORAGE_DIR, "public", ...key.split("/"));
 }

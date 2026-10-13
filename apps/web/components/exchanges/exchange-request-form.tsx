@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { errorMessage, formatXof } from "@/lib/api";
 import { putFile } from "@/lib/upload";
 import { prepareVideo } from "@/lib/media-prepare";
-import { Alert, Spinner } from "@/components/ui";
+import { Alert, FieldError, Spinner, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { exchangesApi, type Prepared } from "@/lib/exchanges";
 import { useT } from "@/lib/i18n";
 
@@ -41,7 +42,7 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ label: "prep" | "upload"; pct: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const fields = useFormErrors();
   const picker = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -54,11 +55,11 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
   useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
 
   async function choose(selected: File | undefined) {
-    setError(null);
+    fields.clear("videoKey");
     if (!selected || !prep) return;
     const seconds = await videoDuration(selected);
     if (seconds !== null && seconds > prep.videoMaxSeconds + 5) {
-      setError(t("xch.videoTooLong"));
+      fields.show({ videoKey: t("xch.videoTooLong") });
       return;
     }
     setFile(selected);
@@ -68,16 +69,18 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!prep) return;
-    if (!file) {
-      setError(t("xch.videoRequired"));
-      return;
-    }
-    setError(null);
+    const found: Record<string, string> = {};
+    const id = gameId.trim().replace(/[\s_-]/g, "");
+    if (!gameId.trim()) found.gameAccountId = t("form.required");
+    else if (!/^[A-Za-z0-9 _-]+$/.test(gameId.trim()) || id.length < 4 || id.length > 40) found.gameAccountId = t("offer.gameIdInvalid");
+    if (!file) found.videoKey = t("xch.videoRequired");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
     try {
       setProgress({ label: "prep", pct: 0 });
-      const ready = await prepareVideo(file, (f) => setProgress({ label: "prep", pct: Math.round(f * 100) }));
+      const ready = await prepareVideo(file!, (f) => setProgress({ label: "prep", pct: Math.round(f * 100) }));
       if (ready.blob.size > prep.videoMaxBytes) {
-        setError(t("xch.videoTooBig", { mb: Math.round(prep.videoMaxBytes / 1024 / 1024) }));
+        fields.show({ videoKey: t("xch.videoTooBig", { mb: Math.round(prep.videoMaxBytes / 1024 / 1024) }) });
         setProgress(null);
         return;
       }
@@ -94,7 +97,7 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
       });
       router.replace(`/account/echanges?id=${created.id}&sent=1`);
     } catch (err) {
-      setError(errorMessage(err));
+      fields.fromError(err, undefined, { FILE_TYPE_INVALID: "videoKey", FILE_TOO_LARGE: "videoKey", MEDIA_EXISTS: "videoKey" });
       setProgress(null);
     }
   }
@@ -112,7 +115,7 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
   const mb = Math.round(prep.videoMaxBytes / 1024 / 1024);
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} noValidate className="space-y-5">
       <div>
         <h1 className="text-[20px] font-semibold text-white">{t("xch.newTitle")}</h1>
         <p className="mt-1 text-[13px] leading-relaxed text-[#b8a6a1]">{t("xch.newLead")}</p>
@@ -133,9 +136,24 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
       <section className="dash-card space-y-4 p-5">
         <h2 className="text-[15px] font-semibold text-white">{t("xch.yourAccount")}</h2>
         <label className="block">
-          <span className="text-[12px] font-medium text-[#cdbab3]">{t("xch.gameId")}</span>
-          <input value={gameId} onChange={(e) => setGameId(e.target.value)} required minLength={4} maxLength={60} autoComplete="off" className={`${inputCls} mt-1.5`} />
-          <span className="mt-1 block text-[11px] text-[#8f7d77]">{t("xch.gameIdHint")}</span>
+          <span className={`text-[12px] font-medium ${fields.fields.gameAccountId ? "text-[#fca5a5]" : "text-[#cdbab3]"}`}>{t("xch.gameId")}</span>
+          <input
+            name="gameAccountId"
+            value={gameId}
+            onChange={(e) => {
+              setGameId(e.target.value);
+              fields.clear("gameAccountId");
+            }}
+            maxLength={60}
+            autoComplete="off"
+            aria-invalid={Boolean(fields.fields.gameAccountId)}
+            className={`${inputCls} mt-1.5 ${invalidCls(fields.fields.gameAccountId)}`}
+          />
+          {fields.fields.gameAccountId ? (
+            <FieldError message={fields.fields.gameAccountId} />
+          ) : (
+            <span className="mt-1 block text-[11px] text-[#8f7d77]">{t("xch.gameIdHint")}</span>
+          )}
         </label>
 
         <div className="rounded-2xl border border-[rgba(255,106,50,0.35)] bg-[rgba(255,106,50,0.06)] p-4">
@@ -149,26 +167,39 @@ export function ExchangeRequestForm({ productId }: { productId: string }) {
           <p className="mt-0.5 text-[11px] text-[#8f7d77]">{t("xch.videoHint", { mb })}</p>
           <input ref={picker} type="file" accept="video/*" className="hidden" onChange={(e) => void choose(e.target.files?.[0])} />
           {preview && <video src={preview} controls playsInline className="mt-3 max-h-[50vh] w-full rounded-xl bg-black" />}
-          <button type="button" disabled={busy} onClick={() => picker.current?.click()} className="dash-btn dash-btn-ghost mt-3 disabled:opacity-60">
+          <button
+            type="button"
+            name="videoKey"
+            disabled={busy}
+            onClick={() => picker.current?.click()}
+            className={`dash-btn dash-btn-ghost mt-3 disabled:opacity-60 ${invalidCls(fields.fields.videoKey)}`}
+          >
             {file ? t("xch.videoChange") : t("xch.videoPick")}
           </button>
+          <FieldError message={fields.fields.videoKey} />
         </div>
 
         <label className="block">
           <span className="text-[12px] font-medium text-[#cdbab3]">{t("xch.message")}</span>
           <textarea
+            name="message"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              fields.clear("message");
+            }}
             maxLength={1000}
             rows={3}
             placeholder={t("xch.messagePlaceholder")}
-            className={`${inputCls} mt-1.5 !h-auto py-3`}
+            className={`${inputCls} mt-1.5 !h-auto py-3 ${invalidCls(fields.fields.message)}`}
           />
+          <FieldError message={fields.fields.message} />
         </label>
         <p className="text-[12px] text-[#fcd9a5]">{t("xch.noPrice")}</p>
       </section>
 
-      {error && <Alert tone="danger">{error}</Alert>}
+      {fields.hasErrors && <p className="text-[12.5px] font-medium text-[#fca5a5]">{t("form.fixBelow")}</p>}
+      {fields.general && <Alert tone="danger">{fields.general}</Alert>}
       {progress && (
         <div className="space-y-1.5">
           <p className="text-[12px] text-[#b8a6a1]">

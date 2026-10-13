@@ -1,6 +1,6 @@
 import { prisma } from "@misterdou/db";
 import type { Prisma } from "@misterdou/db";
-import { badRequest, conflict } from "../../lib/errors.js";
+import { fieldError } from "../../lib/validation-messages.js";
 import { notifyTeam } from "../../lib/notify.js";
 import { HOLD_STATUSES } from "../exchanges/hold.js";
 
@@ -21,7 +21,7 @@ export function normalizeGameId(raw: string): string {
 export function parseGameId(raw: string): string {
   const id = normalizeGameId(raw);
   if (id.length < 4 || id.length > 40) {
-    throw badRequest("VALIDATION_ERROR", "ID eFootball invalide : de 4 à 40 lettres ou chiffres.");
+    throw fieldError("gameAccountId", "De 4 à 40 lettres ou chiffres (celui affiché sur votre profil dans le jeu).");
   }
   return id;
 }
@@ -76,13 +76,15 @@ export async function assertGameIdFree(
       priority: "CRITICAL",
     });
   }
-  throw conflict(
-    "GAME_ID_IN_USE",
+  throw fieldError(
+    "gameAccountId",
     hit.kind === "product"
       ? sameOwner
         ? `Ce compte (ID ${id}) est déjà dans une de vos offres : « ${hit.title} ».`
         : `Ce compte (ID ${id}) est déjà publié sur MISTERDOU.`
       : `Ce compte (ID ${id}) fait déjà l’objet d’un échange en cours sur MISTERDOU.`,
+    "GAME_ID_IN_USE",
+    409,
   );
 }
 

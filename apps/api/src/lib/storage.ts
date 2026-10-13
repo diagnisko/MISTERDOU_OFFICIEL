@@ -24,7 +24,7 @@ const METADATA_HEADER = "md2/1\n"; // préfixe v1 : JSON de métadonnées avant 
 
 function assertKey(objectKey: string) {
   if (!objectKey || path.isAbsolute(objectKey) || objectKey.includes("..") || objectKey.includes("\0")) {
-    throw badRequest("FILE_ACCESS_DENIED", "Clé objet invalide");
+    throw badRequest("FILE_ACCESS_DENIED", "Fichier introuvable : envoyez-le de nouveau.");
   }
 }
 

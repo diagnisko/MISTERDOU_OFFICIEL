@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Button, Field, ListPager, SelectInput, Spinner, StatusBadge, TextInput } from "@/components/ui";
+import { Alert, Badge, Button, Field, ListPager, SelectInput, Spinner, StatusBadge, TextInput, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { LuxPageHead, LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
 import { SupportContactChoices } from "@/components/support/support-contacts";
 import { LuxFooter } from "@/components/lux/lux-footer";
@@ -505,19 +506,17 @@ function NewTicketPanel({
   const [orderId, setOrderId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const fields = useFormErrors();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedSubject = subject.trim();
     const trimmedDescription = description.trim();
-    if (trimmedSubject.length < 3) {
-      setFormError(t("sup.subjectShort"));
-      return;
-    }
-    if (trimmedDescription.length < 10) {
-      setFormError(t("sup.descShort"));
-      return;
-    }
+    const found: Record<string, string> = {};
+    if (trimmedSubject.length < 3) found.subject = t("sup.subjectShort");
+    if (trimmedDescription.length < 10) found.description = t("sup.descShort");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
     setFormError(null);
     setSubmitting(true);
     try {
@@ -532,7 +531,7 @@ function NewTicketPanel({
       setOrderId("");
       await onCreated(ticket);
     } catch (err) {
-      setFormError(errorMessage(err));
+      fields.fromError(err);
     } finally {
       setSubmitting(false);
     }
@@ -581,7 +580,7 @@ function NewTicketPanel({
       <p className="lux-kicker">{t("sup.newRequest")}</p>
       <h2 className="lux-serif mt-2 text-[24px] font-semibold text-stone-50">{t("sup.describeNeed")}</h2>
 
-      <form onSubmit={(event) => void submit(event)} className="mt-5 space-y-5">
+      <form onSubmit={(event) => void submit(event)} noValidate className="mt-5 space-y-5">
         <Field label={t("sup.category")} required>
           <SelectInput value={category} onChange={(event) => setCategory(event.target.value)}>
             {SUPPORT_CATEGORY_OPTIONS.map((option) => (
@@ -592,10 +591,16 @@ function NewTicketPanel({
           </SelectInput>
         </Field>
 
-        <Field label={t("sup.subject")} required hint={t("sup.subjectHint")}>
+        <Field label={t("sup.subject")} required hint={t("sup.subjectHint")} error={fields.fields.subject}>
           <TextInput
+            name="subject"
+            aria-invalid={Boolean(fields.fields.subject)}
+            className={invalidCls(fields.fields.subject)}
             value={subject}
-            onChange={(event) => setSubject(event.target.value)}
+            onChange={(event) => {
+              setSubject(event.target.value);
+              fields.clear("subject");
+            }}
             maxLength={160}
             placeholder={t("sup.subjectPlaceholder")}
           />
@@ -605,14 +610,20 @@ function NewTicketPanel({
           label={t("sup.description")}
           required
           hint={t("sup.descHint")}
+          error={fields.fields.description}
         >
           <textarea
+            name="description"
+            aria-invalid={Boolean(fields.fields.description)}
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(event) => {
+              setDescription(event.target.value);
+              fields.clear("description");
+            }}
             rows={6}
             maxLength={4000}
             placeholder={t("sup.descPlaceholder")}
-            className="glass w-full rounded-[14px] border-[rgba(255,255,255,0.12)] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400"
+            className={`glass w-full rounded-[14px] border-[rgba(255,255,255,0.12)] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors focus:border-[rgba(232,71,36,0.6)] placeholder:text-stone-400 ${invalidCls(fields.fields.description)}`}
           />
         </Field>
 
@@ -630,7 +641,7 @@ function NewTicketPanel({
           </Field>
         )}
 
-        {formError && <Alert tone="danger">{formError}</Alert>}
+        {(formError ?? fields.general) && <Alert tone="danger">{formError ?? fields.general}</Alert>}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/messages" className="text-xs text-stone-400 hover:text-stone-200">

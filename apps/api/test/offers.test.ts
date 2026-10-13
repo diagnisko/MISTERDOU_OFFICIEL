@@ -80,7 +80,14 @@ describe("Offre d'un vendeur", () => {
   it("valide les champs et les mensualités", async () => {
     const { user, seller } = await activeSeller();
     const owner = { kind: "seller", sellerId: seller.id } as const;
-    expect((await expectApiError(async () => parseOffer(createOfferSchema, { ...offer(), basePrice: 10 }))).code).toBe("VALIDATION_ERROR");
+    const tooCheap = await expectApiError(async () => parseOffer(createOfferSchema, { ...offer(), basePrice: 10 }));
+    expect(tooCheap.code).toBe("VALIDATION_ERROR");
+    // Message en clair, rattaché au champ (jamais le nom technique « basePrice »).
+    expect(tooCheap.message).toMatch(/^Prix : .+ FCFA au minimum\.$/);
+    expect((tooCheap.details as { fields: Record<string, string> }).fields.basePrice).toMatch(/FCFA au minimum\.$/);
+    const noTitle = await expectApiError(async () => parseOffer(createOfferSchema, { ...offer(), title: "" }));
+    expect(noTitle.message).not.toContain("title");
+    expect((noTitle.details as { fields: Record<string, string> }).fields.title).toBeTruthy();
     expect(
       (await expectApiError(() => createOffer(offer({ paymentMode: "INSTALLMENTS", installmentMonths: null }), owner, { actorId: user.id }))).code,
     ).toBe("VALIDATION_ERROR");

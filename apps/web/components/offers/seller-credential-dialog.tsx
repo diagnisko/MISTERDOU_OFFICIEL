@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ApiClientError, request } from "@/lib/api";
-import { Alert, Spinner } from "@/components/ui";
+import { request } from "@/lib/api";
+import { Alert, FieldError, Spinner, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { useT } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ export function SellerCredentialDialog({
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useFormErrors();
   const first = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,12 +41,12 @@ export function SellerCredentialDialog({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loginId.trim().length < 3 || !password) {
-      setError(t("offer.credentialsBoth"));
-      return;
-    }
+    const found: Record<string, string> = {};
+    if (loginId.trim().length < 3) found.loginId = loginId.trim() ? t("form.minChars", { n: 3 }) : t("form.required");
+    if (!password) found.password = t("form.required");
+    if (Object.keys(found).length > 0) return form.show(found);
+    form.reset();
     setBusy(true);
-    setError(null);
     try {
       const res = await request<{ notifiedBuyers: number }>(`/api/v1/seller/offers/${productId}/credential`, {
         method: "PUT",
@@ -53,7 +54,7 @@ export function SellerCredentialDialog({
       });
       onSaved(res.notifiedBuyers > 0 ? t("creds.savedBuyer") : t("creds.saved"));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : t("offer.saveFailed"));
+      form.fromError(err, t("offer.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -64,7 +65,7 @@ export function SellerCredentialDialog({
       className="fixed inset-0 z-[95] grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm"
       onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}
     >
-      <form role="dialog" aria-modal="true" aria-label={title} onSubmit={(e) => void submit(e)} className="dash-card my-auto w-full max-w-md space-y-4 p-5 sm:p-6">
+      <form role="dialog" aria-modal="true" aria-label={title} onSubmit={(e) => void submit(e)} noValidate className="dash-card my-auto w-full max-w-md space-y-4 p-5 sm:p-6">
         <div>
           <h2 className="text-[16px] font-semibold text-white">{t("creds.editTitle")}</h2>
           <p className="mt-1 text-[12.5px] text-[#b8a6a1]">{title}</p>
@@ -72,13 +73,36 @@ export function SellerCredentialDialog({
         <p className="text-[12.5px] leading-relaxed text-[#8f7d77]">{hasCredentials ? t("creds.replaceLead") : t("creds.missingLead")}</p>
         <label className="block">
           <span className="text-[12px] font-medium text-[#cdbab3]">{t("offer.loginId")}</span>
-          <input ref={first} value={loginId} onChange={(e) => setLoginId(e.target.value)} autoComplete="off" className="dash-input mt-1.5 !pl-4" />
+          <input
+            ref={first}
+            name="loginId"
+            value={loginId}
+            onChange={(e) => {
+              setLoginId(e.target.value);
+              form.clear("loginId");
+            }}
+            autoComplete="off"
+            aria-invalid={Boolean(form.fields.loginId)}
+            className={`dash-input mt-1.5 !pl-4 ${invalidCls(form.fields.loginId)}`}
+          />
+          <FieldError message={form.fields.loginId} />
         </label>
         <label className="block">
           <span className="text-[12px] font-medium text-[#cdbab3]">{t("offer.password")}</span>
-          <input value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" className="dash-input mt-1.5 !pl-4" />
+          <input
+            name="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              form.clear("password");
+            }}
+            autoComplete="off"
+            aria-invalid={Boolean(form.fields.password)}
+            className={`dash-input mt-1.5 !pl-4 ${invalidCls(form.fields.password)}`}
+          />
+          <FieldError message={form.fields.password} />
         </label>
-        {error && <Alert tone="danger">{error}</Alert>}
+        {form.general && <Alert tone="danger">{form.general}</Alert>}
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" onClick={onClose} disabled={busy} className="dash-btn dash-btn-ghost">
             {t("chat.close")}

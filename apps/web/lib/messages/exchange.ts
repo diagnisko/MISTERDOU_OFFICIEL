@@ -12,6 +12,9 @@ export const fr = {
   "offer.gameIdHint": "L’identifiant affiché dans le jeu. Un même compte ne peut être en vente qu’une fois sur MISTERDOU.",
   "offer.sectionExchange": "Échange",
   "offer.acceptsExchange": "J’accepte d’échanger ce compte",
+  "offer.gameIdInvalid": "De 4 à 40 lettres ou chiffres (celui affiché sur le profil dans le jeu).",
+  "offer.downTooHigh": "L’apport doit être plus petit que le prix.",
+  "offer.monthsMin": "2 mois au minimum.",
   "offer.acceptsExchangeHint":
     "Les clients pourront proposer leur compte ; vous leur direz combien ajouter, ou vous refuserez. Changer seulement ce réglage ne renvoie pas l’offre en validation.",
 
@@ -111,6 +114,7 @@ export const fr = {
   "xch.replyAmountHint": "0 = échange direct, sans commission. Sinon, la commission s’applique sur ce montant.",
   "xch.replyMessage": "Message au client (facultatif)",
   "xch.replyQuote": "Envoyer la proposition",
+  "xch.amountInvalid": "Écrivez un montant en chiffres (0 s’il n’y a rien à ajouter).",
   "xch.replyReject": "Refuser",
   "xch.rejectReason": "Motif du refus",
   "xch.replyDeadline": "Répondez avant le {date}, sinon la demande expire.",
@@ -155,6 +159,9 @@ export const en: Translations<typeof fr> = {
   "offer.gameIdHint": "The ID shown in the game. The same account can only be on sale once on MISTERDOU.",
   "offer.sectionExchange": "Swap",
   "offer.acceptsExchange": "I accept to swap this account",
+  "offer.gameIdInvalid": "4 to 40 letters or digits (the one shown on the in-game profile).",
+  "offer.downTooHigh": "The down payment must be lower than the price.",
+  "offer.monthsMin": "At least 2 months.",
   "offer.acceptsExchangeHint":
     "Clients can offer their account; you tell them how much to add, or decline. Changing only this setting does not send the offer back for review.",
 
@@ -252,6 +259,7 @@ export const en: Translations<typeof fr> = {
   "xch.replyAmountHint": "0 = direct swap, no commission. Otherwise the commission applies to this amount.",
   "xch.replyMessage": "Message to the client (optional)",
   "xch.replyQuote": "Send the offer",
+  "xch.amountInvalid": "Enter an amount in digits (0 if there is nothing to add).",
   "xch.replyReject": "Decline",
   "xch.rejectReason": "Reason for declining",
   "xch.replyDeadline": "Reply before {date}, otherwise the request expires.",
@@ -296,6 +304,9 @@ export const ar: Translations<typeof fr> = {
   "offer.gameIdHint": "المعرّف الظاهر في اللعبة. لا يمكن عرض الحساب نفسه للبيع إلا مرة واحدة على MISTERDOU.",
   "offer.sectionExchange": "المبادلة",
   "offer.acceptsExchange": "أقبل مبادلة هذا الحساب",
+  "offer.gameIdInvalid": "من 4 إلى 40 حرفًا أو رقمًا (المعرّف الظاهر في ملف اللعبة).",
+  "offer.downTooHigh": "يجب أن تكون الدفعة الأولى أقل من السعر.",
+  "offer.monthsMin": "شهران على الأقل.",
   "offer.acceptsExchangeHint": "يمكن للعملاء عرض حساباتهم؛ تخبرهم بالمبلغ الذي يضيفونه أو ترفض. تغيير هذا الإعداد وحده لا يعيد العرض إلى المراجعة.",
 
   "xch.status.PENDING": "في انتظار الرد",
@@ -390,6 +401,7 @@ export const ar: Translations<typeof fr> = {
   "xch.replyAmountHint": "0 = مبادلة مباشرة بلا عمولة. وإلا تُطبّق العمولة على هذا المبلغ.",
   "xch.replyMessage": "رسالة إلى العميل (اختياري)",
   "xch.replyQuote": "إرسال العرض",
+  "xch.amountInvalid": "اكتب المبلغ بالأرقام (0 إذا لم يكن هناك ما يُضاف).",
   "xch.replyReject": "رفض",
   "xch.rejectReason": "سبب الرفض",
   "xch.replyDeadline": "رُدّ قبل {date}، وإلا ينتهي الطلب.",

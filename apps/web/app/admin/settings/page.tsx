@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { request } from "@/lib/api";
-import { Alert, Button, SelectInput, TextInput } from "@/components/ui";
+import { fieldErrors, request } from "@/lib/api";
+import { Button, FieldError, SelectInput, TextInput, invalidCls } from "@/components/ui";
 import { errorMessage } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import { AdminPageHead, ErrorAlert, NoticeAlert, TableCard, TableEmpty, TableLoading } from "../_lib/ui";
-import { GROUP_LABELS, SETTING_LABELS } from "./labels";
+import { SETTING_LABELS, groupLabel } from "./labels";
 
 // ---------------------------------------------------------------------------
 // Paramètres — GET /admin/settings → [{ key, value, valueType, group,
@@ -36,8 +36,10 @@ function draftFrom(row: SettingRow): string {
 
 function parseValue(valueType: string, draft: string): unknown {
   if (valueType === "int") {
-    const parsed = Number(draft);
-    if (!Number.isFinite(parsed)) throw new Error("Valeur entière attendue.");
+    const clean = draft.replaceAll(" ", "").trim();
+    if (clean === "") throw new Error("À remplir : écrivez un nombre.");
+    const parsed = Number(clean);
+    if (!Number.isFinite(parsed)) throw new Error("Écrivez un nombre entier, sans lettres.");
     return Math.trunc(parsed);
   }
   if (valueType === "bool") return draft === "true";
@@ -45,9 +47,12 @@ function parseValue(valueType: string, draft: string): unknown {
   try {
     return JSON.parse(draft);
   } catch {
-    throw new Error("JSON invalide.");
+    throw new Error("Présentation incorrecte : gardez la même forme que la valeur d’origine.");
   }
 }
+
+/** Nom affiché d'un réglage : jamais le nom technique. */
+const settingName = (row: SettingRow) => SETTING_LABELS[row.key]?.label ?? row.description ?? "Réglage";
 
 export default function SettingsPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -65,7 +70,7 @@ export default function SettingsPage() {
   const groups = useMemo(() => {
     const map = new Map<string, SettingRow[]>();
     for (const row of list.items) {
-      const group = (row.group && GROUP_LABELS[row.group]) || row.group || "Général";
+      const group = groupLabel(row.group);
       const bucket = map.get(group);
       if (bucket) bucket.push(row);
       else map.set(group, [row]);
@@ -85,9 +90,10 @@ export default function SettingsPage() {
         body: JSON.stringify({ value }),
       });
       const reloaded = await list.refresh();
-      if (reloaded) list.setNotice(`« ${SETTING_LABELS[row.key]?.label ?? row.key} » enregistré.`);
+      if (reloaded) list.setNotice(`« ${settingName(row)} » enregistré.`);
     } catch (err) {
-      setRowError({ key: row.key, message: errorMessage(err) });
+      // Le message précis du champ (« Entre 0 et 100 %. ») plutôt que le message général.
+      setRowError({ key: row.key, message: fieldErrors(err).value ?? errorMessage(err) });
     } finally {
       setSavingKey(null);
     }
@@ -98,7 +104,7 @@ export default function SettingsPage() {
       <AdminPageHead
         kicker="Paramètres & équipe"
         title="Paramètres"
-        meta="Valeurs lues et écrites dans la table Settings de la plateforme."
+        meta="Les réglages du site : délais, prix, commissions, coordonnées. Chaque modification est notée dans le journal d’activité."
         action={
           <Button variant="outline" loading={list.refreshing} onClick={() => void list.refresh()}>
             Actualiser
@@ -133,10 +139,8 @@ export default function SettingsPage() {
                   return (
                     <div key={row.key} className="grid gap-4 py-4 first:pt-0 lg:grid-cols-[1fr_minmax(0,340px)]">
                       <div>
-                        <p className="text-[14px] font-medium text-stone-100">{info?.label ?? row.key}</p>
-                        {(info?.help ?? row.description) && (
-                          <p className="mt-1 text-xs leading-relaxed text-stone-400">{info?.help ?? row.description}</p>
-                        )}
+                        <p className="text-[14px] font-medium text-stone-100">{settingName(row)}</p>
+                        {info?.help && <p className="mt-1 text-xs leading-relaxed text-stone-400">{info.help}</p>}
                         {row.updatedAt && (
                           <p className="mt-2 text-[11px] text-stone-500">
                             Modifié le {new Date(row.updatedAt).toLocaleDateString("fr-FR")}
@@ -155,7 +159,7 @@ export default function SettingsPage() {
                               }
                               className="h-4 w-4 accent-[var(--lux-gold)]"
                             />
-                            Activé
+                            Oui
                           </label>
                         ) : info?.options ? (
                           <SelectInput value={draft} onChange={(event) => setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }))}>
@@ -168,9 +172,14 @@ export default function SettingsPage() {
                         ) : row.valueType === "string" || row.valueType === "int" ? (
                           <div className="flex items-center gap-3">
                             <TextInput
-                              type={row.valueType === "int" ? "number" : "text"}
+                              inputMode={row.valueType === "int" ? "numeric" : undefined}
                               value={draft}
-                              onChange={(event) => setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }))}
+                              aria-invalid={Boolean(error)}
+                              className={invalidCls(error)}
+                              onChange={(event) => {
+                                setDrafts((prev) => ({ ...prev, [row.key]: event.target.value }));
+                                if (rowError?.key === row.key) setRowError(null);
+                              }}
                             />
                             {info?.unit && <span className="shrink-0 text-xs text-stone-400">{info.unit}</span>}
                           </div>
@@ -183,7 +192,7 @@ export default function SettingsPage() {
                           />
                         )}
 
-                        {error && <Alert tone="danger">{error}</Alert>}
+                        <FieldError message={error} />
 
                         <div className="flex justify-end">
                           <Button

@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { ApiClientError, formatXof, request } from "@/lib/api";
-import { Alert } from "@/components/ui";
+import { Alert, FieldError, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { useT, type MessageKey } from "@/lib/i18n";
 
 export type SellerWithdrawal = {
@@ -54,15 +55,21 @@ export function WithdrawalsPanel({
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
+  const fields = useFormErrors();
 
-  const value = Number.parseInt(amount, 10) || 0;
+  const value = Number.parseInt(amount.replaceAll(" ", ""), 10) || 0;
   const date = (iso: string) => new Date(iso).toLocaleDateString(t.intl, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setMessage(null);
-    if (value < minAmount) return setMessage({ tone: "danger", text: t("wd.tooSmall", { min: formatXof(minAmount) }) });
-    if (value > available) return setMessage({ tone: "danger", text: t("wd.tooBig") });
+    const found: Record<string, string> = {};
+    if (!amount.trim()) found.amount = t("form.required");
+    else if (value < minAmount) found.amount = t("wd.tooSmall", { min: formatXof(minAmount) });
+    else if (value > available) found.amount = t("wd.tooBig");
+    if (!phone.trim()) found.phoneNumber = t("form.required");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
     setBusy(true);
     try {
       await request("/api/v1/seller/withdrawals", {
@@ -73,7 +80,7 @@ export function WithdrawalsPanel({
       setMessage({ tone: "success", text: t("wd.sent") });
       await onDone();
     } catch (err) {
-      setMessage({ tone: "danger", text: err instanceof ApiClientError ? err.message : t("wd.failed") });
+      fields.fromError(err, t("wd.failed"), { INSUFFICIENT_BALANCE: "amount" });
     } finally {
       setBusy(false);
     }
@@ -84,23 +91,32 @@ export function WithdrawalsPanel({
       <h2 className="text-[15px] font-semibold text-stone-100">{t("wd.title")}</h2>
       <p className="mt-0.5 text-[12px] text-[#8f7d77]">{t("wd.lead")}</p>
 
-      <form onSubmit={(e) => void submit(e)} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1.2fr_auto] sm:items-end">
+      <form onSubmit={(e) => void submit(e)} noValidate className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1.2fr_auto] sm:items-start">
         <label className="block">
           <span className="mb-1.5 block text-[12px] text-[#b8a6a1]">{t("wd.amount")}</span>
           <input
-            type="number"
+            name="amount"
             inputMode="numeric"
-            min={minAmount}
-            max={available}
-            required
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="dash-input !pl-4"
+            onChange={(e) => {
+              setAmount(e.target.value);
+              fields.clear("amount");
+            }}
+            aria-invalid={Boolean(fields.fields.amount)}
+            className={`dash-input !pl-4 ${invalidCls(fields.fields.amount)}`}
           />
+          <FieldError message={fields.fields.amount} />
           <span className="mt-1 flex justify-between gap-2 text-[11px] text-[#8f7d77]">
             {t("wd.min", { min: formatXof(minAmount) })}
             {available >= minAmount && (
-              <button type="button" onClick={() => setAmount(String(available))} className="text-[#ff8a5c] hover:underline">
+              <button
+                type="button"
+                onClick={() => {
+                  setAmount(String(available));
+                  fields.clear("amount");
+                }}
+                className="text-[#ff8a5c] hover:underline"
+              >
                 {t("wd.all")}
               </button>
             )}
@@ -113,24 +129,29 @@ export function WithdrawalsPanel({
         <label className="block">
           <span className="mb-1.5 block text-[12px] text-[#b8a6a1]">{t("wd.phone")}</span>
           <input
+            name="phoneNumber"
             type="tel"
-            required
             autoComplete="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              fields.clear("phoneNumber");
+            }}
             placeholder={t("wd.phonePlaceholder")}
-            className="dash-input !pl-4"
+            aria-invalid={Boolean(fields.fields.phoneNumber)}
+            className={`dash-input !pl-4 ${invalidCls(fields.fields.phoneNumber)}`}
             dir="ltr"
           />
+          <FieldError message={fields.fields.phoneNumber} />
         </label>
-        <button type="submit" disabled={busy || available < minAmount} className="dash-btn dash-btn-primary">
+        <button type="submit" disabled={busy || available < minAmount} className="dash-btn dash-btn-primary sm:mt-[26px]">
           {busy ? t("wd.sending") : t("wd.submit")}
         </button>
       </form>
 
-      {message && (
+      {(message ?? (fields.general ? { tone: "danger" as const, text: fields.general } : null)) && (
         <div className="mt-3">
-          <Alert tone={message.tone}>{message.text}</Alert>
+          <Alert tone={message?.tone ?? "danger"}>{message?.text ?? fields.general}</Alert>
         </div>
       )}
 

@@ -39,17 +39,17 @@ export const SETTING_LABELS: Record<string, SettingLabel> = {
   },
   resellerContract6Price: {
     label: "Contrat revendeur — 6 mois",
-    help: "Prix du contrat sans commission pour 6 mois (adhésion vendeur incluse).",
+    help: "Prix du contrat de 6 mois (adhésion vendeur incluse). Commission pendant le contrat : 0 % le premier, 1 % au premier renouvellement, puis 2 %.",
     unit: "FCFA",
   },
   resellerContract12Price: {
     label: "Contrat revendeur — 1 an",
-    help: "Prix du contrat sans commission pour 12 mois (adhésion vendeur incluse).",
+    help: "Prix du contrat de 12 mois (adhésion vendeur incluse). Commission pendant le contrat : 0 % le premier, 1 % au premier renouvellement, puis 2 %.",
     unit: "FCFA",
   },
   resellerContract18Price: {
     label: "Contrat revendeur — 18 mois",
-    help: "Prix du contrat sans commission pour 18 mois (adhésion vendeur incluse).",
+    help: "Prix du contrat de 18 mois (adhésion vendeur incluse). Commission pendant le contrat : 0 % le premier, 1 % au premier renouvellement, puis 2 %.",
     unit: "FCFA",
   },
   payoutHoldDays: {
@@ -86,6 +86,56 @@ export const SETTING_LABELS: Record<string, SettingLabel> = {
     help: "Combien de temps le code donné à l'acheteur pour se connecter au compte reste valable.",
     unit: "minutes",
   },
+  unpaidOrderExpiryHours: {
+    label: "Délai pour payer une commande",
+    help: "Une commande jamais payée est annulée après ce délai, et le compte revient en vente. Si une capture de paiement Wave attend d'être vérifiée, la commande reste ouverte.",
+    unit: "heures",
+  },
+  waveMerchantLink: {
+    label: "Lien de paiement Wave",
+    help: "Le lien de votre compte Wave Business (il commence par https://pay.wave.com/). Le montant à payer y est ajouté tout seul. Laissez vide pour couper le paiement par Wave.",
+  },
+  exchangeReplyHours: {
+    label: "Délai de réponse du vendeur",
+    help: "Quand un client propose un échange, le vendeur a ce temps pour annoncer le montant à ajouter ou refuser. Passé ce délai, la demande est fermée.",
+    unit: "heures",
+  },
+  exchangeQuoteHours: {
+    label: "Délai de réponse du client",
+    help: "Après la réponse du vendeur, le client a ce temps pour accepter l'échange. Passé ce délai, la proposition est fermée.",
+    unit: "heures",
+  },
+  exchangeVideoMaxMb: {
+    label: "Taille maximale de la vidéo d'échange",
+    help: "Le poids maximum de la vidéo que le client envoie pour montrer son compte.",
+    unit: "Mo",
+  },
+  exchangeVideoRetentionDays: {
+    label: "Conservation des vidéos d'échange",
+    help: "Après la fin d'un échange, sa vidéo est effacée au bout de ce nombre de jours.",
+    unit: "jours",
+  },
+  chatImageRetentionDays: {
+    label: "Conservation des photos des messages",
+    help: "Les photos envoyées dans les discussions sont effacées après ce nombre de jours, sauf si un signalement est en cours.",
+    unit: "jours",
+  },
+  legalEntityName: {
+    label: "Nom de l'entreprise",
+    help: "Affiché sur les pages légales (mentions légales, conditions générales).",
+  },
+  legalAddress: {
+    label: "Adresse de l'entreprise",
+    help: "L'adresse du siège, affichée sur les pages légales.",
+  },
+  legalRegistration: {
+    label: "NINEA / RCCM",
+    help: "Les numéros d'immatriculation de l'entreprise, affichés sur les pages légales.",
+  },
+  legalPublisher: {
+    label: "Responsable de la publication",
+    help: "Le nom de la personne responsable du site, affiché sur les mentions légales.",
+  },
 };
 
 export const GROUP_LABELS: Record<string, string> = {
@@ -94,4 +144,10 @@ export const GROUP_LABELS: Record<string, string> = {
   sellers: "Vendeurs",
   payments: "Paiements et mensualités",
   orders: "Commandes",
+  exchanges: "Échanges de comptes",
+  legal: "Pages légales",
+  security: "Sécurité",
 };
+
+/** Nom d'un groupe : jamais le nom technique. */
+export const groupLabel = (group: string | null | undefined) => (group && GROUP_LABELS[group]) || "Autres réglages";

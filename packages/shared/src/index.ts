@@ -26,7 +26,7 @@ export const MANAGER_PERMISSIONS = [
 export type ManagerPermission = (typeof MANAGER_PERMISSIONS)[number];
 
 export const MANAGER_PERMISSION_LABELS: Record<ManagerPermission, string> = {
-  KYC: "Vérifications (KYC)",
+  KYC: "Vérification d’identité",
   PAYMENTS: "Paiements & tranches",
   WITHDRAWALS: "Retraits vendeurs",
   SELLERS: "Vendeurs",
@@ -530,6 +530,21 @@ export const AUDIT_ACTIONS: Record<string, { label: string; category: AuditCateg
   OFFER_REMOVED: { label: "Offre supprimée", category: "offers" },
   OFFER_APPROVED: { label: "Offre validée et mise en ligne", category: "offers" },
   OFFER_REJECTED: { label: "Offre refusée", category: "offers" },
+  OFFER_EXCHANGE_SET: { label: "Option « Échange accepté » modifiée", category: "offers" },
+  // Échanges de comptes
+  EXCHANGE_REQUESTED: { label: "Demande d’échange envoyée", category: "orders" },
+  EXCHANGE_QUOTED: { label: "Échange : montant à ajouter annoncé", category: "orders" },
+  EXCHANGE_REJECTED: { label: "Échange refusé par le vendeur", category: "orders" },
+  EXCHANGE_ACCEPTED: { label: "Échange accepté : compte confié à l’équipe", category: "orders" },
+  EXCHANGE_DECLINED: { label: "Échange décliné par le client", category: "orders" },
+  EXCHANGE_CANCELLED: { label: "Échange annulé", category: "orders" },
+  EXCHANGE_CODE_REQUESTED: { label: "Échange : code de connexion demandé au client", category: "orders" },
+  EXCHANGE_CODE_PROVIDED: { label: "Échange : code de connexion donné par le client", category: "orders" },
+  EXCHANGE_CLIENT_ACCOUNT_REVEALED: { label: "Identifiants du compte du client affichés", category: "team" },
+  EXCHANGE_CUSTODY_CONFIRMED: { label: "Échange : compte du client validé", category: "orders" },
+  EXCHANGE_CUSTODY_REFUSED: { label: "Échange : compte du client refusé", category: "orders" },
+  EXCHANGE_COMPLETED: { label: "Échange conclu", category: "orders" },
+  EXCHANGE_REPORTED: { label: "Échange signalé par le vendeur", category: "orders" },
   ADMIN_OFFER_STATUS_CHANGED: { label: "Statut d’une offre changé", category: "offers" },
   PRODUCT_MEDIA_ADDED: { label: "Photo ou vidéo ajoutée à une offre", category: "offers" },
   PRODUCT_MEDIA_REMOVED: { label: "Photo ou vidéo retirée d’une offre", category: "offers" },

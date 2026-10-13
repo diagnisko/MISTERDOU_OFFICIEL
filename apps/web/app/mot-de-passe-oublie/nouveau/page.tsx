@@ -4,7 +4,9 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n";
-import { request, ApiClientError } from "@/lib/api";
+import { request } from "@/lib/api";
+import { FieldError, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 
 // Nouveau mot de passe, depuis le lien reçu par e-mail (valable 30 minutes,
@@ -16,19 +18,23 @@ function NewPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useFormErrors();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (password.length < 8) return setError(t("reset.tooShort"));
-    if (password !== confirm) return setError(t("reset.mismatch"));
+    const found: Record<string, string> = {};
+    if (!password) found.password = t("form.required");
+    else if (password.length < 8) found.password = t("reset.tooShort");
+    if (!confirm) found.confirm = t("form.required");
+    else if (password && password !== confirm) found.confirm = t("reset.mismatch");
+    if (Object.keys(found).length > 0) return form.show(found);
+    form.reset();
     setLoading(true);
     try {
       await request("/api/v1/auth/password/reset", { method: "POST", body: JSON.stringify({ token, password }) });
       setDone(true);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+      form.fromError(err, t("auth.network"));
     } finally {
       setLoading(false);
     }
@@ -59,18 +65,44 @@ function NewPasswordForm() {
   }
 
   return (
-    <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
+    <form onSubmit={(e) => void onSubmit(e)} noValidate className="space-y-4">
       <label className="block">
         <span className={fieldLabelClass}>{t("reset.newPassword")}</span>
-        <input required type="password" autoComplete="new-password" minLength={8} maxLength={72} value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+        <input
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          maxLength={72}
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            form.clear("password");
+          }}
+          aria-invalid={Boolean(form.fields.password)}
+          className={`${inputClass} ${invalidCls(form.fields.password)}`}
+        />
+        <FieldError message={form.fields.password} />
       </label>
       <label className="block">
         <span className={fieldLabelClass}>{t("reset.confirm")}</span>
-        <input required type="password" autoComplete="new-password" minLength={8} maxLength={72} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputClass} />
+        <input
+          name="confirm"
+          type="password"
+          autoComplete="new-password"
+          maxLength={72}
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            form.clear("confirm");
+          }}
+          aria-invalid={Boolean(form.fields.confirm)}
+          className={`${inputClass} ${invalidCls(form.fields.confirm)}`}
+        />
+        <FieldError message={form.fields.confirm} />
       </label>
-      {error && (
+      {form.general && (
         <p className="rounded-xl border border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)] px-3.5 py-2.5 text-sm text-[#fca5a5]" role="alert">
-          {error}
+          {form.general}
         </p>
       )}
       <button type="submit" disabled={loading} className="lux-btn lux-btn-gold w-full disabled:cursor-not-allowed disabled:opacity-60" aria-busy={loading}>

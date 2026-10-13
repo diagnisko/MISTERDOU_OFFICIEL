@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
+import { fieldError, validationError } from "../../lib/validation-messages.js";
 import { decryptString, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyTeam, notifyUser } from "../../lib/notify.js";
@@ -66,13 +67,10 @@ export interface OfferActor {
   ip?: string;
 }
 
-/** Lit un corps de requête ; message du premier champ invalide sinon. */
+/** Lit un corps de requête ; sinon, erreur en français simple, champ par champ. */
 export function parseOffer<T>(schema: z.ZodType<T>, body: unknown): T {
   const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    throw badRequest("VALIDATION_ERROR", `Champ invalide : ${issue?.path.join(".") || "offre"}.`, parsed.error.issues);
-  }
+  if (!parsed.success) throw validationError(parsed.error.issues);
   return parsed.data;
 }
 
@@ -82,10 +80,10 @@ async function paymentTerms(input: UpdateOfferInput) {
   const max = await getIntSetting("maxInstallments", 8);
   const months = input.installmentMonths ?? null;
   if (months === null || months < 2 || months > max) {
-    throw badRequest("VALIDATION_ERROR", `Nombre de mensualités : entre 2 et ${max}.`);
+    throw fieldError("installmentMonths", `Entre 2 et ${max} mois.`);
   }
   const down = input.installmentDownPayment ?? 0;
-  if (down >= input.basePrice) throw badRequest("VALIDATION_ERROR", "L’apport doit être inférieur au prix.");
+  if (down >= input.basePrice) throw fieldError("installmentDownPayment", "L’apport doit être plus petit que le prix.");
   return { installmentMonths: months, installmentDownPayment: down };
 }
 

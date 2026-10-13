@@ -5,6 +5,7 @@ import type { RoleName } from "@misterdou/db";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
+import { validationError } from "../../lib/validation-messages.js";
 import { deleteFile, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
@@ -224,7 +225,7 @@ export async function registerSellerRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = requireAuth(request);
       const input = withdrawalBody.safeParse(request.body);
-      if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Demande invalide.");
+      if (!input.success) throw validationError(input.error.issues);
 
       const seller = await prisma.seller.findUnique({ where: { userId: auth.user.id }, select: { id: true, status: true } });
       if (!seller) throw forbidden("Aucun profil vendeur n’est associé à ce compte.");

@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { request, ApiClientError } from "@/lib/api";
+import { FieldError } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 
 // Mot de passe oublié, en deux temps sur la même page :
@@ -21,6 +23,8 @@ export default function ForgotPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fields = useFormErrors();
+  const bad = (key: string) => (fields.fields[key] ? " !border-[rgba(239,68,68,0.75)]" : "");
   const [notice, setNotice] = useState<string | null>(null);
   const [unknownEmail, setUnknownEmail] = useState(false);
   const [wait, setWait] = useState(0);
@@ -35,6 +39,9 @@ export default function ForgotPasswordPage() {
     setError(null);
     setNotice(null);
     setUnknownEmail(false);
+    if (!email.trim()) return fields.show({ email: t("form.required") });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return fields.show({ email: t("form.emailInvalid") });
+    fields.reset();
     setLoading(true);
     try {
       await request("/api/v1/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: email.trim() }) });
@@ -44,7 +51,7 @@ export default function ForgotPasswordPage() {
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "EMAIL_NOT_REGISTERED") {
         setUnknownEmail(true);
-        setError(t("reset.notRegistered"));
+        fields.show({ email: t("reset.notRegistered") });
       } else if (err instanceof ApiClientError && err.code === "ACCOUNT_SUSPENDED") {
         setError(t("reset.suspended"));
       } else {
@@ -59,9 +66,12 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError(null);
     setNotice(null);
-    if (!/^\d{6}$/.test(code)) return setError(t("reset.codeInvalid"));
-    if (password.length < 8) return setError(t("reset.tooShort"));
-    if (password !== confirm) return setError(t("reset.mismatch"));
+    const found: Record<string, string> = {};
+    if (!/^\d{6}$/.test(code)) found.code = t("reset.codeInvalid");
+    if (password.length < 8) found.password = t("reset.tooShort");
+    else if (password !== confirm) found.confirm = t("reset.mismatch");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
     setLoading(true);
     try {
       await request("/api/v1/auth/password/reset-code", {
@@ -70,15 +80,21 @@ export default function ForgotPasswordPage() {
       });
       setStep("done");
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+      if (err instanceof ApiClientError && ["OTP_INVALID", "OTP_EXPIRED", "OTP_TOO_MANY_ATTEMPTS"].includes(err.code)) {
+        fields.show({ code: err.message });
+      } else {
+        fields.fromError(err, t("auth.network"));
+        if (!(err instanceof ApiClientError)) setError(t("auth.network"));
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  const errorBox = error && (
+  const message = error ?? fields.general;
+  const errorBox = message && (
     <p className="rounded-xl border border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.1)] px-3.5 py-2.5 text-sm text-[#fca5a5]" role="alert">
-      {error}
+      {message}
     </p>
   );
 
@@ -103,25 +119,29 @@ export default function ForgotPasswordPage() {
             e.preventDefault();
             void sendCode();
           }}
+          noValidate
           className="space-y-4"
         >
           <label className="block">
             <span className={fieldLabelClass}>{t("auth.email")}</span>
             <input
-              required
+              name="email"
               type="email"
               autoComplete="email"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
+                fields.clear("email");
                 if (unknownEmail) {
                   setUnknownEmail(false);
                   setError(null);
                 }
               }}
-              className={inputClass}
+              aria-invalid={Boolean(fields.fields.email)}
+              className={inputClass + bad("email")}
               placeholder="vous@exemple.com"
             />
+            <FieldError message={fields.fields.email} />
           </label>
           {errorBox}
           {unknownEmail && (
@@ -137,29 +157,59 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
       ) : (
-        <form onSubmit={(e) => void onReset(e)} className="space-y-4">
+        <form onSubmit={(e) => void onReset(e)} noValidate className="space-y-4">
           <label className="block">
             <span className={fieldLabelClass}>{t("reset.codeLabel")}</span>
             <input
-              required
+              name="code"
               inputMode="numeric"
               autoComplete="one-time-code"
-              pattern="\d{6}"
               maxLength={6}
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className={`${inputClass} text-center font-semibold tracking-[0.5em] tabular-nums`}
+              onChange={(e) => {
+                setCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                fields.clear("code");
+              }}
+              aria-invalid={Boolean(fields.fields.code)}
+              className={`${inputClass} text-center font-semibold tracking-[0.5em] tabular-nums${bad("code")}`}
               placeholder="••••••"
               autoFocus
             />
+            <FieldError message={fields.fields.code} />
           </label>
           <label className="block">
             <span className={fieldLabelClass}>{t("reset.newPassword")}</span>
-            <input required type="password" autoComplete="new-password" minLength={8} maxLength={72} value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+            <input
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              maxLength={72}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                fields.clear("password");
+              }}
+              aria-invalid={Boolean(fields.fields.password)}
+              className={inputClass + bad("password")}
+            />
+            <FieldError message={fields.fields.password} />
           </label>
           <label className="block">
             <span className={fieldLabelClass}>{t("reset.confirm")}</span>
-            <input required type="password" autoComplete="new-password" minLength={8} maxLength={72} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputClass} />
+            <input
+              name="confirm"
+              type="password"
+              autoComplete="new-password"
+              maxLength={72}
+              value={confirm}
+              onChange={(e) => {
+                setConfirm(e.target.value);
+                fields.clear("confirm");
+              }}
+              aria-invalid={Boolean(fields.fields.confirm)}
+              className={inputClass + bad("confirm")}
+            />
+            <FieldError message={fields.fields.confirm} />
           </label>
           {errorBox}
           {notice && (
@@ -186,6 +236,7 @@ export default function ForgotPasswordPage() {
                 setCode("");
                 setError(null);
                 setNotice(null);
+                fields.reset();
               }}
               className="text-[var(--lux-muted)] hover:text-stone-200"
             >

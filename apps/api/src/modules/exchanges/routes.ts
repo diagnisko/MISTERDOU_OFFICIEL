@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sendOk } from "../../lib/envelope.js";
 import { requireAuth, requirePermission } from "../../lib/auth-context.js";
-import { badRequest } from "../../lib/errors.js";
+import { validationError } from "../../lib/validation-messages.js";
 import {
   acceptExchange,
   acceptSchema,
@@ -37,10 +37,7 @@ const uploadBody = z.object({ mimeType: z.string().max(60), sizeBytes: z.number(
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    throw badRequest("VALIDATION_ERROR", issue?.message && !issue.message.startsWith("Invalid") ? issue.message : `Champ invalide : ${issue?.path.join(".") || "demande"}.`);
-  }
+  if (!parsed.success) throw validationError(parsed.error.issues);
   return parsed.data;
 }
 

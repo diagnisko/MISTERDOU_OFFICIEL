@@ -475,11 +475,7 @@ function CreatePromotionModal({
           ) : offerings.length > 0 ? (
             <OfferPicker offerings={offerings} value={productId} onChange={setProductId} />
           ) : (
-            <TextInput
-              value={productId}
-              onChange={(event) => setProductId(event.target.value)}
-              placeholder="Identifiant (UUID) de l’offre"
-            />
+            <p className="text-sm text-stone-400">Aucune offre MISTERDOU en ligne : ajoutez d’abord une offre dans « Offres ».</p>
           )}
         </div>
 

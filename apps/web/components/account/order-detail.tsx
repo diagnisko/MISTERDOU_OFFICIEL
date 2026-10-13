@@ -4,7 +4,8 @@ import { WhatsappUrgentLine } from "@/components/support/support-contacts";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { errorMessage, formatXof } from "@/lib/api";
-import { Alert, Spinner } from "@/components/ui";
+import { Alert, FieldError, Spinner, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import {
   confirmOrderReceipt,
   fetchMyOrder,
@@ -429,18 +430,18 @@ function ReviewCard({ order, onDone }: { order: OrderDetail; onDone: () => Promi
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useFormErrors();
 
   async function send(e: FormEvent) {
     e.preventDefault();
-    if (rating < 1) return setError(t("review.pick"));
+    if (rating < 1) return form.show({ rating: t("review.pick") });
+    form.reset();
     setBusy(true);
-    setError(null);
     try {
       await submitOrderReview(order.id, { rating, comment: comment.trim() || undefined });
       await onDone();
     } catch (err) {
-      setError(errorMessage(err, t("review.failed")));
+      form.fromError(err, t("review.failed"));
     } finally {
       setBusy(false);
     }
@@ -464,34 +465,47 @@ function ReviewCard({ order, onDone }: { order: OrderDetail; onDone: () => Promi
     <section className="dash-card p-5">
       <h2 className="text-[15px] font-semibold text-white">{t("review.title")}</h2>
       <p className="mt-1 text-[13px] text-stone-400">{t("review.lead")}</p>
-      <form onSubmit={(e) => void send(e)} className="mt-4 space-y-3">
-        <div className="flex gap-1" role="radiogroup" aria-label={t("review.title")}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              type="button"
-              role="radio"
-              aria-checked={rating === n}
-              aria-label={t("review.star", { n })}
-              onClick={() => setRating(n)}
-              className={`text-[28px] leading-none transition ${n <= rating ? "text-[var(--lux-gold)]" : "text-stone-600 hover:text-stone-400"}`}
-            >
-              ★
-            </button>
-          ))}
+      <form onSubmit={(e) => void send(e)} noValidate className="mt-4 space-y-3">
+        <div>
+          <div className="flex gap-1" role="radiogroup" aria-label={t("review.title")}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={rating === n}
+                aria-label={t("review.star", { n })}
+                name={n === 1 ? "rating" : undefined}
+                onClick={() => {
+                  setRating(n);
+                  form.clear("rating");
+                }}
+                className={`text-[28px] leading-none transition ${n <= rating ? "text-[var(--lux-gold)]" : "text-stone-600 hover:text-stone-400"}`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <FieldError message={form.fields.rating} />
         </div>
         <label className="block">
           <span className="text-[12px] uppercase tracking-[0.14em] text-stone-500">{t("review.comment")}</span>
           <textarea
+            name="comment"
             maxLength={500}
             rows={3}
             value={comment}
-            onChange={(e) => setComment(e.target.value)}
+            onChange={(e) => {
+              setComment(e.target.value);
+              form.clear("comment");
+            }}
             placeholder={t("review.placeholder")}
-            className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
+            aria-invalid={Boolean(form.fields.comment)}
+            className={`mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none ${invalidCls(form.fields.comment)}`}
           />
+          <FieldError message={form.fields.comment} />
         </label>
-        {error && <Alert tone="danger">{error}</Alert>}
+        {form.general && <Alert tone="danger">{form.general}</Alert>}
         <button
           type="submit"
           disabled={busy}
@@ -706,26 +720,28 @@ function ReportCard({ order, onDone }: { order: OrderDetail; onDone: () => Promi
   const [reason, setReason] = useState<ReportReason>("SELLER_REPORT");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useFormErrors();
   const [sent, setSent] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const text = message.trim();
+    if (text.length < 10) return form.show({ description: text ? t("form.minChars", { n: 10 }) : t("form.required") });
+    form.reset();
     setBusy(true);
-    setError(null);
     try {
       const picked = REASONS.find((r) => r.value === reason)!;
       const ticket = await reportOrderProblem(order.id, {
         category: reason,
         subject: `${t(picked.subject)} — ${order.orderNumber}`,
-        description: message,
+        description: text,
       });
       setSent(ticket.code);
       setOpen(false);
       setMessage("");
       await onDone();
     } catch (err) {
-      setError(errorMessage(err, t("report.failed")));
+      form.fromError(err, t("report.failed"));
     } finally {
       setBusy(false);
     }
@@ -760,7 +776,7 @@ function ReportCard({ order, onDone }: { order: OrderDetail; onDone: () => Promi
       )}
 
       {open && (
-        <form onSubmit={(e) => void submit(e)} className="mt-4 space-y-3">
+        <form onSubmit={(e) => void submit(e)} noValidate className="mt-4 space-y-3">
           <fieldset className="space-y-2">
             <legend className="text-[12px] uppercase tracking-[0.14em] text-stone-500">{t("report.reason")}</legend>
             {REASONS.map((r) => (
@@ -778,27 +794,38 @@ function ReportCard({ order, onDone }: { order: OrderDetail; onDone: () => Promi
           <label className="block">
             <span className="text-[12px] uppercase tracking-[0.14em] text-stone-500">{t("report.describe")}</span>
             <textarea
-              required
-              minLength={10}
+              name="description"
               maxLength={2000}
               rows={4}
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                form.clear("description");
+              }}
               placeholder={t("report.placeholder")}
-              className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
+              aria-invalid={Boolean(form.fields.description)}
+              className={`mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none ${invalidCls(form.fields.description)}`}
             />
+            <FieldError message={form.fields.description} />
           </label>
-          {error && <Alert tone="danger">{error}</Alert>}
+          {form.general && <Alert tone="danger">{form.general}</Alert>}
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={busy || message.trim().length < 10}
+              disabled={busy}
               className="lux-btn lux-btn-gold !min-h-[42px] text-[12px] uppercase tracking-[0.14em] disabled:opacity-50"
               style={{ borderRadius: 16 }}
             >
               {busy ? t("report.sending") : t("report.send")}
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="px-4 text-[13px] text-stone-400 hover:text-white">
+            <button
+              type="button"
+              onClick={() => {
+                form.reset();
+                setOpen(false);
+              }}
+              className="px-4 text-[13px] text-stone-400 hover:text-white"
+            >
               {t("report.cancel")}
             </button>
           </div>

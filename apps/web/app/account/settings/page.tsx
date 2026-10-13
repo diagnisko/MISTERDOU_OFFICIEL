@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { FieldError } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { useRouter } from "next/navigation";
 import { ApiClientError, request } from "@/lib/api";
 import { refreshAccount, useAccount } from "@/lib/account";
@@ -94,14 +96,19 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const fields = useFormErrors();
+  const bad = (key: string) => (fields.fields[key] ? " !border-[rgba(239,68,68,0.75)]" : "");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setMessage(null);
-    if (next !== confirm) {
-      setMessage({ tone: "error", text: t("settings.mismatch") });
-      return;
-    }
+    const found: Record<string, string> = {};
+    if (hasPassword && !current) found.currentPassword = t("form.required");
+    if (!next) found.newPassword = t("form.required");
+    else if (next.length < 8) found.newPassword = t("form.minChars", { n: 8 });
+    else if (next !== confirm) found.confirm = t("settings.mismatch");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
     setBusy(true);
     try {
       const res = await request<{ otherSessionsClosed: number }>("/api/v1/account/password", {
@@ -119,14 +126,15 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
           : t("settings.created"),
       });
     } catch (err) {
-      setMessage({ tone: "error", text: err instanceof ApiClientError ? err.message : t("settings.failed") });
+      // Mot de passe actuel refusé : le message va sous ce champ.
+      fields.fromError(err, t("settings.failed"), { INVALID_PASSWORD: "currentPassword", INVALID_CREDENTIALS: "currentPassword" });
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="dash-card p-5 sm:p-6">
+    <form onSubmit={(e) => void submit(e)} noValidate className="dash-card p-5 sm:p-6">
       <h2 className="text-[17px] font-semibold text-white">{hasPassword ? t("settings.changePassword") : t("settings.createPassword")}</h2>
       <p className="mt-1.5 text-[13px] leading-relaxed text-[#b8a6a1]">{hasPassword ? t("settings.changeLead") : t("settings.createLead")}</p>
 
@@ -134,20 +142,37 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
         {hasPassword && (
           <label className="block">
             <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("settings.current")}</span>
-            <input type="password" required autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} className={field} />
+            <input name="currentPassword" type="password" autoComplete="current-password" value={current} onChange={(e) => {
+              setCurrent(e.target.value);
+              fields.clear("currentPassword");
+            }} aria-invalid={Boolean(fields.fields.currentPassword)} className={field + bad("currentPassword")} />
+            <FieldError message={fields.fields.currentPassword} />
           </label>
         )}
         <label className="block">
           <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("settings.new")}</span>
-          <input type="password" required minLength={8} maxLength={72} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} className={field} />
-          <span className="mt-1.5 block text-[12px] text-[#8f7d77]">{t("settings.minLength")}</span>
+          <input name="newPassword" type="password" maxLength={72} autoComplete="new-password" value={next} onChange={(e) => {
+              setNext(e.target.value);
+              fields.clear("newPassword");
+            }} aria-invalid={Boolean(fields.fields.newPassword)} className={field + bad("newPassword")} />
+            <FieldError message={fields.fields.newPassword} />
+          {!fields.fields.newPassword && <span className="mt-1.5 block text-[12px] text-[#8f7d77]">{t("settings.minLength")}</span>}
         </label>
         <label className="block">
           <span className="mb-1.5 block text-[13px] text-[#b8a6a1]">{t("settings.confirm")}</span>
-          <input type="password" required minLength={8} maxLength={72} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={field} />
+          <input name="confirm" type="password" maxLength={72} autoComplete="new-password" value={confirm} onChange={(e) => {
+              setConfirm(e.target.value);
+              fields.clear("confirm");
+            }} aria-invalid={Boolean(fields.fields.confirm)} className={field + bad("confirm")} />
+            <FieldError message={fields.fields.confirm} />
         </label>
       </div>
 
+      {fields.general && (
+        <p role="alert" className="mt-4 text-[13px] text-[#fca5a5]">
+          {fields.general}
+        </p>
+      )}
       {message && (
         <p role={message.tone === "error" ? "alert" : "status"} className={`mt-4 text-[13px] ${message.tone === "error" ? "text-[#fca5a5]" : "text-[#86efac]"}`}>
           {message.text}

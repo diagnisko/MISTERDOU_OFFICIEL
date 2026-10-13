@@ -138,7 +138,7 @@ function OffersView() {
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="lux-kicker">Catalogue</p>
-          <p className="mt-2 text-sm text-stone-400">Recherche par titre, slug ou ID eFootball.</p>
+          <p className="mt-2 text-sm text-stone-400">Recherche par titre ou ID eFootball.</p>
           {gameId && (
             <button type="button" onClick={() => setGameId(null)} className="mt-2 rounded-full border border-[rgba(255,106,50,0.35)] px-3 py-1 text-[12px] text-[#ffb08a]">
               ID eFootball : {gameId} ✕
@@ -146,7 +146,7 @@ function OffersView() {
           )}
         </div>
         <SearchBar
-          placeholder="Titre, slug ou ID eFootball"
+          placeholder="Titre ou ID eFootball"
           onSearch={(query) => {
             setSearch(query);
             setPage(1);

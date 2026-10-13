@@ -25,6 +25,7 @@ import {
 } from "./password-reset.js";
 import { resendVerificationEmail, verifyEmail, verifyEmailSchema } from "./email-verification.js";
 import { badRequest } from "../../lib/errors.js";
+import { validationError } from "../../lib/validation-messages.js";
 
 function csrf(reply: FastifyReply) {
   setCsrfCookie(reply, randomCsrfToken());
@@ -72,7 +73,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   app.post("/auth/password/reset-code", { schema: { tags: ["Auth"], summary: "Choisir un nouveau mot de passe avec le code reçu" }, config: rate(5) }, async (request, reply) => {
     const input = resetWithCodeSchema.safeParse(request.body);
-    if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Code ou mot de passe invalide.");
+    if (!input.success) throw validationError(input.error.issues);
     return sendOk(reply, await resetPasswordWithCode(input.data, { ip: request.ip }));
   });
 
@@ -80,7 +81,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   app.post("/auth/password/reset", { schema: { tags: ["Auth"], summary: "Choisir un nouveau mot de passe avec le lien de la console" }, config: rate(5) }, async (request, reply) => {
     const input = resetPasswordSchema.safeParse(request.body);
-    if (!input.success) throw badRequest("VALIDATION_ERROR", input.error.issues[0]?.message ?? "Lien ou mot de passe invalide.");
+    if (!input.success) throw validationError(input.error.issues);
     return sendOk(reply, await resetPassword(input.data.token, input.data.password, { ip: request.ip }));
   });
 

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { ApiClientError, request, uploadFile } from "@/lib/api";
-import { Alert, Button, Field, SelectInput, Spinner, StatusBadge, TextInput } from "@/components/ui";
+import { Alert, Button, Field, FieldError, SelectInput, Spinner, StatusBadge, TextInput, invalidCls } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { LuxBack, LuxShell, LuxTopBar } from "@/components/lux/lux-shell";
 
 type Verification = {
@@ -33,6 +34,14 @@ const filePurposes = {
 
 type DocumentSlot = keyof typeof filePurposes;
 
+/** Champ du serveur correspondant à chaque pièce (pour afficher l'erreur au bon endroit). */
+const SLOT_FIELD: Record<DocumentSlot, string> = {
+  front: "documentFrontKey",
+  back: "documentBackKey",
+  passport: "documentFrontKey",
+  selfie: "selfieKey",
+};
+
 export default function IdentityVerificationPage() {
   const t = useT();
   const [me, setMe] = useState<Me | null>(null);
@@ -51,6 +60,7 @@ export default function IdentityVerificationPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fields = useFormErrors();
 
   async function refresh() {
     const [account, dossier] = await Promise.all([
@@ -81,16 +91,28 @@ export default function IdentityVerificationPage() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
     setError(null);
     setMessage(null);
+    // Contrôle avant l'envoi : chaque oubli est signalé sous son champ.
+    const required: DocumentSlot[] = documentType === "NATIONAL_ID" ? ["front", "back", "selfie"] : ["passport", "selfie"];
+    const found: Record<string, string> = {};
+    if (!firstName.trim()) found.firstName = t("form.required");
+    if (!lastName.trim()) found.lastName = t("form.required");
+    if (!country.trim()) found.country = t("form.required");
+    for (const slot of required) if (!files[slot]) found[SLOT_FIELD[slot]] = t("kycp.fileMissing");
+    if (Object.keys(found).length > 0) return fields.show(found);
+    fields.reset();
+    setBusy(true);
     try {
       const keys: Partial<Record<DocumentSlot, string>> = {};
-      const required: DocumentSlot[] = documentType === "NATIONAL_ID" ? ["front", "back", "selfie"] : ["passport", "selfie"];
       for (const slot of required) {
-        const file = files[slot];
-        if (!file) throw new Error(t("kycp.missingDocs"));
-        keys[slot] = (await uploadFile(file, filePurposes[slot])).key;
+        try {
+          keys[slot] = (await uploadFile(files[slot]!, filePurposes[slot])).key;
+        } catch (uploadError) {
+          // Fichier refusé (format, poids) : le message va sous ce fichier.
+          fields.show({ [SLOT_FIELD[slot]]: uploadError instanceof Error ? uploadError.message : t("kycp.sendFailed") });
+          return;
+        }
       }
       await request("/api/v1/kyc", {
         method: "POST",
@@ -113,8 +135,8 @@ export default function IdentityVerificationPage() {
       setFiles({});
       setMessage(t("kycp.sent"));
     } catch (err) {
-      const text = err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : t("kycp.sendFailed");
-      setError(text);
+      if (err instanceof ApiClientError) fields.fromError(err, t("kycp.sendFailed"), { LOCATION_CONSENT_REQUIRED: "location" });
+      else setError(err instanceof Error ? err.message : t("kycp.sendFailed"));
     } finally {
       setBusy(false);
     }
@@ -139,20 +161,20 @@ export default function IdentityVerificationPage() {
         {loading ? <p className="mt-10 flex items-center gap-3 text-sm text-stone-400"><Spinner /> {t("kycp.loading")}</p> : (
           <div className="mt-8 space-y-5">
             {!me && <Alert tone="warning">{t("kycp.loginFirst")} <Link href="/login" className="ms-1 text-[var(--lux-gold-light)] hover:underline">{t("pay.login")}</Link></Alert>}
-            {error && <Alert tone="danger">{error}</Alert>}
+            {(error ?? fields.general) && <Alert tone="danger">{error ?? fields.general}</Alert>}
             {message && <Alert tone="success">{message}</Alert>}
             {records[0]?.rejectionReason && <Alert tone="warning" title={t("kycp.resubmitTitle")}>{records[0].rejectionReason}</Alert>}
 
             {canSubmit && me && (
-              <form onSubmit={submit} className="lux-glass rounded-[22px] p-5 sm:p-7">
+              <form onSubmit={submit} noValidate className="lux-glass rounded-[22px] p-5 sm:p-7">
                 <p className="lux-kicker">{t("kycp.newRequest")}</p>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <Field label={t("kycp.firstName")} required><TextInput required value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" maxLength={100} /></Field>
-                  <Field label={t("kycp.lastName")} required><TextInput required value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" maxLength={100} /></Field>
-                  <Field label={t("kycp.country")} required><TextInput required value={country} onChange={(event) => setCountry(event.target.value)} autoComplete="country-name" maxLength={100} /></Field>
-                  <Field label={t("kycp.city")}><TextInput value={city} onChange={(event) => setCity(event.target.value)} autoComplete="address-level2" maxLength={100} /></Field>
-                  <Field label={t("kycp.birthDate")}><TextInput type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} autoComplete="bday" /></Field>
-                  <Field label={t("kycp.address")}><TextInput value={address} onChange={(event) => setAddress(event.target.value)} autoComplete="street-address" maxLength={255} /></Field>
+                  <Field label={t("kycp.firstName")} required error={fields.fields.firstName}><TextInput name="firstName" value={firstName} onChange={(event) => { setFirstName(event.target.value); fields.clear("firstName"); }} autoComplete="given-name" maxLength={100} aria-invalid={Boolean(fields.fields.firstName)} className={invalidCls(fields.fields.firstName)} /></Field>
+                  <Field label={t("kycp.lastName")} required error={fields.fields.lastName}><TextInput name="lastName" value={lastName} onChange={(event) => { setLastName(event.target.value); fields.clear("lastName"); }} autoComplete="family-name" maxLength={100} aria-invalid={Boolean(fields.fields.lastName)} className={invalidCls(fields.fields.lastName)} /></Field>
+                  <Field label={t("kycp.country")} required error={fields.fields.country}><TextInput name="country" value={country} onChange={(event) => { setCountry(event.target.value); fields.clear("country"); }} autoComplete="country-name" maxLength={100} aria-invalid={Boolean(fields.fields.country)} className={invalidCls(fields.fields.country)} /></Field>
+                  <Field label={t("kycp.city")} error={fields.fields.city}><TextInput name="city" value={city} onChange={(event) => { setCity(event.target.value); fields.clear("city"); }} autoComplete="address-level2" maxLength={100} aria-invalid={Boolean(fields.fields.city)} className={invalidCls(fields.fields.city)} /></Field>
+                  <Field label={t("kycp.birthDate")} error={fields.fields.birthDate}><TextInput name="birthDate" value={birthDate} onChange={(event) => { setBirthDate(event.target.value); fields.clear("birthDate"); }} type="date" autoComplete="bday" aria-invalid={Boolean(fields.fields.birthDate)} className={invalidCls(fields.fields.birthDate)} /></Field>
+                  <Field label={t("kycp.address")} error={fields.fields.address}><TextInput name="address" value={address} onChange={(event) => { setAddress(event.target.value); fields.clear("address"); }} autoComplete="street-address" maxLength={255} aria-invalid={Boolean(fields.fields.address)} className={invalidCls(fields.fields.address)} /></Field>
                 </div>
 
                 <Field label={t("kycp.document")} required>
@@ -163,12 +185,12 @@ export default function IdentityVerificationPage() {
                 </Field>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {(documentType === "NATIONAL_ID" ? (["front", "back"] as const) : (["passport"] as const)).map((slot) => (
-                    <Field key={slot} label={slot === "front" ? t("kycp.front") : slot === "back" ? t("kycp.back") : t("kycp.passport")} required hint={t("kycp.fileHint")}>
-                      <TextInput required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setFiles((prev) => ({ ...prev, [slot]: event.target.files?.[0] }))} className="file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200" />
+                    <Field key={slot} label={slot === "front" ? t("kycp.front") : slot === "back" ? t("kycp.back") : t("kycp.passport")} required hint={t("kycp.fileHint")} error={fields.fields[SLOT_FIELD[slot]]}>
+                      <TextInput name={SLOT_FIELD[slot]} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => { setFiles((prev) => ({ ...prev, [slot]: event.target.files?.[0] })); fields.clear(SLOT_FIELD[slot]); }} aria-invalid={Boolean(fields.fields[SLOT_FIELD[slot]])} className={`file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200 ${invalidCls(fields.fields[SLOT_FIELD[slot]])}`} />
                     </Field>
                   ))}
-                  <Field label={t("kycp.selfie")} required hint={t("kycp.selfieHint")}>
-                    <TextInput required type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFiles((prev) => ({ ...prev, selfie: event.target.files?.[0] }))} className="file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200" />
+                  <Field label={t("kycp.selfie")} required hint={t("kycp.selfieHint")} error={fields.fields.selfieKey}>
+                    <TextInput name="selfieKey" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { setFiles((prev) => ({ ...prev, selfie: event.target.files?.[0] })); fields.clear("selfieKey"); }} aria-invalid={Boolean(fields.fields.selfieKey)} className={`file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:text-stone-200 ${invalidCls(fields.fields.selfieKey)}`} />
                   </Field>
                 </div>
 
@@ -179,6 +201,7 @@ export default function IdentityVerificationPage() {
                     <Button type="button" variant="outline" onClick={captureLocation}>{location ? t("kycp.locationSaved") : t("kycp.locationAllow")}</Button>
                     {location && <span className="text-xs text-emerald-300">{t("kycp.locationReady")}</span>}
                   </div>
+                  <FieldError message={fields.fields.location} />
                 </div>
 
                 <Button type="submit" loading={busy} className="mt-6 w-full sm:w-auto">{t("kycp.submit")}</Button>

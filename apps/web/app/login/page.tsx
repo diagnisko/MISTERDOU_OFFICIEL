@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { request, ApiClientError } from "@/lib/api";
+import { FieldError } from "@/components/ui";
+import { useFormErrors } from "@/lib/form-errors";
 import { AuthShell, fieldLabelClass, inputClass } from "@/components/auth/auth-shell";
 import { GoogleButton, googleEnabled } from "@/components/auth/google-button";
 import { landingAfterLogin, setGreeting } from "@/lib/greeting";
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fields = useFormErrors();
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Compte d'administration : code à 6 chiffres demandé sur la même page.
@@ -88,15 +91,33 @@ export default function LoginPage() {
     router.replace(res.role !== "STAFF" && res.setupRequired ? "/console/sign-in/setup" : "/admin");
   }
 
+  /** Champs vides ou mal écrits : message en français sous le champ, avant tout envoi. */
+  function check(): Record<string, string> {
+    const found: Record<string, string> = {};
+    if (!email.trim()) found.email = t("form.required");
+    else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) found.email = t("form.emailInvalid");
+    if (!password) found.password = t("form.required");
+    if (adminCode !== null && !/^\d{6}$/.test(adminCode)) found.adminCode = t("auth.adminCodeInvalid");
+    return found;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const found = check();
+    if (Object.keys(found).length > 0) {
+      fields.show(found);
+      return;
+    }
+    fields.reset();
     setLoading(true);
     if (adminCode !== null) {
       try {
         await adminLogin(adminCode);
       } catch (err) {
-        setError(err instanceof ApiClientError ? err.message : t("auth.network"));
+        // Code à 6 chiffres refusé : le message va sous le champ du code.
+        if (err instanceof ApiClientError && (err.code === "OTP_INVALID" || err.code === "OTP_EXPIRED")) fields.show({ adminCode: err.message });
+        else setError(err instanceof ApiClientError ? err.message : t("auth.network"));
         setLoading(false);
       }
       return;
@@ -133,6 +154,7 @@ export default function LoginPage() {
   }
 
   const shake = !reduce && error ? { x: [0, -6, 6, -4, 4, 0] } : {};
+  const bad = (key: string) => (fields.fields[key] ? " !border-[rgba(239,68,68,0.75)]" : "");
 
   return (
     <AuthShell
@@ -160,30 +182,39 @@ export default function LoginPage() {
           </>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} noValidate className="space-y-4">
           <label className="block">
             <span className={fieldLabelClass}>{t("auth.email")}</span>
             <input
-              required
+              name="email"
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                fields.clear("email");
+              }}
+              aria-invalid={Boolean(fields.fields.email)}
+              className={inputClass + bad("email")}
               placeholder="vous@exemple.com"
             />
+            <FieldError message={fields.fields.email} />
           </label>
 
           <label className="block">
             <span className={fieldLabelClass}>{t("auth.password")}</span>
             <span className="relative block">
               <input
-                required
+                name="password"
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`${inputClass} pr-12`}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  fields.clear("password");
+                }}
+                aria-invalid={Boolean(fields.fields.password)}
+                className={`${inputClass} pr-12${bad("password")}`}
               />
               <button
                 type="button"
@@ -203,6 +234,7 @@ export default function LoginPage() {
                 )}
               </button>
             </span>
+            <FieldError message={fields.fields.password} />
             <span className="mt-2 block text-end">
               <Link href="/mot-de-passe-oublie" className="text-[12.5px] text-[var(--lux-muted)] transition hover:text-[var(--lux-gold-light)]">
                 {t("reset.forgotLink")}
@@ -215,15 +247,20 @@ export default function LoginPage() {
               <span className={fieldLabelClass}>{t("auth.adminCodeLabel")}</span>
               <input
                 id="admin-code"
-                required
+                name="adminCode"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
                 value={adminCode}
-                onChange={(e) => setAdminCode(e.target.value.replace(/\D/g, ""))}
-                className={inputClass}
+                onChange={(e) => {
+                  setAdminCode(e.target.value.replace(/\D/g, ""));
+                  fields.clear("adminCode");
+                }}
+                aria-invalid={Boolean(fields.fields.adminCode)}
+                className={inputClass + bad("adminCode")}
                 placeholder="123456"
               />
+              <FieldError message={fields.fields.adminCode} />
               <span className="mt-2.5 flex items-center gap-2 text-[13px] text-[var(--lux-muted)]">
                 <input
                   type="checkbox"
