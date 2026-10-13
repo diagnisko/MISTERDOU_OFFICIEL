@@ -1,23 +1,30 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Cormorant_Garamond, Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { GreetingModal } from "@/components/dash/greeting-modal";
 import { PREFERENCES_BOOT_SCRIPT } from "@/lib/preferences-boot";
 
-const serif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  style: ["normal", "italic"],
+// Polices hébergées dans le projet (app/fonts, jeu « latin » de Google Fonts,
+// licence OFL) : la construction du site ne dépend plus de Google Fonts, qui a
+// déjà fait échouer une mise en ligne. Polices variables : un fichier par style.
+const luxSerif = localFont({
+  src: [
+    { path: "./fonts/cormorant-garamond-latin.woff2", weight: "500 700", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-italic.woff2", weight: "500 700", style: "italic" },
+  ],
   variable: "--font-lux-serif",
   display: "swap",
+  fallback: ["Georgia", "Times New Roman", "serif"],
+  adjustFontFallback: "Times New Roman",
 });
 
-const sans = Montserrat({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const luxSans = localFont({
+  src: [{ path: "./fonts/montserrat-latin.woff2", weight: "400 700", style: "normal" }],
   variable: "--font-lux-sans",
   display: "swap",
+  fallback: ["Arial", "sans-serif"],
+  adjustFontFallback: "Arial",
 });
 
 export const metadata: Metadata = {
@@ -40,7 +47,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" dir="ltr" data-theme="dark" className={`dark ${serif.variable} ${sans.variable}`} suppressHydrationWarning>
+    <html lang="fr" dir="ltr" data-theme="dark" className={`dark ${luxSerif.variable} ${luxSans.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: PREFERENCES_BOOT_SCRIPT }} />
       </head>
