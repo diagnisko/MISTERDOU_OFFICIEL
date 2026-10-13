@@ -8,6 +8,7 @@ import { promoRelationSelect, resolvePrice } from "../../lib/pricing.js";
 import { mediaKind, publicUrl } from "../../lib/media.js";
 import { PLATFORM_KEY, PLATFORM_PROFILE_ID, reputations, sellerCode, sellerIdentities } from "../reviews/service.js";
 import { houseAvatarUrl } from "../../lib/house.js";
+import { notHeldByExchange } from "../exchanges/hold.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -36,6 +37,7 @@ const SELECT_PUBLIC = {
   installmentDownPayment: true,
   publishedAt: true,
   createdAt: true,
+  acceptsExchange: true,
   // Sert à la réputation affichée ; jamais renvoyé tel quel au public.
   sellerId: true,
 } as const;
@@ -178,6 +180,8 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const where: Prisma.ProductWhereInput = {
         status: "ACTIVE" as const,
         deletedAt: null,
+        // Compte tenu par un échange en cours : hors boutique.
+        ...notHeldByExchange(),
         ...(sellerId !== undefined ? { sellerId } : {}),
         ...(division ? { division } : {}),
         ...(paymentMode ? { paymentMode } : {}),
@@ -232,6 +236,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
           installmentMonths: p.installmentMonths,
           installmentDownPayment: p.installmentDownPayment,
           canSplit: p.installmentMonths !== null,
+          acceptsExchange: p.acceptsExchange,
           isFeatured: isFeatured(p, now),
           schedule: scheduleFor(p, price),
           avgRating: rep.get(p.sellerId ?? PLATFORM_KEY)?.rating ?? null,
@@ -276,7 +281,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const { slug } = request.params as { slug: string };
       const now = new Date();
       const p = await prisma.product.findFirst({
-        where: { slug, status: "ACTIVE", deletedAt: null },
+        where: { slug, status: "ACTIVE", deletedAt: null, ...notHeldByExchange() },
         select: {
           ...publicSelect(now),
           description: true,
@@ -308,6 +313,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         installmentMonths: p.installmentMonths,
         installmentDownPayment: p.installmentDownPayment,
         canSplit: p.installmentMonths !== null,
+        acceptsExchange: p.acceptsExchange,
         isFeatured: isFeatured(p, now),
         schedule: scheduleFor(p, price),
         publishedAt: p.publishedAt?.toISOString() ?? null,

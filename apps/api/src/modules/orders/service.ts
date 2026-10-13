@@ -14,6 +14,8 @@ import { latestCodeForOrder } from "../verification-codes/service.js";
 import { getSchedule } from "../installments/service.js";
 import { getIntSetting } from "../settings/service.js";
 import { reviewForOrder } from "../reviews/service.js";
+import { completeExchangeForOrder } from "../exchanges/lifecycle.js";
+import { HOLD_STATUSES } from "../exchanges/hold.js";
 
 /** Statuts où le compte est entre les mains du client (livré, puis réception confirmée). */
 const ACCESS_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
@@ -108,6 +110,11 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
   });
   if (reservedBy) {
     throw conflict("PRODUCT_RESERVED", "Ce compte est en cours d’achat par un autre client. Réessayez dans quelques minutes.");
+  }
+  // Compte tenu par un échange en cours (identifiants confiés à l'équipe).
+  const exchanging = await prisma.exchangeRequest.count({ where: { productId: product.id, status: { in: [...HOLD_STATUSES] } } });
+  if (exchanging > 0) {
+    throw conflict("PRODUCT_RESERVED", "Ce compte fait l’objet d’un échange en cours : il n’est plus disponible.");
   }
 
   // Prix DEBITÉ calculé serveur : promotion à fenêtre active prioritaire,
@@ -249,9 +256,16 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
     logger.warn({ paymentId: payment.id }, "[orders] paiement de commande sans orderId");
     return;
   }
+  await deliverOrder(tx, payment.orderId, opts);
+}
 
+/**
+ * Livre une commande (accès au compte, part du vendeur enregistrée). Appelée
+ * après paiement, ou directement pour un échange sans complément (0 F).
+ */
+export async function deliverOrder(tx: Tx, orderId: string, opts: { ctx?: OrderActor }) {
   const order = await tx.order.findUnique({
-    where: { id: payment.orderId },
+    where: { id: orderId },
     select: {
       id: true,
       orderNumber: true,
@@ -262,7 +276,7 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
     },
   });
   if (!order) {
-    logger.warn({ paymentId: payment.id }, "[orders] commande introuvable — livraison ignorée");
+    logger.warn({ orderId }, "[orders] commande introuvable — livraison ignorée");
     return;
   }
   if (order.status === "REFUNDED") {
@@ -277,7 +291,7 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
     data: { status: "DELIVERED", deliveredAt: new Date() },
   });
   if (claimed.count === 0) {
-    logger.info({ orderId: order.id, paymentId: payment.id }, "[orders] livraison déjà effectuée (idempotent)");
+    logger.info({ orderId: order.id }, "[orders] livraison déjà effectuée (idempotent)");
     return;
   }
 
@@ -285,6 +299,8 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
   const taken = await markProductsSold(tx, order.id);
   if (taken.length > 0) await alertDoubleSale(order.orderNumber, taken);
   const credited = await recordSellerSale(tx, order.id);
+  // Commande d'un échange : la remise croisée est faite (le vendeur reçoit le compte du client).
+  const exchanged = await completeExchangeForOrder(tx, order.id);
 
   const credential = order.items[0]?.product.credential ?? null;
   if (credential) {
@@ -312,7 +328,8 @@ export async function deliverOrderAfterSuccess(tx: Tx, payment: Payment, opts: {
   });
 
   // §59 — le vendeur est félicité dès la livraison, avec sa part nette.
-  for (const sale of credited) {
+  // (Échange : le vendeur a déjà reçu son propre message, avec le compte du client.)
+  for (const sale of exchanged ? [] : credited) {
     await notifyUser(sale.sellerUserId, "PRODUCT_SOLD", {
       title: "👏 Bravo, votre compte est vendu !",
       message: `Un client vient d’acheter « ${sale.title} » (commande ${order.orderNumber}). ${sale.net.toLocaleString("fr-FR")} FCFA vous reviennent : ils passeront dans votre solde disponible dès que le client aura confirmé la réception du compte.`,

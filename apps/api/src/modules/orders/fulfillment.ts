@@ -5,6 +5,7 @@ import { logger } from "../../lib/logger.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { getIntSetting } from "../settings/service.js";
+import { cancelExchangeForOrder, closeOpenExchangeRequests } from "../exchanges/lifecycle.js";
 
 // ---------------------------------------------------------------------------
 // Après paiement : le produit quitte la boutique, la vente du vendeur est
@@ -29,6 +30,8 @@ export function holdsReservation(now = new Date()): Prisma.OrderWhereInput {
     OR: [
       { createdAt: { gte: new Date(now.getTime() - RESERVATION_MINUTES * 60_000) } },
       { payments: { some: { status: "PROCESSING" } } },
+      // Complément d'un échange : le compte reste réservé jusqu'au paiement ou à l'annulation.
+      { exchange: { isNot: null } },
     ],
   };
 }
@@ -74,6 +77,7 @@ export async function expireUnpaidOrders(now = new Date()): Promise<number> {
     });
     if (!done) continue;
     expired++;
+    await cancelExchangeForOrder(order.id, `Complément non réglé dans les ${hours} heures.`);
     await logAudit({
       action: "ORDER_EXPIRED",
       resourceType: "Order",
@@ -99,6 +103,8 @@ export async function markProductsSold(tx: Tx, orderId: string): Promise<string[
   const taken: string[] = [];
   for (const { productId } of items) {
     const res = await tx.product.updateMany({ where: { id: productId, status: "ACTIVE" }, data: { status: "SOLD" } });
+    // Vendu : les demandes d'échange encore sans accord sur ce compte sont closes.
+    if (res.count > 0) await closeOpenExchangeRequests(productId, "Ce compte vient d’être vendu.", tx);
     if (res.count === 0) {
       const current = await tx.product.findUnique({ where: { id: productId }, select: { status: true } });
       if (current?.status !== "SOLD") continue;
@@ -145,11 +151,13 @@ export async function recordSellerSale(tx: Tx, orderId: string): Promise<Array<{
   for (const item of order.items) {
     const sellerId = item.sellerId ?? item.product.sellerId;
     if (!sellerId || item.commission) continue;
-    const seller = await tx.seller.findUnique({ where: { id: sellerId }, select: { userId: true } });
-    // Contrat revendeur en cours : aucune commission sur la vente.
-    const contract = seller ? await runningContract(tx, seller.userId) : null;
-    const itemRate = contract ? 0 : rate;
     const amount = item.unitPrice * item.quantity;
+    // Échange sans complément : rien à verser, aucune commission.
+    if (amount <= 0) continue;
+    const seller = await tx.seller.findUnique({ where: { id: sellerId }, select: { userId: true } });
+    // Contrat revendeur en cours : son taux (0 %, 1 % ou 2 %) remplace la commission habituelle.
+    const contract = seller ? await runningContract(tx, seller.userId) : null;
+    const itemRate = contract ? contract.commissionRate : rate;
     const commissionAmount = Math.round((amount * itemRate) / 100);
     const net = amount - commissionAmount;
 

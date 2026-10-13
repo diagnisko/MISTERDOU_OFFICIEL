@@ -35,6 +35,8 @@ export interface LuxProduct {
   schedule: LuxSchedule | null;
   isFeatured: boolean;
   featuredUntil?: string | null;
+  /** Le vendeur accepte d'échanger ce compte. */
+  acceptsExchange?: boolean;
 }
 
 // Carte produit partagée (landing + catalogue).
@@ -60,6 +62,8 @@ export interface LuxCardData {
   /** Image de couverture (bucket public) ; absente → visuel dégradé par division. */
   coverUrl?: string | null;
   seller?: CardSeller;
+  /** Le vendeur accepte d'échanger ce compte. */
+  acceptsExchange?: boolean;
 }
 
 export interface LuxSeed {

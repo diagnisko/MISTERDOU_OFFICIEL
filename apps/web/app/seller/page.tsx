@@ -23,9 +23,10 @@ import { WithdrawalsPanel, type SellerWithdrawal } from "@/components/seller/wit
 
 type Dashboard = {
   contract: {
-    current: { months: number; startsAt: string; endsAt: string } | null;
+    current: { months: number; startsAt: string; endsAt: string; commissionRate: number } | null;
     coveredUntil: string | null;
     commissionPercent: number;
+    nextContractRate: number;
   };
   seller: {
     id: string;
@@ -257,6 +258,7 @@ export default function SellerPage() {
                     month: "long",
                     year: "numeric",
                   }),
+                  current: dash.contract.current.commissionRate,
                 })
               : t("seller.contractOff", { rate: dash.contract.commissionPercent })}
           </span>

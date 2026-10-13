@@ -18,8 +18,9 @@ type JoinState = {
 
 type ContractState = {
   plans: Array<{ months: number; price: number }>;
-  current: { months: number; startsAt: string; endsAt: string } | null;
+  current: { months: number; startsAt: string; endsAt: string; commissionRate: number } | null;
   coveredUntil: string | null;
+  nextContractRate: number;
   pending: { months: number; amount: number; checkoutUrl: string; inReview: boolean } | null;
 };
 
@@ -27,7 +28,8 @@ type ContractState = {
 // Devenir vendeur : deux formules.
 // • Vendeur classique : adhésion unique, commission sur chaque vente.
 // • Contrat revendeur : pour qui revend des comptes qui ne lui appartiennent
-//   pas (petite marge) — forfait 6, 12 ou 18 mois, aucune commission.
+//   pas (petite marge) — forfait 6, 12 ou 18 mois ; commission 0 % au premier
+//   contrat, 1 % au premier renouvellement, puis 2 %.
 // Paiement par lien Wave, vérifié par l'équipe ; adhésion incluse au contrat.
 // ---------------------------------------------------------------------------
 export default function BecomeSellerPage() {
@@ -146,9 +148,10 @@ export default function BecomeSellerPage() {
 
           {contract.current && (
             <p className="relative mt-4 rounded-xl border border-[rgba(134,239,172,0.3)] bg-[rgba(134,239,172,0.06)] px-3.5 py-2.5 text-[13px] text-[#bbf7d0]">
-              {t("contract.activeUntil", { date: date(contract.coveredUntil ?? contract.current.endsAt) })}
+              {t("contract.activeUntil", { date: date(contract.coveredUntil ?? contract.current.endsAt), current: contract.current.commissionRate })}
             </p>
           )}
+          <p className="relative mt-3 text-[12.5px] font-medium text-[#ffb08a]">{t("contract.nextRate", { next: contract.nextContractRate })}</p>
           {contract.pending && (
             <div className="relative mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.06)] px-3.5 py-2.5">
               <p className="text-[13px] text-[#fde68a]">

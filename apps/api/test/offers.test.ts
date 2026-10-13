@@ -24,8 +24,15 @@ afterAll(async () => {
   await cleanup(t);
 });
 
+/** ID eFootball unique à chaque appel (deux offres ne peuvent pas partager un compte). */
+export function uniqueGameId(): string {
+  return `T${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+}
+
 function offer(overrides: Partial<CreateOfferInput> = {}): CreateOfferInput {
   return {
+    gameAccountId: uniqueGameId(),
+    acceptsExchange: false,
     title: "Compte Division 1 — 3 100 OVR",
     description: "Compte propre, e-mail de récupération fourni après l’achat.",
     division: "Division 1",

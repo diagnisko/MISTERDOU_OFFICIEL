@@ -37,6 +37,8 @@ export type MessageItem = {
   senderAvatarUrl?: string | null;
   isSystem: boolean;
   attachmentKey: string | null;
+  /** Photos jointes (lien signé de courte durée ; null = effacée). */
+  images?: Array<{ id: string; url: string | null; expired: boolean }>;
   createdAt: string;
   readAt: string | null;
 };

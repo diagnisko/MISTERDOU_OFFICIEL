@@ -99,6 +99,35 @@ export async function prepareVideo(file: File, onProgress?: Progress): Promise<P
   }
 }
 
+/**
+ * Photo jointe à un message : TOUJOURS redessinée (JPEG, 2048 px au plus), ce
+ * qui efface les métadonnées cachées (position GPS, appareil…). Une image que
+ * le navigateur ne sait pas lire est refusée (null).
+ */
+export async function prepareChatImage(file: File): Promise<Prepared | null> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    return null;
+  }
+  try {
+    const scale = Math.min(1, IMAGE_LONG / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
+    return blob ? { blob, mime: "image/jpeg", converted: true } : null;
+  } finally {
+    bitmap.close();
+  }
+}
+
 export async function prepareImage(file: File): Promise<Prepared> {
   const original: Prepared = { blob: file, mime: file.type, converted: false };
   let bitmap: ImageBitmap;

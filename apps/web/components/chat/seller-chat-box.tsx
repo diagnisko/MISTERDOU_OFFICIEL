@@ -93,9 +93,9 @@ export function SellerChatBox({ productId, slug }: { productId: string; slug: st
             <OffsiteNotice />
             <Composer
               placeholder={t("chat.writeSeller")}
-              onSend={async (content) => {
-                if (thread) await replyInThread(thread.id, content);
-                else await writeToSeller(productId, content);
+              onSend={async (content, images) => {
+                if (thread) await replyInThread(thread.id, content, images);
+                else await writeToSeller(productId, content, images);
                 await load();
               }}
             />

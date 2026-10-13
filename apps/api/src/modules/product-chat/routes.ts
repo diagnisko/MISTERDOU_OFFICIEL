@@ -22,8 +22,8 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
   // --- Client : écrire au vendeur d'un compte (ouvre le fil au besoin) ---
   app.post("/products/:id/thread", { schema: secured("Écrire au vendeur d'un compte"), config: rate(20) }, async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const { content } = messageSchema.parse(request.body);
-    return sendOk(reply, await sendToSeller(id, requireAuth(request), content));
+    const { content, images } = messageSchema.parse(request.body);
+    return sendOk(reply, await sendToSeller(id, requireAuth(request), content, images));
   });
 
   // --- Client : mes discussions ---
@@ -119,7 +119,7 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
         kind: "support",
         title: "Support MISTERDOU",
         counterpart: team ? peerName || "Client" : "Équipe MISTERDOU",
-        preview: last ? last.content.slice(0, 120) : null,
+        preview: last ? (last.content || "📷 Photo").slice(0, 120) : null,
         at: (last?.createdAt ?? c.updatedAt).toISOString(),
         unread: c._count.message,
         href: `/messages?c=${c.id}`,
@@ -146,7 +146,7 @@ export async function registerProductChatRoutes(app: FastifyInstance) {
 
   app.post("/threads/:id/messages", { schema: secured("Répondre dans une discussion"), config: rate(30) }, async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const { content } = messageSchema.parse(request.body);
-    return sendOk(reply, await postInThread(id, requireAuth(request), content));
+    const { content, images } = messageSchema.parse(request.body);
+    return sendOk(reply, await postInThread(id, requireAuth(request), content, images));
   });
 }

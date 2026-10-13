@@ -1,3 +1,4 @@
+import { notHeldByExchange } from "../exchanges/hold.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
 import { sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
@@ -28,6 +29,7 @@ const HOME_SELECT = {
   paymentMode: true,
   installmentMonths: true,
   installmentDownPayment: true,
+  acceptsExchange: true,
 } as const;
 
 interface PlanSample {
@@ -82,14 +84,14 @@ export async function registerSeedRoutes(app: FastifyInstance) {
           prisma.productReview.aggregate({ _avg: { rating: true } }),
           getPublicMeta(),
           prisma.product.findMany({
-            where: { status: "ACTIVE", deletedAt: null },
+            where: { status: "ACTIVE", deletedAt: null, ...notHeldByExchange() },
             orderBy: { createdAt: "desc" },
             take: 6,
             select: homeSelect,
           }),
           // Offres dont le vendeur a payé une mise en avant encore valide.
           prisma.product.findMany({
-            where: { status: "ACTIVE", deletedAt: null, featuredUntil: { gt: now } },
+            where: { status: "ACTIVE", deletedAt: null, featuredUntil: { gt: now }, ...notHeldByExchange() },
             orderBy: { createdAt: "desc" },
             take: 6,
             select: homeSelect,
@@ -124,6 +126,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         promotions: ReadonlyArray<{ id: string; promoPrice: number | null; discountPercent: number | null }>;
         images: ReadonlyArray<{ objectKey: string }>;
         sellerId: string | null;
+        acceptsExchange: boolean;
       }) => ({
         id: p.id,
         slug: p.slug,
@@ -137,6 +140,7 @@ export async function registerSeedRoutes(app: FastifyInstance) {
         installmentMonths: p.installmentMonths,
         installmentDownPayment: p.installmentDownPayment,
         canSplit: p.installmentMonths !== null,
+        acceptsExchange: p.acceptsExchange,
         isFeatured: p.featuredUntil !== null && p.featuredUntil > now,
         coverUrl: p.images[0] ? publicUrl(p.images[0].objectKey) : null,
         seller: p.sellerId

@@ -16,6 +16,7 @@ import {
   type ThreadSummary,
 } from "@/lib/product-chat";
 import { useT } from "@/lib/i18n";
+import { AttachButton, MessageImages, PendingImages, useChatImages, type AttachedImage } from "./chat-images";
 
 const POLL_MS = 6_000;
 
@@ -59,6 +60,7 @@ export function MessageList({ messages, showAuthors }: { messages: ThreadMessage
               }`}
             >
               {m.content}
+              <MessageImages images={m.images} />
             </div>
             <span className="mt-0.5 px-1 text-[10.5px] text-stone-600">{when(m.createdAt, t.intl)}</span>
           </div>
@@ -69,21 +71,30 @@ export function MessageList({ messages, showAuthors }: { messages: ThreadMessage
   );
 }
 
-export function Composer({ onSend, placeholder }: { onSend: (text: string) => Promise<void>; placeholder?: string }) {
+export function Composer({
+  onSend,
+  placeholder,
+}: {
+  onSend: (text: string, images: AttachedImage[]) => Promise<void>;
+  placeholder?: string;
+}) {
   const t = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const photos = useChatImages();
+  const canSend = (text.trim() !== "" || photos.ready.length > 0) && !photos.uploading;
 
   async function submit(e?: FormEvent) {
     e?.preventDefault();
     const content = text.trim();
-    if (!content || busy) return;
+    if (!canSend || busy) return;
     setBusy(true);
     setError(null);
     try {
-      await onSend(content);
+      await onSend(content, photos.ready);
       setText("");
+      photos.reset();
     } catch (err) {
       setError(errorMessage(err, t("chat.sendFailed")));
     } finally {
@@ -101,7 +112,9 @@ export function Composer({ onSend, placeholder }: { onSend: (text: string) => Pr
   return (
     <form onSubmit={(e) => void submit(e)} className="space-y-2">
       {error && <Alert tone="danger">{error}</Alert>}
+      <PendingImages state={photos} />
       <div className="flex items-end gap-2">
+        <AttachButton state={photos} disabled={busy} />
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -110,15 +123,26 @@ export function Composer({ onSend, placeholder }: { onSend: (text: string) => Pr
           maxLength={2000}
           placeholder={placeholder ?? t("chat.placeholder")}
           aria-label={t("chat.message")}
-          className="min-h-[46px] flex-1 resize-none rounded-2xl border border-white/10 bg-black/20 px-3.5 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
+          className="min-h-[46px] w-0 min-w-0 flex-1 resize-none rounded-2xl border border-white/10 bg-black/20 px-3.5 py-2.5 text-[14px] text-stone-100 placeholder:text-stone-600 focus:border-[rgba(255,106,50,0.6)] focus:outline-none"
         />
         <button
           type="submit"
-          disabled={busy || !text.trim()}
-          className="lux-btn lux-btn-gold !min-h-[46px] shrink-0 px-5 text-[12px] uppercase tracking-[0.12em] disabled:opacity-50"
+          disabled={busy || !canSend}
+          aria-label={t("chat.send")}
+          className="lux-btn lux-btn-gold !min-h-[46px] shrink-0 px-3.5 text-[12px] uppercase tracking-[0.12em] disabled:opacity-50 sm:px-5"
           style={{ borderRadius: 16 }}
         >
-          {busy ? "…" : t("chat.send")}
+          {busy ? (
+            "…"
+          ) : (
+            <>
+              {/* Téléphone : une flèche, pour laisser la place au message. */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="sm:hidden">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+              <span className="hidden sm:inline">{t("chat.send")}</span>
+            </>
+          )}
         </button>
       </div>
       <p className="text-[11px] text-stone-600">{t("chat.hint")}</p>
@@ -260,8 +284,8 @@ export function ThreadPanel({ threadId, onActivity }: { threadId: string; onActi
         ) : (
           <Composer
             placeholder={thread.side === "client" ? t("chat.writeSeller") : t("chat.replyClient")}
-            onSend={async (content) => {
-              await replyInThread(thread.id, content);
+            onSend={async (content, images) => {
+              await replyInThread(thread.id, content, images);
               await load();
               onActivity?.();
             }}

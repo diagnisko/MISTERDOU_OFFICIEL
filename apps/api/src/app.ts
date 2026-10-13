@@ -26,6 +26,8 @@ import { registerAccountRoutes } from "./modules/account/routes.js";
 import { registerVerificationCodeRoutes } from "./modules/verification-codes/routes.js";
 import { registerProductChatRoutes } from "./modules/product-chat/routes.js";
 import { registerPushRoutes } from "./modules/push/routes.js";
+import { registerExchangeRoutes } from "./modules/exchanges/routes.js";
+import { registerChatImageRoutes } from "./modules/chat-images/routes.js";
 import { env } from "./env.js";
 import { isDev, REDACT_PATHS } from "./lib/logger.js";
 
@@ -157,6 +159,8 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       await registerProductChatRoutes(api);
       await registerPushRoutes(api);
       await registerReviewRoutes(api);
+      await registerExchangeRoutes(api);
+      await registerChatImageRoutes(api);
     },
     { prefix: API_PREFIX },
   );

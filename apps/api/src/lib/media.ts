@@ -3,9 +3,10 @@
 // puis vérification serveur des octets de tête avant enregistrement.
 // Sans R2 (développement) : même parcours, servi par l'API depuis le disque.
 
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
+import type { Readable } from "node:stream";
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../env.js";
@@ -132,7 +133,7 @@ export async function createUpload(keyPrefix: string, mime: string, size: number
   return { key, uploadUrl: `/api/v1/media/upload/${key}?${qs.toString()}`, headers: { "Content-Type": mime }, expiresIn: UPLOAD_TTL_SECONDS };
 }
 
-function magicMatches(mime: string, head: Buffer): boolean {
+export function magicMatches(mime: string, head: Buffer): boolean {
   switch (mime) {
     case "image/jpeg":
       return head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
@@ -178,6 +179,17 @@ export async function confirmUpload(key: string, mime: string, rules?: UploadRul
     throw badRequest("FILE_TYPE_INVALID", "Le fichier reçu ne correspond pas au format annoncé.");
   }
   return { sizeBytes: size };
+}
+
+/** Empreinte SHA-256 d'un média public, lue en flux (une vidéo n'est jamais chargée entière en mémoire). */
+export async function hashMedia(key: string): Promise<string> {
+  const bucket = publicBucket();
+  const stream: Readable = bucket
+    ? ((await r2().send(new GetObjectCommand({ Bucket: bucket, Key: key }))).Body as Readable)
+    : createReadStream(localPath(key));
+  const hash = createHash("sha256");
+  for await (const chunk of stream) hash.update(chunk as Buffer);
+  return hash.digest("hex");
 }
 
 export async function deleteMedia(key: string): Promise<void> {

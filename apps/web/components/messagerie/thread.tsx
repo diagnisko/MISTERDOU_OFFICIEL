@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChatAvatar } from "@/components/chat/product-chat";
+import { AttachButton, MessageImages, PendingImages, useChatImages } from "@/components/chat/chat-images";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { ApiClientError, errorMessage } from "@/lib/api";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
@@ -82,6 +83,8 @@ export function ConversationThread({
   const [reloadToken, setReloadToken] = useState(0);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const photos = useChatImages();
+  const canSend = (draft.trim() !== "" || photos.ready.length > 0) && !photos.uploading;
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -197,13 +200,14 @@ export function ConversationThread({
 
   async function submit() {
     const content = draft.trim();
-    if (!content || sending) return;
+    if (!canSend || sending) return;
     setSending(true);
     setSendError(null);
     try {
-      const created = await sendConversationMessage(conversationId, content);
+      const created = await sendConversationMessage(conversationId, content, photos.ready);
       setMessages((prev) => mergeMessages(prev, [created]));
       setDraft("");
+      photos.reset();
       stickToBottomRef.current = true;
       onSent?.();
     } catch (err) {
@@ -299,7 +303,11 @@ export function ConversationThread({
             <Alert tone="danger">{sendError}</Alert>
           </div>
         )}
+        <div className="mb-2">
+          <PendingImages state={photos} />
+        </div>
         <div className="flex items-end gap-2">
+          <AttachButton state={photos} disabled={sending} />
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -307,9 +315,9 @@ export function ConversationThread({
             rows={2}
             aria-label={t("thread.inputLabel")}
             placeholder={t("thread.placeholder")}
-            className="min-h-[46px] w-full resize-none rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-white/[0.04] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-500 focus:border-[rgba(232,71,36,0.6)]"
+            className="min-h-[46px] w-0 min-w-0 flex-1 resize-none rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-white/[0.04] px-3.5 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-500 focus:border-[rgba(232,71,36,0.6)]"
           />
-          <Button type="submit" loading={sending} disabled={!draft.trim()}>
+          <Button type="submit" loading={sending} disabled={!canSend}>
             {t("thread.send")}
           </Button>
         </div>
@@ -342,9 +350,12 @@ function MessageBubble({ message, mine }: { message: MessageItem; mine: boolean 
             {message.senderName}
           </p>
         )}
-        <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed">
-          {message.content}
-        </p>
+        {message.content && (
+          <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed">
+            {message.content}
+          </p>
+        )}
+        <MessageImages images={message.images} />
         {message.attachmentKey && (
           <p className="mt-1.5 text-[10px] uppercase tracking-[0.14em] text-stone-400">{t("thread.attachment")}</p>
         )}

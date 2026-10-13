@@ -15,11 +15,15 @@ import {
   removeOffer,
   revealOfferCredential,
   setOfferCredential,
+  setOfferExchange,
   updateOffer,
   updateOfferSchema,
   type OfferActor,
 } from "./service.js";
 import { requireTeamPassword } from "../../lib/step-up.js";
+import { z } from "zod";
+
+const exchangeToggleSchema = z.object({ acceptsExchange: z.boolean() });
 
 function actor(request: FastifyRequest): OfferActor {
   const auth = requireAuth(request);
@@ -55,6 +59,14 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const owner = await sellerOwner(request);
     return sendOk(reply, await setOfferCredential(id, parseOffer(credentialSchema, request.body), owner, actor(request)));
+  });
+
+  // Interrupteur « Échange accepté » (sans nouvelle validation de l'offre).
+  app.put("/seller/offers/:id/exchange", limited, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const owner = await sellerOwner(request);
+    const { acceptsExchange } = parseOffer(exchangeToggleSchema, request.body);
+    return sendOk(reply, await setOfferExchange(id, acceptsExchange, owner, actor(request)));
   });
 
   app.delete("/seller/offers/:id", limited, async (request, reply) => {
@@ -102,6 +114,13 @@ export async function registerOfferRoutes(app: FastifyInstance) {
     await requirePermission(request, "PRODUCTS");
     const { id } = request.params as { id: string };
     return sendOk(reply, await setOfferCredential(id, parseOffer(credentialSchema, request.body), { kind: "moderator" }, actor(request)));
+  });
+
+  app.put("/admin/offerings/:id/exchange", limited, async (request, reply) => {
+    await requirePermission(request, "PRODUCTS");
+    const { id } = request.params as { id: string };
+    const { acceptsExchange } = parseOffer(exchangeToggleSchema, request.body);
+    return sendOk(reply, await setOfferExchange(id, acceptsExchange, team, actor(request)));
   });
 
   app.put("/admin/offerings/:id", limited, async (request, reply) => {

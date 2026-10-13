@@ -24,6 +24,7 @@ import {
   IconUsers,
   IconWallet,
   IconSpark,
+  IconSwap,
 } from "@/components/dash/dash-icons";
 import { AdminAccessProvider, allows, requirementFor, type AdminAccess } from "./_lib/access";
 
@@ -56,6 +57,7 @@ const NAV: DashNavItem[] = [
   { href: "/admin/offers", label: "Offres", icon: IconTag, group: "Catalogue" },
   { href: "/admin/promotions", label: "Promotions", icon: IconPercent, group: "Catalogue" },
   { href: "/admin/discussions", label: "Discussions comptes", icon: IconChat, group: "Relation" },
+  { href: "/admin/echanges", label: "Échanges", icon: IconSwap, group: "Relation" },
   { href: "/admin/messages", label: "Messages", icon: IconChat, group: "Relation" },
   { href: "/admin/support", label: "Support", icon: IconLifebuoy, group: "Relation" },
   { href: "/admin/team", label: "Équipe", icon: IconSpark, group: "Plateforme" },

@@ -60,6 +60,7 @@ model User {
   managerProfile                                     ManagerProfile?
   productThreads                                     ProductThread[]         @relation("ProductThreadClient")
   productMessages                                    ProductMessage[]        @relation("ProductMessageAuthor")
+  exchangeRequests                                   ExchangeRequest[]       @relation("ExchangeClient")
   message                                            Message[]
   notifications                                      Notification[]
   notificationPreference                             NotificationPreference?
@@ -220,6 +221,12 @@ model Product {
   updatedAt              DateTime           @updatedAt
   homepageOrder          Int                @default(0)
   showOnHome             Boolean            @default(false)
+  // ID du compte dans eFootball, normalisé (majuscules, sans espaces ni tirets).
+  // Unique parmi les offres non vendues (contrôle applicatif : offers/game-id).
+  gameAccountId          String?
+  // Le vendeur accepte d'échanger ce compte contre celui d'un client.
+  acceptsExchange        Boolean            @default(false)
+  exchanges              ExchangeRequest[]
   featuredProduct        FeaturedProduct[]
   orderItems             OrderItem[]
   seller                 Seller?            @relation(fields: [sellerId], references: [id])
@@ -242,6 +249,7 @@ model Product {
   // LIMIT 300. Aucun index existant ne fournit ce tri → Seq Scan + Sort complet
   // des offres actives à chaque appel (EXPLAIN confirmé).
   @@index([status, deletedAt, createdAt(sort: Desc)])
+  @@index([gameAccountId])
 }
 
 model ProductReview {
@@ -258,16 +266,19 @@ model ProductReview {
 }
 
 model ProductImage {
-  id        String  @id @default(uuid())
-  productId String
-  objectKey String
-  mimeType  String
-  sizeBytes Int
-  isPrimary Boolean @default(false)
-  position  Int     @default(0)
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id          String  @id @default(uuid())
+  productId   String
+  objectKey   String
+  mimeType    String
+  sizeBytes   Int
+  isPrimary   Boolean @default(false)
+  position    Int     @default(0)
+  // Empreinte SHA-256 du fichier : repère un même fichier publié sur deux offres.
+  contentHash String?
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, position])
+  @@index([contentHash])
 }
 
 model ProductCredential {
@@ -324,6 +335,8 @@ model Order {
   supportTicket   SupportTicket[]
   pendingCredits  PendingCredit[]
   codeRequests    VerificationCodeRequest[]
+  // Commande née d'un échange (montant = complément ajouté par le client).
+  exchange        ExchangeRequest?
 
   @@index([buyerId, createdAt(sort: Desc)])
   // Phase 12 : /admin/plans trie les échéanciers par Order.createdAt DESC
@@ -669,6 +682,7 @@ model Message {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [senderId], references: [id])
+  images         ChatImage[]
 
   @@index([conversationId, createdAt])
   // Phase 12 : compteurs « non lus » de la liste de conversations
@@ -747,19 +761,22 @@ model Seller {
 // commission sur chaque vente. Pendant [startsAt, endsAt[, la commission est
 // de 0 %. Un contrat payé alors qu'un autre court démarre à sa fin.
 model SellerContract {
-  id         String               @id @default(uuid())
-  userId     String
-  months     Int
-  amount     Int
-  status     SellerContractStatus @default(PENDING)
-  paymentId  String?              @unique
-  startsAt   DateTime?
-  endsAt     DateTime?
-  remindedAt DateTime?
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
-  user       User                 @relation(fields: [userId], references: [id])
-  payment    Payment?             @relation(fields: [paymentId], references: [id])
+  id             String               @id @default(uuid())
+  userId         String
+  months         Int
+  amount         Int
+  // Commission pendant ce contrat, fixée à l'activation : 0 % le premier,
+  // 1 % au premier renouvellement, 2 % ensuite.
+  commissionRate Int                  @default(0)
+  status         SellerContractStatus @default(PENDING)
+  paymentId      String?              @unique
+  startsAt       DateTime?
+  endsAt         DateTime?
+  remindedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  user           User                 @relation(fields: [userId], references: [id])
+  payment        Payment?             @relation(fields: [paymentId], references: [id])
 
   @@index([userId, status])
   @@index([status, endsAt])
@@ -1052,6 +1069,7 @@ enum ManagerPermission {
   STATS
   SETTINGS
   SUPPORT
+  EXCHANGES
 }
 
 enum ShiftDay {
@@ -1111,6 +1129,104 @@ model ProductMessage {
   createdAt  DateTime      @default(now())
   thread     ProductThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author     User          @relation("ProductMessageAuthor", fields: [authorId], references: [id])
+  images     ChatImage[]
 
   @@index([threadId, createdAt])
+}
+
+// Image jointe à un message (discussion d'un compte ou messagerie du support).
+// Stockée dans l'espace privé, visible des seuls participants ; effacée après
+// le délai de conservation (purgedAt), sauf signalement ouvert.
+model ChatImage {
+  id               String          @id @default(uuid())
+  productMessageId String?
+  messageId        String?
+  objectKey        String          @unique
+  mimeType         String
+  sizeBytes        Int
+  purgedAt         DateTime?
+  createdAt        DateTime        @default(now())
+  productMessage   ProductMessage? @relation(fields: [productMessageId], references: [id], onDelete: Cascade)
+  message          Message?        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([productMessageId])
+  @@index([messageId])
+  @@index([purgedAt, createdAt])
+}
+
+// Demande d'échange : le client propose son compte (ID + vidéo) contre une
+// offre « échange accepté ». Le vendeur (ou l'équipe pour un compte MISTERDOU)
+// annonce le complément à ajouter ; le client confie d'abord ses identifiants à
+// l'équipe, qui vérifie le compte ; puis commande du complément et remise croisée.
+model ExchangeRequest {
+  id                     String         @id @default(uuid())
+  number                 String         @unique
+  productId              String
+  clientId               String
+  // Vendeur de l'offre au moment de la demande (null : compte MISTERDOU).
+  sellerId               String?
+  gameAccountId          String
+  // Code que le client montre dans sa vidéo (preuve qu'elle est récente).
+  proofCode              String
+  videoKey               String?
+  videoMime              String?
+  videoSize              Int?
+  videoHash              String?
+  videoPurgedAt          DateTime?
+  message                String?
+  status                 ExchangeStatus @default(PENDING)
+  replyDeadline          DateTime
+  topUpAmount            Int?
+  replyMessage           String?
+  repliedById            String?
+  repliedAt              DateTime?
+  quoteExpiresAt         DateTime?
+  paymentMode            PaymentMode    @default(ONE_TIME)
+  acceptedAt             DateTime?
+  // Identifiants du compte du client, chiffrés ; effacés si l'échange échoue.
+  encryptedLogin         String?
+  encryptedPassword      String?
+  custodyById            String?
+  custodyAt              DateTime?
+  custodyNote            String?
+  // Code de connexion demandé au client pendant la vérification (10 min).
+  custodyCodeRequestedAt DateTime?
+  custodyCodeEncrypted   String?
+  custodyCodeExpiresAt   DateTime?
+  orderId                String?        @unique
+  completedAt            DateTime?
+  closedAt               DateTime?
+  closeReason            String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  product                Product        @relation(fields: [productId], references: [id])
+  client                 User           @relation("ExchangeClient", fields: [clientId], references: [id])
+  order                  Order?         @relation(fields: [orderId], references: [id])
+
+  @@index([productId, status])
+  @@index([clientId, createdAt(sort: Desc)])
+  @@index([sellerId, status])
+  @@index([gameAccountId, status])
+  @@index([status, updatedAt])
+  @@index([videoHash])
+}
+
+enum ExchangeStatus {
+  // Attend la réponse du vendeur (ou de l'équipe).
+  PENDING
+  // Complément annoncé : attend l'accord du client.
+  QUOTED
+  // Client d'accord, identifiants confiés : l'équipe vérifie le compte.
+  ACCEPTED
+  // Compte vérifié : commande du complément en attente de paiement.
+  AWAITING_PAYMENT
+  COMPLETED
+  // Refusé par le vendeur.
+  REJECTED
+  // Proposition déclinée par le client.
+  DECLINED
+  // Compte du client refusé par l'équipe à la vérification.
+  CUSTODY_REFUSED
+  EXPIRED
+  CANCELLED
 }

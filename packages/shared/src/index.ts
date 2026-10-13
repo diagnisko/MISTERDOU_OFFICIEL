@@ -10,7 +10,7 @@ import { z } from "zod";
 export const ROLE_NAMES = ["CLIENT", "VENDOR", "STAFF", "ADMIN"] as const;
 export type RoleName = (typeof ROLE_NAMES)[number];
 
-// Permissions des managers (équipe admin) — 9 modules indépendants du rôle.
+// Permissions des managers (équipe admin) — 10 modules indépendants du rôle.
 export const MANAGER_PERMISSIONS = [
   "KYC",
   "PAYMENTS",
@@ -21,6 +21,7 @@ export const MANAGER_PERMISSIONS = [
   "STATS",
   "SETTINGS",
   "SUPPORT",
+  "EXCHANGES",
 ] as const;
 export type ManagerPermission = (typeof MANAGER_PERMISSIONS)[number];
 
@@ -34,6 +35,7 @@ export const MANAGER_PERMISSION_LABELS: Record<ManagerPermission, string> = {
   STATS: "Statistiques",
   SETTINGS: "Paramètres & équipe",
   SUPPORT: "Clients & support",
+  EXCHANGES: "Échanges de comptes",
 };
 
 export const MANAGER_PERMISSION_DESCRIPTIONS: Record<ManagerPermission, string> = {
@@ -46,6 +48,7 @@ export const MANAGER_PERMISSION_DESCRIPTIONS: Record<ManagerPermission, string> 
   STATS: "Accéder au tableau de bord et aux statistiques",
   SETTINGS: "Modifier les paramètres, l'équipe et le journal",
   SUPPORT: "Gérer les comptes clients (suspendre, consulter)",
+  EXCHANGES: "Récupérer et vérifier les comptes confiés lors des échanges",
 };
 
 // Jours de semaine (horaires des managers)
@@ -304,6 +307,11 @@ export const API_ERROR_CODES = [
   "EMAIL_NOT_REGISTERED",
   // Manager hors de ses créneaux : console fermée
   "OUTSIDE_SHIFT",
+  // ID eFootball déjà publié dans une autre offre (ou confié dans un échange)
+  "GAME_ID_IN_USE",
+  // Échanges de comptes
+  "EXCHANGE_UNAVAILABLE",
+  "EXCHANGE_EXPIRED",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 

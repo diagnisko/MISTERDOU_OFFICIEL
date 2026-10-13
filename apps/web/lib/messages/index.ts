@@ -8,8 +8,9 @@ import * as pages from "./pages";
 import * as shared from "./shared";
 import * as flow from "./flow";
 import * as seller from "./seller";
+import * as exchange from "./exchange";
 
-const areas = [common, home, catalogue, account, pages, shared, flow, seller] as const;
+const areas = [common, home, catalogue, account, pages, shared, flow, seller, exchange] as const;
 
 type Merge<T extends readonly { fr: object }[]> = T extends readonly [infer H extends { fr: object }, ...infer R extends { fr: object }[]]
   ? H["fr"] & Merge<R>

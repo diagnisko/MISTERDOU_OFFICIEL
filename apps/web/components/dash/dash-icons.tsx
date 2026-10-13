@@ -29,6 +29,13 @@ export const IconHome = (p: P) => (
     <path d="M10 21v-6h4v6" />
   </Svg>
 );
+// Échange de comptes : deux flèches opposées.
+export const IconSwap = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 8h13l-3.5-3.5" />
+    <path d="M20 16H7l3.5 3.5" />
+  </Svg>
+);
 export const IconUsers = (p: P) => (
   <Svg {...p}>
     <circle cx="9" cy="8" r="3.5" />

@@ -37,15 +37,23 @@ export async function getPublicMeta() {
   };
 }
 
+const CONTRACT_PRICE_DESCRIPTION = (length: string) =>
+  `Contrat revendeur ${length} (FCFA) : commission 0 % au premier contrat, 1 % au premier renouvellement, puis 2 %`;
+
 // Paramètres ajoutés après la mise en service : créés au démarrage s'ils
 // manquent (jamais écrasés), pour apparaître dans Console > Paramètres.
 const DEFAULT_SETTINGS = [
   { key: "supportWhatsapp", value: "+12272254876", valueType: "string", group: "support", description: "Numéro WhatsApp du support (vide = bouton masqué)" },
   { key: "supportEmail", value: "", valueType: "string", group: "support", description: "E-mail du support (vide = bouton masqué)" },
   { key: "sellerRegistrationFee", value: 1000, valueType: "int", group: "sellers", description: "Frais d'adhésion pour devenir vendeur (FCFA)" },
-  { key: "resellerContract6Price", value: 5000, valueType: "int", group: "sellers", description: "Contrat revendeur 6 mois, sans commission (FCFA)" },
-  { key: "resellerContract12Price", value: 8000, valueType: "int", group: "sellers", description: "Contrat revendeur 1 an, sans commission (FCFA)" },
-  { key: "resellerContract18Price", value: 10000, valueType: "int", group: "sellers", description: "Contrat revendeur 18 mois, sans commission (FCFA)" },
+  { key: "resellerContract6Price", value: 5000, valueType: "int", group: "sellers", description: CONTRACT_PRICE_DESCRIPTION("6 mois") },
+  { key: "resellerContract12Price", value: 8000, valueType: "int", group: "sellers", description: CONTRACT_PRICE_DESCRIPTION("1 an") },
+  { key: "resellerContract18Price", value: 10000, valueType: "int", group: "sellers", description: CONTRACT_PRICE_DESCRIPTION("18 mois") },
+  { key: "exchangeReplyHours", value: 48, valueType: "int", group: "exchanges", description: "Échanges : délai de réponse du vendeur à une demande (heures)" },
+  { key: "exchangeQuoteHours", value: 48, valueType: "int", group: "exchanges", description: "Échanges : délai laissé au client pour accepter le complément annoncé (heures)" },
+  { key: "exchangeVideoMaxMb", value: 100, valueType: "int", group: "exchanges", description: "Échanges : taille maximale de la vidéo du compte du client (Mo)" },
+  { key: "exchangeVideoRetentionDays", value: 30, valueType: "int", group: "exchanges", description: "Échanges : conservation de la vidéo après la fin de l'échange (jours)" },
+  { key: "chatImageRetentionDays", value: 30, valueType: "int", group: "support", description: "Images envoyées dans les messages : conservation (jours), sauf signalement ouvert" },
   { key: "legalEntityName", value: "", valueType: "string", group: "legal", description: "Pages légales : nom de l'entreprise ou de l'exploitant" },
   { key: "legalAddress", value: "", valueType: "string", group: "legal", description: "Pages légales : adresse du siège" },
   { key: "legalRegistration", value: "", valueType: "string", group: "legal", description: "Pages légales : NINEA / RCCM" },
@@ -68,6 +76,10 @@ const DEFAULT_SETTINGS = [
 
 export async function ensureDefaultSettings(): Promise<void> {
   await prisma.settings.createMany({ data: DEFAULT_SETTINGS, skipDuplicates: true });
+  // Libellés des contrats : seule la description suit les nouveaux taux, jamais le prix réglé.
+  for (const row of DEFAULT_SETTINGS.filter((s) => s.key.startsWith("resellerContract"))) {
+    await prisma.settings.updateMany({ where: { key: row.key, description: { contains: "sans commission" } }, data: { description: row.description } });
+  }
   await restoreCommissionOnce();
 }
 

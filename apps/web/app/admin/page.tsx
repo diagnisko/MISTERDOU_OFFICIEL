@@ -31,6 +31,8 @@ type Finance = {
   receivable: { amount: number; plans: number };
   dueThisMonth: { amount: number; count: number };
   overdue: { amount: number; count: number; plans: number };
+  sales?: { count: number; amount: number; commission: number };
+  exchanges?: { completed: number; inProgress: number; topUps: number; commission: number };
   monthly: Array<{ month: string; collected: number; expected: number }>;
 };
 
@@ -321,6 +323,25 @@ function FinanceOverview({ seeStats, seePayments }: { seeStats: boolean; seePaym
             }
             loading={loadingFinance}
           />
+        </section>
+      )}
+
+      {seeStats && finance?.sales && finance.exchanges && (
+        <section aria-label="Ventes et échanges" className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="dash-card flex flex-wrap items-baseline justify-between gap-2 px-5 py-4">
+            <span className="text-[12px] uppercase tracking-[0.16em] text-[#8f7d77]">Ventes des vendeurs</span>
+            <span className="text-[13px] text-stone-200">
+              {finance.sales.count} vente{finance.sales.count > 1 ? "s" : ""} · {formatXof(finance.sales.amount)} · commission{" "}
+              <strong className="text-white">{formatXof(finance.sales.commission)}</strong>
+            </span>
+          </div>
+          <Link href="/admin/echanges" className="dash-card flex flex-wrap items-baseline justify-between gap-2 px-5 py-4 transition hover:border-[rgba(255,106,50,0.35)]">
+            <span className="text-[12px] uppercase tracking-[0.16em] text-[#8f7d77]">Échanges</span>
+            <span className="text-[13px] text-stone-200">
+              {finance.exchanges.completed} conclu{finance.exchanges.completed > 1 ? "s" : ""} · {finance.exchanges.inProgress} en cours · compléments{" "}
+              {formatXof(finance.exchanges.topUps)} · commission <strong className="text-white">{formatXof(finance.exchanges.commission)}</strong>
+            </span>
+          </Link>
         </section>
       )}
 

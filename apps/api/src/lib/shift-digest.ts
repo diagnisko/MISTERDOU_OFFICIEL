@@ -80,6 +80,11 @@ export async function pendingWork(permissions: ManagerPermission[]): Promise<str
     const n = await prisma.verificationCodeRequest.count({ where: { status: "PENDING" } });
     if (n > 0) parts.push(plural(n, "code de vérification demandé", "codes de vérification demandés"));
   }
+  if (has("EXCHANGES")) {
+    // Comptes confiés à vérifier, et demandes sur les comptes MISTERDOU sans réponse.
+    const n = await prisma.exchangeRequest.count({ where: { OR: [{ status: "ACCEPTED" }, { status: "PENDING", sellerId: null }] } });
+    if (n > 0) parts.push(plural(n, "échange à traiter", "échanges à traiter"));
+  }
   return parts;
 }
 

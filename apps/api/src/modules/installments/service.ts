@@ -24,6 +24,7 @@ import { logAudit } from "../../lib/audit.js";
 import { notifyMany, notifyUser, type NotifyParams } from "../../lib/notify.js";
 import { logger } from "../../lib/logger.js";
 import { alertDoubleSale, markProductsSold } from "../orders/fulfillment.js";
+import { completeExchangeForOrder } from "../exchanges/lifecycle.js";
 import { plansFollowedElsewhere } from "../../legacy/follow.js";
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -257,6 +258,8 @@ export async function applyDownPayment(tx: Tx, payment: Payment): Promise<{ coun
       const order = await tx.order.findUnique({ where: { id: payment.orderId }, select: { orderNumber: true } });
       await alertDoubleSale(order?.orderNumber ?? payment.orderId, taken);
     }
+    // Échange réglé en mensualités : l'apport validé ouvre l'accès, la remise croisée a lieu.
+    await completeExchangeForOrder(tx, payment.orderId);
   }
 
   logger.info({ planId: plan.id, orderId: payment.orderId, totalPaid, months: surplus > 0 }, "[installments] apport enregistré");

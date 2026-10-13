@@ -5,6 +5,7 @@ import { badRequest, forbidden, notFound } from "../../lib/errors.js";
 import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { publicUrl } from "../../lib/media.js";
 import { houseAvatarUrl } from "../../lib/house.js";
+import { IMAGE_SELECT, checkImages, imagePreview, imagesDto, imagesField, type ImageInput } from "../chat-images/service.js";
 
 // ---------------------------------------------------------------------------
 // Discussion à propos d'un compte en vente.
@@ -23,7 +24,13 @@ export type ChatViewer = {
   isAdminSession?: boolean;
 };
 
-export const messageSchema = z.object({ content: z.string().trim().min(1, "Message vide").max(2000, "Message trop long") });
+// Texte, images (5 au plus), ou les deux.
+export const messageSchema = z
+  .object({ content: z.string().trim().max(2000, "Message trop long").default(""), images: imagesField })
+  .refine((m) => m.content.length > 0 || (m.images?.length ?? 0) > 0, { message: "Message vide" });
+
+/** Aperçu d'un message (notifications, listes) : le texte, sinon « 📷 Photo ». */
+const previewOf = (content: string, imageCount: number) => (content ? content : imagePreview(imageCount));
 
 const PREVIEW_LENGTH = 140;
 
@@ -146,7 +153,7 @@ async function lastMessage(threadId: string) {
   return prisma.productMessage.findFirst({
     where: { threadId },
     orderBy: { createdAt: "desc" },
-    select: { content: true, fromClient: true, createdAt: true },
+    select: { content: true, fromClient: true, createdAt: true, _count: { select: { images: true } } },
   });
 }
 
@@ -173,7 +180,7 @@ async function toSummary(thread: ThreadRow, side: ChatSide) {
     // Pour l'équipe : vendeur du compte (null = MISTERDOU).
     sellerName: platformThread(thread) ? null : publicName(thread.product.seller!.user, "Vendeur"),
     lastMessage: last
-      ? { preview: last.content.slice(0, PREVIEW_LENGTH), fromClient: last.fromClient, createdAt: last.createdAt.toISOString() }
+      ? { preview: previewOf(last.content, last._count.images).slice(0, PREVIEW_LENGTH), fromClient: last.fromClient, createdAt: last.createdAt.toISOString() }
       : null,
     unread,
     lastMessageAt: thread.lastMessageAt.toISOString(),
@@ -185,7 +192,7 @@ export type ThreadSummary = Awaited<ReturnType<typeof toSummary>>;
 // --- Client ------------------------------------------------------------------
 
 /** Le client écrit à propos d'un compte : ouvre le fil si besoin, puis ajoute le message. */
-export async function sendToSeller(productId: string, viewer: ChatViewer, content: string) {
+export async function sendToSeller(productId: string, viewer: ChatViewer, content: string, images?: ImageInput) {
   const product = await prisma.product.findFirst({
     where: { id: productId, deletedAt: null },
     select: { id: true, status: true, title: true, slug: true, ownerType: true, seller: { select: { userId: true } } },
@@ -198,6 +205,7 @@ export async function sendToSeller(productId: string, viewer: ChatViewer, conten
     select: { id: true },
   });
   if (!existing && product.status !== "ACTIVE") throw badRequest("INVALID_STATE", "Ce compte n'est plus en vente.");
+  const attached = await checkImages(viewer.user.id, images);
 
   const now = new Date();
   const thread = existing
@@ -207,13 +215,13 @@ export async function sendToSeller(productId: string, viewer: ChatViewer, conten
         select: { id: true },
       });
   const message = await prisma.productMessage.create({
-    data: { threadId: thread.id, authorId: viewer.user.id, fromClient: true, content, createdAt: now },
+    data: { threadId: thread.id, authorId: viewer.user.id, fromClient: true, content, createdAt: now, images: { create: attached } },
     select: { id: true },
   });
 
   const notice = {
     title: `Question sur « ${product.title} »`,
-    message: content.slice(0, PREVIEW_LENGTH),
+    message: previewOf(content, attached.length).slice(0, PREVIEW_LENGTH),
     priority: "NORMAL" as const,
   };
   // Compte d'un vendeur : c'est à lui de répondre. Compte MISTERDOU : l'équipe.
@@ -291,6 +299,7 @@ export async function getThread(threadId: string, viewer: ChatViewer) {
       createdAt: true,
       authorId: true,
       author: { select: { firstName: true, lastName: true, role: { select: { name: true } } } },
+      images: IMAGE_SELECT,
     },
   });
 
@@ -311,20 +320,21 @@ export async function getThread(threadId: string, viewer: ChatViewer) {
   return {
     ...(await toSummary({ ...thread, ...(side === "client" ? { clientLastReadAt: now } : {}) }, side)),
     side,
-    messages: messages.map((m) => ({
+    messages: await Promise.all(messages.map(async (m) => ({
       id: m.id,
       content: m.content,
+      images: await imagesDto(m.images),
       createdAt: m.createdAt.toISOString(),
       mine: m.authorId === viewer.user.id,
       // Aligné à droite pour tout le côté du lecteur (le vendeur voit aussi les réponses de l'équipe « de son côté »).
       ownSide: side === "client" ? m.fromClient : !m.fromClient,
       author: authorLabel(m),
-    })),
+    }))),
   };
 }
 
 /** Répondre dans un fil existant (client ou côté vente). */
-export async function postInThread(threadId: string, viewer: ChatViewer, content: string) {
+export async function postInThread(threadId: string, viewer: ChatViewer, content: string, images?: ImageInput) {
   const thread = await prisma.productThread.findUnique({ where: { id: threadId }, select: threadSelect });
   if (!thread) throw notFound("Discussion introuvable.");
   const side = await sideIn(thread, viewer);
@@ -333,9 +343,10 @@ export async function postInThread(threadId: string, viewer: ChatViewer, content
   }
   const fromClient = side === "client";
   const now = new Date();
+  const attached = await checkImages(viewer.user.id, images);
 
   const message = await prisma.productMessage.create({
-    data: { threadId, authorId: viewer.user.id, fromClient, content, createdAt: now },
+    data: { threadId, authorId: viewer.user.id, fromClient, content, createdAt: now, images: { create: attached } },
     select: { id: true },
   });
   await prisma.productThread.update({
@@ -346,7 +357,7 @@ export async function postInThread(threadId: string, viewer: ChatViewer, content
     },
   });
 
-  const preview = content.slice(0, PREVIEW_LENGTH);
+  const preview = previewOf(content, attached.length).slice(0, PREVIEW_LENGTH);
   if (fromClient) {
     const sellerUserId = thread.product.seller?.userId;
     if (sellerUserId) {

@@ -150,6 +150,8 @@ export interface CatalogueDetail {
   canSplit: boolean;
   schedule: LuxSchedule | null;
   isFeatured: boolean;
+  /** Le vendeur accepte d'échanger ce compte. */
+  acceptsExchange?: boolean;
   publishedAt: string | null;
   description: string;
   extraInfo: string | null;

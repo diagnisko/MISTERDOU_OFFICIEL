@@ -1,4 +1,5 @@
 import { request } from "./api";
+import type { AttachedImage, MessageImage } from "@/components/chat/chat-images";
 
 // Discussions à propos d'un compte en vente (client ↔ côté vente).
 
@@ -18,7 +19,15 @@ export type ThreadSummary = {
   lastMessageAt: string;
 };
 
-export type ThreadMessage = { id: string; content: string; createdAt: string; mine: boolean; ownSide: boolean; author: string };
+export type ThreadMessage = {
+  id: string;
+  content: string;
+  images?: MessageImage[];
+  createdAt: string;
+  mine: boolean;
+  ownSide: boolean;
+  author: string;
+};
 
 export type ThreadDetail = ThreadSummary & { side: "client" | "seller" | "team" | "observer"; messages: ThreadMessage[] };
 
@@ -30,8 +39,8 @@ export const fetchThread = (id: string) => request<ThreadDetail>(`/api/v1/thread
 
 export const fetchProductThread = (productId: string) => request<ThreadDetail | null>(`/api/v1/products/${productId}/thread`);
 
-export const writeToSeller = (productId: string, content: string) =>
-  request<{ threadId: string }>(`/api/v1/products/${productId}/thread`, { method: "POST", body: JSON.stringify({ content }) });
+export const writeToSeller = (productId: string, content: string, images: AttachedImage[] = []) =>
+  request<{ threadId: string }>(`/api/v1/products/${productId}/thread`, { method: "POST", body: JSON.stringify({ content, images }) });
 
-export const replyInThread = (threadId: string, content: string) =>
-  request<{ messageId: string }>(`/api/v1/threads/${threadId}/messages`, { method: "POST", body: JSON.stringify({ content }) });
+export const replyInThread = (threadId: string, content: string, images: AttachedImage[] = []) =>
+  request<{ messageId: string }>(`/api/v1/threads/${threadId}/messages`, { method: "POST", body: JSON.stringify({ content, images }) });

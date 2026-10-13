@@ -4,6 +4,7 @@ import { logAudit } from "../../lib/audit.js";
 import { deleteFile } from "../../lib/storage.js";
 import { logger } from "../../lib/logger.js";
 import type { OpsActor } from "./service.js";
+import { ERASE_CLIENT_SECRETS } from "../exchanges/lifecycle.js";
 
 // ---------------------------------------------------------------------------
 // Effacement d'une COMMANDE DE TEST (administrateur, mot de passe exigé) :
@@ -25,6 +26,7 @@ export async function purgeTestOrder(orderId: string, actor: OpsActor) {
       totalAmount: true,
       items: { select: { id: true, productId: true, commission: { select: { id: true, sellerId: true, status: true, netToSeller: true, commissionAmount: true } } } },
       payments: { select: { id: true, amount: true, status: true, proofs: { select: { screenshotKey: true } } } },
+      exchange: { select: { status: true } },
     },
   });
   if (!order) throw notFound("Commande introuvable.");
@@ -69,6 +71,16 @@ export async function purgeTestOrder(orderId: string, actor: OpsActor) {
 
     await tx.productReview.deleteMany({ where: { userId: order.buyerId, productId: { in: productIds } } });
     await tx.notification.deleteMany({ where: { actionUrl: { contains: order.id } } });
+    // Échange lié à cette commande : il est clos (le compte du client n'est plus utilisé).
+    await tx.exchangeRequest.updateMany({
+      where: { orderId: order.id },
+      data: {
+        orderId: null,
+        ...(order.exchange && order.exchange.status !== "COMPLETED"
+          ? { status: "CANCELLED" as const, closedAt: new Date(), closeReason: "Commande de test effacée.", ...ERASE_CLIENT_SECRETS }
+          : {}),
+      },
+    });
     await tx.orderItem.deleteMany({ where: { orderId: order.id } });
     await tx.order.delete({ where: { id: order.id } });
 

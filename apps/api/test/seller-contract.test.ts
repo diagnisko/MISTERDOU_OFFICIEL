@@ -4,7 +4,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
 import { cleanup, createProduct, createUser, expectApiError, track, tracker } from "./helpers.js";
-import { addMonths, contractState, requestContract, runContractJobs } from "../src/modules/seller/contract.js";
+import { addMonths, contractRateFor, contractState, requestContract, runContractJobs } from "../src/modules/seller/contract.js";
 import { settlePayment } from "../src/modules/payments/service.js";
 import { createOrder } from "../src/modules/orders/service.js";
 
@@ -103,6 +103,34 @@ describe("Contrat revendeur", () => {
     expect(await prisma.notification.count({ where: { userId: client.id, title: "Contrat revendeur terminé" } })).toBe(1);
     const paid = await sale(client.id, 20_000);
     expect(paid).toMatchObject({ commissionRate: 15, commissionAmount: 3_000 });
+  });
+
+  it("taux : 0 % au premier contrat, 1 % au premier renouvellement, puis 2 % ; sans contrat, 15 %", async () => {
+    expect([0, 1, 2, 3, 7].map(contractRateFor)).toEqual([0, 1, 2, 2, 2]);
+    const client = await createUser(t, { kycVerified: true });
+    expect((await contractState(client.id)).nextContractRate).toBe(0);
+
+    await payContract(client.id, 6);
+    expect((await sale(client.id, 20_000)).commissionRate).toBe(0);
+    expect((await contractState(client.id)).nextContractRate).toBe(1);
+
+    // Premier renouvellement (à la suite) : 1 % une fois le premier contrat fini.
+    await payContract(client.id, 12);
+    const [first, second] = await prisma.sellerContract.findMany({ where: { userId: client.id, status: "ACTIVE" }, orderBy: { startsAt: "asc" } });
+    expect([first!.commissionRate, second!.commissionRate]).toEqual([0, 1]);
+    await prisma.sellerContract.update({ where: { id: first!.id }, data: { startsAt: new Date(Date.now() - 200 * DAY_MS), endsAt: new Date(Date.now() - 1000) } });
+    await prisma.sellerContract.update({ where: { id: second!.id }, data: { startsAt: new Date(Date.now() - 1000) } });
+    await runContractJobs();
+    expect(await sale(client.id, 20_000)).toMatchObject({ commissionRate: 1, commissionAmount: 200, netToSeller: 19_800 });
+    expect((await contractState(client.id)).current?.commissionRate).toBe(1);
+
+    // Pause : plus de contrat → 15 % ; reprise = renouvellement → 2 %, et ça reste à 2 %.
+    await prisma.sellerContract.update({ where: { id: second!.id }, data: { endsAt: new Date(Date.now() - 500) } });
+    await runContractJobs();
+    expect((await sale(client.id, 20_000)).commissionRate).toBe(15);
+    await payContract(client.id, 6);
+    expect((await sale(client.id, 20_000)).commissionRate).toBe(2);
+    expect((await contractState(client.id)).nextContractRate).toBe(2);
   });
 
   it("calcule les fins de mois sans déborder", () => {

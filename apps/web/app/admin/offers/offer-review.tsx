@@ -30,7 +30,15 @@ type Review = {
   createdAt: string;
   updatedAt: string;
   hasCredentials: boolean;
-  media: Array<{ id: string; url: string; video: boolean }>;
+  gameAccountId: string | null;
+  acceptsExchange: boolean;
+  gameIdHistory: Array<{ kind: "sale" | "exchange"; title: string; reference: string; at: string }>;
+  media: Array<{
+    id: string;
+    url: string;
+    video: boolean;
+    duplicates: Array<{ kind: "offer"; productId: string; title: string; slug: string } | { kind: "exchange"; exchangeId: string; number: string }>;
+  }>;
   seller: { id: string; name: string; email: string } | null;
 };
 
@@ -105,7 +113,27 @@ export function OfferReviewModal({ productId, onClose, onDone }: { productId: st
               : "comptant"}
             {" · "}
             Identifiants {offer.hasCredentials ? "enregistrés ✓" : "manquants ✗"}
+            {" · "}
+            Échange {offer.acceptsExchange ? "accepté" : "non"}
           </p>
+
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+            <p className="text-[10.5px] uppercase tracking-[0.16em] text-[#8f7d77]">ID eFootball</p>
+            {offer.gameAccountId ? (
+              <p className="mt-0.5 select-all font-mono text-[14px] text-stone-100">{offer.gameAccountId}</p>
+            ) : (
+              <p className="mt-0.5 text-[13px] text-[#fbbf24]">Aucun ID (offre publiée avant la règle) : il sera exigé à la prochaine modification.</p>
+            )}
+            {offer.gameIdHistory.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-[12px] text-[#fcd9a5]">
+                {offer.gameIdHistory.map((h) => (
+                  <li key={h.reference}>
+                    Déjà {h.kind === "sale" ? "vendu" : "reçu par échange"} ici le {new Date(h.at).toLocaleDateString("fr-FR")} ({h.reference})
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div>
             <p className="text-[11px] uppercase tracking-[0.16em] text-[#8f7d77]">Description</p>
@@ -118,6 +146,18 @@ export function OfferReviewModal({ productId, onClose, onDone }: { productId: st
             {offer.media.length === 0 ? (
               <p className="mt-1.5 text-[13px] text-[#fbbf24]">Aucune photo pour l’instant : le vendeur peut encore en ajouter.</p>
             ) : (
+              <>
+              {offer.media.some((m) => m.duplicates.length > 0) && (
+                <Alert tone="warning">
+                  Fichier identique déjà vu ailleurs :{" "}
+                  {offer.media
+                    .flatMap((m) => m.duplicates)
+                    .map((d) => (d.kind === "offer" ? `« ${d.title} »` : `échange ${d.number}`))
+                    .filter((v, i, all) => all.indexOf(v) === i)
+                    .join(", ")}
+                  . Vérifiez qu’il ne s’agit pas du même compte (simple alerte, rien n’est bloqué).
+                </Alert>
+              )}
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {offer.media.map((m) =>
                   m.video ? (
@@ -130,6 +170,7 @@ export function OfferReviewModal({ productId, onClose, onDone }: { productId: st
                   ),
                 )}
               </div>
+              </>
             )}
           </div>
 

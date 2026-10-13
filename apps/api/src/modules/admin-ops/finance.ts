@@ -76,6 +76,22 @@ export async function financeOverview(now = new Date()) {
     }
   }
 
+  // Ventes et échanges séparés : nombre, montants et commission de la plateforme.
+  const [saleCommission, exchangeCommission, exchangesDone, exchangesOpen, exchangeTopUps] = await Promise.all([
+    prisma.commission.aggregate({
+      where: { status: { not: "REFUNDED" }, orderItem: { order: { exchange: { is: null } } } },
+      _sum: { commissionAmount: true, orderAmount: true },
+      _count: true,
+    }),
+    prisma.commission.aggregate({
+      where: { status: { not: "REFUNDED" }, orderItem: { order: { exchange: { isNot: null } } } },
+      _sum: { commissionAmount: true },
+    }),
+    prisma.exchangeRequest.count({ where: { status: "COMPLETED" } }),
+    prisma.exchangeRequest.count({ where: { status: { in: ["PENDING", "QUOTED", "ACCEPTED", "AWAITING_PAYMENT"] } } }),
+    prisma.exchangeRequest.aggregate({ where: { status: "COMPLETED" }, _sum: { topUpAmount: true } }),
+  ]);
+
   const collected = new Map(collectedRows.map((r) => [r.month, Number(r.total)]));
   const expected = new Map(expectedRows.map((r) => [r.month, Number(r.total)]));
   const monthly = Array.from({ length: 12 }, (_, k) => {
@@ -90,6 +106,17 @@ export async function financeOverview(now = new Date()) {
     receivable: { amount: receivable, plans: plans.size },
     dueThisMonth: { amount: dueThisMonth, count: dueThisMonthCount },
     overdue: { amount: overdue, count: overdueCount, plans: overduePlans.size },
+    sales: {
+      count: saleCommission._count,
+      amount: saleCommission._sum.orderAmount ?? 0,
+      commission: saleCommission._sum.commissionAmount ?? 0,
+    },
+    exchanges: {
+      completed: exchangesDone,
+      inProgress: exchangesOpen,
+      topUps: exchangeTopUps._sum.topUpAmount ?? 0,
+      commission: exchangeCommission._sum.commissionAmount ?? 0,
+    },
     monthly,
   };
 }

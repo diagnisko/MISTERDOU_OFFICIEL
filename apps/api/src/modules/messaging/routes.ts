@@ -19,6 +19,7 @@ import {
   USER_NAME_SELECT,
   type NamedUser,
 } from "./service.js";
+import { IMAGE_SELECT, checkImages, imagePreview, imagesDto, imagesField } from "../chat-images/service.js";
 
 const TAG = "Messagerie";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,10 +34,14 @@ const createConversationSchema = z.object({
   withUserId: z.string().uuid().optional(),
 });
 
-const postMessageSchema = z.object({
-  content: z.string().trim().min(1).max(4000),
-  attachmentKey: z.string().trim().max(300).optional(),
-});
+// Texte, images (5 au plus), ou les deux.
+const postMessageSchema = z
+  .object({
+    content: z.string().trim().max(4000).default(""),
+    attachmentKey: z.string().trim().max(300).optional(),
+    images: imagesField,
+  })
+  .refine((m) => m.content.length > 0 || (m.images?.length ?? 0) > 0, { message: "Message vide" });
 
 const recipientsQuery = z.object({ q: z.string().trim().min(2).max(120) });
 
@@ -89,7 +94,7 @@ function toDto(convo: ConversationRow, viewerId: string) {
         : convo.participantBUserId === viewerId
           ? a
           : null,
-    lastMessage: last ? { content: last.content, createdAt: last.createdAt, senderId: last.senderId } : null,
+    lastMessage: last ? { content: last.content || imagePreview(1), createdAt: last.createdAt, senderId: last.senderId } : null,
     unread: convo._count.message,
     createdAt: convo.createdAt,
     updatedAt: convo.updatedAt,
@@ -313,14 +318,16 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           createdAt: true,
           readAt: true,
           user: { select: { firstName: true, lastName: true, avatarKey: true } },
+          images: IMAGE_SELECT,
         },
       });
       const hasMore = rows.length > args.limit;
       const window = (hasMore ? rows.slice(0, args.limit) : rows).reverse();
       return sendOk(reply, {
-        items: window.map((m) => ({
+        items: await Promise.all(window.map(async (m) => ({
           id: m.id,
           content: m.content,
+          images: await imagesDto(m.images),
           senderId: m.senderId,
           senderName: m.isSystem ? "Système" : displayName(m.user) || "Utilisateur",
           senderAvatarUrl: !m.isSystem && m.user.avatarKey ? publicUrl(m.user.avatarKey) : null,
@@ -328,7 +335,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           attachmentKey: m.attachmentKey,
           createdAt: m.createdAt,
           readAt: m.readAt,
-        })),
+        }))),
         nextBefore: hasMore && window[0] ? window[0].createdAt.toISOString() : null,
       });
     },
@@ -353,9 +360,11 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
       const isParticipant =
         convo.participantAUserId === auth.user.id || convo.participantBUserId === auth.user.id;
       if (!isParticipant && !(await canModerate(auth))) throw notFound("Conversation introuvable.");
+      const attached = await checkImages(auth.user.id, input.images);
+      const preview = input.content || imagePreview(attached.length);
 
       const message = await prisma.message.create({
-        data: { conversationId: id, senderId: auth.user.id, content: input.content, attachmentKey: input.attachmentKey },
+        data: { conversationId: id, senderId: auth.user.id, content: input.content, attachmentKey: input.attachmentKey, images: { create: attached } },
         select: {
           id: true,
           content: true,
@@ -364,6 +373,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           attachmentKey: true,
           createdAt: true,
           readAt: true,
+          images: IMAGE_SELECT,
         },
       });
       await prisma.conversation.update({ where: { id }, data: { updatedAt: new Date() } });
@@ -390,7 +400,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           "NEW_MESSAGE",
           {
             title: senderName,
-            message: input.content.slice(0, 120),
+            message: preview.slice(0, 120),
             actionUrl: "/messages",
             priority: "NORMAL",
           },
@@ -405,7 +415,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
           "ADMIN_ALERT",
           {
             title: `Nouveau message de ${displayName(sender) || "un membre"}`,
-            message: input.content.slice(0, 120),
+            message: preview.slice(0, 120),
             actionUrl: "/admin/messages",
             priority: "NORMAL",
           },
@@ -422,6 +432,7 @@ export async function registerMessagingRoutes(app: FastifyInstance) {
         senderName,
         isSystem: message.isSystem,
         attachmentKey: message.attachmentKey,
+        images: await imagesDto(message.images),
         createdAt: message.createdAt,
         readAt: message.readAt,
       });

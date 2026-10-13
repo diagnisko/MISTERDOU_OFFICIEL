@@ -9,6 +9,10 @@ import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { publicUrl } from "../../lib/media.js";
 import { getIntSetting } from "../settings/service.js";
 import { holdsReservation } from "../orders/fulfillment.js";
+import { HOLD_STATUSES } from "../exchanges/hold.js";
+import { assertGameIdFree, gameIdHistory, lockGameId, parseGameId } from "./game-id.js";
+import { duplicateMediaFor } from "../media/fingerprint.js";
+import { closeOpenExchangeRequests } from "../exchanges/lifecycle.js";
 
 // ---------------------------------------------------------------------------
 // Création et modification des offres.
@@ -34,6 +38,9 @@ const baseFields = {
   paymentMode: z.enum(["ONE_TIME", "INSTALLMENTS"]),
   installmentMonths: z.number().int().min(2).max(24).optional().nullable(),
   installmentDownPayment: z.number().int().min(0).optional().nullable(),
+  // ID du compte dans eFootball : obligatoire, unique sur le site (voir game-id.ts).
+  gameAccountId: z.string().trim().min(1, "ID eFootball obligatoire").max(60),
+  acceptsExchange: z.boolean().default(false),
 };
 
 const credentialsFields = {
@@ -103,7 +110,20 @@ function fields(input: UpdateOfferInput) {
     extraInfo: input.extraInfo?.trim() || null,
     basePrice: input.basePrice,
     paymentMode: input.paymentMode,
+    gameAccountId: parseGameId(input.gameAccountId),
+    acceptsExchange: input.acceptsExchange,
   };
+}
+
+/** Qui publie, pour l'alerte envoyée à l'équipe quand l'ID est déjà en ligne. */
+async function publisherLabel(owner: OfferOwner): Promise<string> {
+  if (owner.kind !== "seller") return "L’équipe a voulu publier une offre MISTERDOU";
+  const seller = await prisma.seller.findUnique({
+    where: { id: owner.sellerId },
+    select: { user: { select: { firstName: true, lastName: true, email: true } } },
+  });
+  const name = [seller?.user.firstName, seller?.user.lastName].filter(Boolean).join(" ") || seller?.user.email || "Un vendeur";
+  return `${name} a voulu publier une offre`;
 }
 
 function encryptedCredentials(c: { loginId: string; password: string }) {
@@ -120,20 +140,27 @@ export async function activeSellerId(userId: string): Promise<string> {
 
 export async function createOffer(input: CreateOfferInput, owner: OfferOwner, actor: OfferActor) {
   const terms = await paymentTerms(input);
+  const data = fields(input);
+  const sellerId = owner.kind === "seller" ? owner.sellerId : null;
+  const context = await publisherLabel(owner);
   const now = new Date();
-  const product = await prisma.product.create({
-    data: {
-      ...fields(input),
-      ...terms,
-      slug: slugFor(input.title),
-      ownerType: owner.kind === "seller" ? "VENDOR" : "ADMIN",
-      sellerId: owner.kind === "seller" ? owner.sellerId : null,
-      // Offre d'un vendeur : en ligne seulement après validation de l'équipe.
-      status: owner.kind === "seller" ? "PENDING_REVIEW" : "ACTIVE",
-      publishedAt: owner.kind === "seller" ? null : now,
-      credential: { create: encryptedCredentials(input.credentials) },
-    },
-    select: { id: true, slug: true },
+  const product = await prisma.$transaction(async (tx) => {
+    await lockGameId(tx, data.gameAccountId);
+    await assertGameIdFree(tx, data.gameAccountId, { sellerId, context });
+    return tx.product.create({
+      data: {
+        ...data,
+        ...terms,
+        slug: slugFor(input.title),
+        ownerType: owner.kind === "seller" ? "VENDOR" : "ADMIN",
+        sellerId,
+        // Offre d'un vendeur : en ligne seulement après validation de l'équipe.
+        status: owner.kind === "seller" ? "PENDING_REVIEW" : "ACTIVE",
+        publishedAt: owner.kind === "seller" ? null : now,
+        credential: { create: encryptedCredentials(input.credentials) },
+      },
+      select: { id: true, slug: true },
+    });
   });
   await logAudit({
     actorId: actor.actorId,
@@ -162,7 +189,15 @@ async function askForReview(title: string, edited: boolean) {
 async function editable(productId: string, owner: OfferOwner) {
   const product = await prisma.product.findFirst({
     where: { id: productId, deletedAt: null },
-    select: { id: true, slug: true, status: true, sellerId: true, title: true, seller: { select: { userId: true } } },
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      sellerId: true,
+      title: true,
+      seller: { select: { userId: true } },
+      ...CONTENT_SELECT,
+    },
   });
   if (!product) throw notFound("Offre introuvable.");
   const mine =
@@ -175,7 +210,42 @@ async function editable(productId: string, owner: OfferOwner) {
     where: { productId, order: { OR: [{ status: { in: ["PARTIALLY_PAID", "PAID"] } }, holdsReservation()] } },
   });
   if (busy > 0) throw conflict("PRODUCT_RESERVED", "Un achat est en cours sur cette offre : réessayez plus tard.");
+  const exchanging = await prisma.exchangeRequest.count({ where: { productId, status: { in: [...HOLD_STATUSES] } } });
+  if (exchanging > 0) throw conflict("PRODUCT_RESERVED", "Un échange est en cours sur cette offre : réessayez quand il sera terminé.");
   return product;
+}
+
+// Contenu d'une offre : le changer renvoie l'offre d'un vendeur en validation.
+// « Échange accepté » n'en fait pas partie (simple préférence du vendeur).
+const CONTENT_SELECT = {
+  description: true,
+  division: true,
+  teamPower: true,
+  coins: true,
+  extraInfo: true,
+  basePrice: true,
+  paymentMode: true,
+  installmentMonths: true,
+  installmentDownPayment: true,
+  gameAccountId: true,
+} as const;
+
+type OfferContent = {
+  title: string;
+  description: string;
+  division: string;
+  teamPower: number;
+  coins: number;
+  extraInfo: string | null;
+  basePrice: number;
+  paymentMode: string;
+  installmentMonths: number | null;
+  installmentDownPayment: number | null;
+  gameAccountId: string | null;
+};
+
+function contentChanged(before: OfferContent, after: OfferContent): boolean {
+  return (Object.keys(after) as Array<keyof OfferContent>).some((key) => before[key] !== after[key]);
 }
 
 export async function getOfferForEdit(productId: string, owner: OfferOwner) {
@@ -200,6 +270,8 @@ export async function getOfferForEdit(productId: string, owner: OfferOwner) {
       installmentMonths: true,
       installmentDownPayment: true,
       rejectedReason: true,
+      gameAccountId: true,
+      acceptsExchange: true,
       credential: { select: { id: true } },
     },
   });
@@ -211,22 +283,45 @@ export async function getOfferForEdit(productId: string, owner: OfferOwner) {
 export async function updateOffer(productId: string, input: UpdateOfferInput, owner: OfferOwner, actor: OfferActor) {
   const product = await editable(productId, owner);
   const terms = await paymentTerms(input);
-  // Un vendeur qui modifie son offre la renvoie en validation (elle quitte le site d'ici là).
-  const review = owner.kind === "seller";
-  await prisma.product.update({
-    where: { id: product.id },
-    data: {
-      ...fields(input),
-      ...terms,
-      ...(review ? { status: "PENDING_REVIEW" as const, rejectedReason: null, reviewedBy: null } : {}),
-      ...(input.credentials
-        ? {
-            credential: {
-              upsert: { create: encryptedCredentials(input.credentials), update: encryptedCredentials(input.credentials) },
-            },
-          }
-        : {}),
-    },
+  const data = fields(input);
+  // Un vendeur qui modifie le contenu de son offre la renvoie en validation (elle
+  // quitte le site d'ici là). Changer seulement « Échange accepté » ne la retire pas.
+  const changed =
+    Boolean(input.credentials) ||
+    contentChanged(product, {
+      title: data.title,
+      description: data.description,
+      division: data.division,
+      teamPower: data.teamPower,
+      coins: data.coins,
+      extraInfo: data.extraInfo,
+      basePrice: data.basePrice,
+      paymentMode: data.paymentMode,
+      installmentMonths: terms.installmentMonths,
+      installmentDownPayment: terms.installmentDownPayment,
+      gameAccountId: data.gameAccountId,
+    });
+  const review = owner.kind === "seller" && (changed || product.status !== "ACTIVE");
+  const sellerId = owner.kind === "seller" ? owner.sellerId : product.sellerId;
+  const context = await publisherLabel(owner);
+  await prisma.$transaction(async (tx) => {
+    await lockGameId(tx, data.gameAccountId);
+    await assertGameIdFree(tx, data.gameAccountId, { sellerId, context, exclude: { productId: product.id } });
+    await tx.product.update({
+      where: { id: product.id },
+      data: {
+        ...data,
+        ...terms,
+        ...(review ? { status: "PENDING_REVIEW" as const, rejectedReason: null, reviewedBy: null } : {}),
+        ...(input.credentials
+          ? {
+              credential: {
+                upsert: { create: encryptedCredentials(input.credentials), update: encryptedCredentials(input.credentials) },
+              },
+            }
+          : {}),
+      },
+    });
   });
   await logAudit({
     actorId: actor.actorId,
@@ -235,10 +330,41 @@ export async function updateOffer(productId: string, input: UpdateOfferInput, ow
     action: "OFFER_UPDATED",
     resourceType: "Product",
     resourceId: product.id,
-    metadata: { basePrice: input.basePrice, credentialsChanged: Boolean(input.credentials), sentToReview: review },
+    metadata: {
+      basePrice: input.basePrice,
+      credentialsChanged: Boolean(input.credentials),
+      sentToReview: review,
+      acceptsExchange: input.acceptsExchange,
+    },
   });
   if (review) await askForReview(input.title, true);
+  if (!input.acceptsExchange) await closeOpenExchangeRequests(product.id, "Le vendeur n’accepte plus d’échange pour ce compte.");
   return { id: product.id, slug: product.slug, status: review ? "PENDING_REVIEW" : product.status };
+}
+
+/** Interrupteur « Échange accepté » seul : jamais de nouvelle validation. */
+export async function setOfferExchange(productId: string, acceptsExchange: boolean, owner: OfferOwner, actor: OfferActor) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, deletedAt: null },
+    select: { id: true, sellerId: true, status: true },
+  });
+  if (!product) throw notFound("Offre introuvable.");
+  const mine =
+    owner.kind === "moderator" ? true : owner.kind === "seller" ? product.sellerId === owner.sellerId : product.sellerId === null;
+  if (!mine) throw forbidden("Cette offre ne vous appartient pas.");
+  if (product.status === "SOLD") throw conflict("INVALID_STATE", "Cette offre est vendue.");
+  await prisma.product.update({ where: { id: product.id }, data: { acceptsExchange } });
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: "OFFER_EXCHANGE_SET",
+    resourceType: "Product",
+    resourceId: product.id,
+    metadata: { acceptsExchange },
+  });
+  if (!acceptsExchange) await closeOpenExchangeRequests(product.id, "Le vendeur n’accepte plus d’échange pour ce compte.");
+  return { id: product.id, acceptsExchange };
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +395,8 @@ export async function getOfferForReview(productId: string) {
       installmentMonths: true,
       installmentDownPayment: true,
       rejectedReason: true,
+      gameAccountId: true,
+      acceptsExchange: true,
       createdAt: true,
       updatedAt: true,
       credential: { select: { id: true } },
@@ -278,10 +406,22 @@ export async function getOfferForReview(productId: string) {
   });
   if (!product) throw notFound("Offre introuvable.");
   const { credential, images, seller, ...rest } = product;
+  const [history, duplicates] = await Promise.all([
+    product.gameAccountId ? gameIdHistory(product.gameAccountId, product.id) : Promise.resolve([]),
+    duplicateMediaFor(images.map((m) => m.id)),
+  ]);
   return {
     ...rest,
     hasCredentials: credential !== null,
-    media: images.map((m) => ({ id: m.id, url: publicUrl(m.objectKey), video: m.mimeType.startsWith("video/") })),
+    // Ventes et échanges passés de ce même compte (republication après vente).
+    gameIdHistory: history,
+    media: images.map((m) => ({
+      id: m.id,
+      url: publicUrl(m.objectKey),
+      video: m.mimeType.startsWith("video/"),
+      // Même fichier déjà vu ailleurs (autre offre ou vidéo d'échange) : simple alerte.
+      duplicates: duplicates.get(m.id) ?? [],
+    })),
     seller: seller
       ? { id: seller.id, name: [seller.user.firstName, seller.user.lastName].filter(Boolean).join(" ") || "Vendeur", email: seller.user.email }
       : null,
@@ -349,6 +489,7 @@ export async function removeOffer(productId: string, owner: OfferOwner, actor: O
     metadata: { by: owner.kind },
     severity: "WARNING",
   });
+  await closeOpenExchangeRequests(product.id, "Ce compte a été retiré de la vente.");
   // Offre d'un vendeur supprimée par l'équipe : il est prévenu.
   if (owner.kind === "moderator" && product.seller) {
     await notifyUser(product.seller.userId, "SYSTEM", {

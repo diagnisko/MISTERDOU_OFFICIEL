@@ -7,6 +7,7 @@ import { IconArrowRight, IconCoins, IconDiamond, IconSparkle, IconStar } from ".
 import { divisionTier, formatFcfa, formatInt, type LuxCardData } from "@/lib/lux";
 import { useT } from "@/lib/i18n";
 import { SellerChip } from "./lux-seller-badge";
+import { IconSwap } from "@/components/dash/dash-icons";
 
 const CARD: Variants = {
   hidden: { opacity: 0, y: 40 },
@@ -134,6 +135,12 @@ export function ProductCard({
             t("card.cash")
           )}
         </span>
+        {product.acceptsExchange && (
+          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[var(--lux-gold-light)]">
+            <IconSwap size={14} />
+            {t("card.exchange")}
+          </span>
+        )}
 
         <Link
           href={detailHref}

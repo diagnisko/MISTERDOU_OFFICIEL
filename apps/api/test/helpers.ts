@@ -102,6 +102,10 @@ export async function cleanup(t: Tracked): Promise<void> {
   await prisma.productThread.deleteMany({
     where: { OR: [{ clientId: { in: t.userIds } }, { productId: { in: t.productIds } }, { messages: { some: { authorId: { in: t.userIds } } } }] },
   });
+  // Demandes d'échange (→ client, offre et commande : RESTRICT).
+  await prisma.exchangeRequest.deleteMany({
+    where: { OR: [{ clientId: { in: t.userIds } }, { productId: { in: t.productIds } }, { orderId: { in: t.orderIds } }] },
+  });
   // Notifications + journal (avant les entités : AuditLog.userId est SET NULL).
   await prisma.notification.deleteMany({ where: { userId: { in: t.userIds } } });
   await sweepForeignNotifications();
@@ -408,6 +412,8 @@ export interface CreateProductOptions {
   status?: ProductStatus;
   published?: boolean;
   withCredential?: boolean;
+  gameAccountId?: string | null;
+  acceptsExchange?: boolean;
 }
 
 export async function createProduct(t: Tracked, opts: CreateProductOptions = {}): Promise<TestProduct> {
@@ -430,6 +436,8 @@ export async function createProduct(t: Tracked, opts: CreateProductOptions = {})
       featuredPriceOverride: opts.featuredPriceOverride ?? null,
       status: opts.status ?? "ACTIVE",
       publishedAt: opts.published === false ? null : new Date(),
+      gameAccountId: opts.gameAccountId ?? null,
+      acceptsExchange: opts.acceptsExchange ?? false,
     },
     select: { id: true, slug: true, title: true, basePrice: true, sellerId: true },
   });

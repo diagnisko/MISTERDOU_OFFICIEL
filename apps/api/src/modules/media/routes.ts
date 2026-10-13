@@ -21,6 +21,15 @@ import {
   writeLocalMedia,
 } from "../../lib/media.js";
 import { requireTeamPassword } from "../../lib/step-up.js";
+import { fingerprintProductMedia } from "./fingerprint.js";
+import {
+  privateMime,
+  readLocalPrivate,
+  verifyLocalPrivateRead,
+  verifyLocalPrivateUpload,
+  writeLocalPrivate,
+} from "../../lib/private-media.js";
+import { privateBucket } from "../../lib/r2.js";
 
 // ---------------------------------------------------------------------------
 // Médias publics des offres (images, vidéos). Gérables par le vendeur
@@ -146,6 +155,8 @@ export async function registerMediaRoutes(app: FastifyInstance) {
         });
       });
       await audit(request, "PRODUCT_MEDIA_ADDED", id, { mediaId: created.id, mimeType, sizeBytes });
+      // Empreinte calculée en arrière-plan (une vidéo peut être lourde) : alerte seulement.
+      void fingerprintProductMedia(created.id).catch((err) => request.log.warn({ err, mediaId: created.id }, "[media] empreinte non calculée"));
       return sendOk(reply, toDto(created));
     },
   );
@@ -211,6 +222,40 @@ export async function registerMediaRoutes(app: FastifyInstance) {
         const mime = Object.entries(MEDIA_TYPES).find(([, t]) => t.ext === ext)?.[0] ?? "application/octet-stream";
         const body = await readLocalMedia(key);
         reply.header("Content-Type", mime).header("Cache-Control", "public, max-age=3600");
+        return reply.send(body);
+      });
+    });
+  }
+
+  // --- Médias privés sans R2 (développement, tests) : liens signés ----------
+  if (!privateBucket()) {
+    await app.register(async (local) => {
+      local.addContentTypeParser(
+        Object.keys(MEDIA_TYPES),
+        { parseAs: "buffer", bodyLimit: maxBytes("video") },
+        (_request, body, done) => done(null, body),
+      );
+
+      local.put("/private-media/upload/*", { bodyLimit: maxBytes("video") }, async (request, reply) => {
+        const key = (request.params as { "*": string })["*"];
+        const q = request.query as Record<string, string | undefined>;
+        const mime = q.mime ?? "";
+        const size = Number(q.size);
+        if (!verifyLocalPrivateUpload(key, mime, size, Number(q.exp), q.sig ?? "")) throw forbidden("Lien d’envoi invalide ou expiré.");
+        const body = request.body as Buffer;
+        if (request.headers["content-type"] !== mime || !Buffer.isBuffer(body) || body.length !== size) {
+          throw badRequest("VALIDATION_ERROR", "Le fichier ne correspond pas au lien d’envoi.");
+        }
+        await writeLocalPrivate(key, body);
+        return sendOk(reply, { key });
+      });
+
+      local.get("/private-media/file/*", async (request, reply) => {
+        const key = (request.params as { "*": string })["*"];
+        const q = request.query as Record<string, string | undefined>;
+        if (!verifyLocalPrivateRead(key, Number(q.exp), q.sig ?? "")) throw forbidden("Lien expiré : rechargez la page.");
+        const body = await readLocalPrivate(key);
+        reply.header("Content-Type", privateMime(key)).header("Cache-Control", "private, max-age=300");
         return reply.send(body);
       });
     });

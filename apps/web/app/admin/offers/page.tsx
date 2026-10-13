@@ -49,10 +49,13 @@ type OfferingRow = {
   rejectedReason: string | null;
   sellerName: string | null;
   hasCredentials: boolean;
+  gameAccountId: string | null;
+  acceptsExchange: boolean;
   createdAt: string;
 };
 
-type StatusFilter = "all" | "PENDING_REVIEW" | "ACTIVE" | "DRAFT" | "SUSPENDED" | "SOLD";
+// NO_ID : offres sans ID eFootball ; DUPLICATES : médias identiques à ceux d'une autre offre.
+type StatusFilter = "all" | "PENDING_REVIEW" | "ACTIVE" | "DRAFT" | "SUSPENDED" | "SOLD" | "NO_ID" | "DUPLICATES";
 
 const COLUMNS = [
   { key: "title", label: "Offre" },
@@ -72,8 +75,11 @@ export default function OffersPage() {
 
 function OffersView() {
   const params = useSearchParams();
-  const [status, setStatus] = useState<StatusFilter>((params.get("status") as StatusFilter | null) ?? "all");
-  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [status, setStatus] = useState<StatusFilter>(
+    params.get("duplicates") ? "DUPLICATES" : ((params.get("status") as StatusFilter | null) ?? "all"),
+  );
+  const [gameId, setGameId] = useState<string | null>(params.get("gameId"));
+  const [reviewing, setReviewing] = useState<string | null>(params.get("review"));
   const [deleting, setDeleting] = useState<OfferingRow | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -83,9 +89,18 @@ function OffersView() {
   const [media, setMedia] = useState<OfferingRow | null>(null);
 
   const list = useAdminList<OfferingRow>(
-    `/api/v1/admin/offerings${buildQuery({ page, perPage, q: search || undefined, status: status === "all" ? undefined : status })}`,
+    `/api/v1/admin/offerings${buildQuery({
+      page,
+      perPage,
+      q: search || undefined,
+      status: status === "all" || status === "NO_ID" || status === "DUPLICATES" ? undefined : status,
+      missingGameId: status === "NO_ID" ? "1" : undefined,
+      duplicates: status === "DUPLICATES" ? "1" : undefined,
+      gameId: gameId ?? undefined,
+    })}`,
   );
   const pendingReview = Number(list.extra.pendingReview ?? 0);
+  const missingGameIds = Number(list.extra.missingGameIds ?? 0);
 
   async function changeStatus(id: string, status: string, reason: string) {
     setBusy(id);
@@ -123,10 +138,15 @@ function OffersView() {
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="lux-kicker">Catalogue</p>
-          <p className="mt-2 text-sm text-stone-400">Recherche par titre ou identifiant (slug).</p>
+          <p className="mt-2 text-sm text-stone-400">Recherche par titre, slug ou ID eFootball.</p>
+          {gameId && (
+            <button type="button" onClick={() => setGameId(null)} className="mt-2 rounded-full border border-[rgba(255,106,50,0.35)] px-3 py-1 text-[12px] text-[#ffb08a]">
+              ID eFootball : {gameId} ✕
+            </button>
+          )}
         </div>
         <SearchBar
-          placeholder="Titre ou slug"
+          placeholder="Titre, slug ou ID eFootball"
           onSearch={(query) => {
             setSearch(query);
             setPage(1);
@@ -144,6 +164,8 @@ function OffersView() {
             { value: "DRAFT", label: "Refusées / brouillons" },
             { value: "SUSPENDED", label: "Désactivées" },
             { value: "SOLD", label: "Vendues" },
+            { value: "NO_ID", label: missingGameIds > 0 ? `Sans ID · ${missingGameIds}` : "Sans ID" },
+            { value: "DUPLICATES", label: "Médias en double" },
           ]}
           onChange={(value) => {
             setStatus(value as StatusFilter);
@@ -169,7 +191,15 @@ function OffersView() {
                 <tr key={row.id} className="transition hover:bg-white/[0.025]">
                   {COLUMNS.map((column) => (
                     <td key={column.key} className="px-4 py-3.5 text-stone-300">
-                      {column.key === "sellerName" ? (
+                      {column.key === "title" ? (
+                        <span className="flex flex-col gap-0.5">
+                          <span>{row.title}</span>
+                          <span className="font-mono text-[11px] text-[#8f7d77]">
+                            {row.gameAccountId ? `ID ${row.gameAccountId}` : <span className="text-[#fbbf24]">sans ID eFootball</span>}
+                            {row.acceptsExchange && <span className="ml-2 font-sans text-[#ffb08a]">· échange accepté</span>}
+                          </span>
+                        </span>
+                      ) : column.key === "sellerName" ? (
                         row.sellerName ?? <span className="text-[#ffb08a]">MISTERDOU</span>
                       ) : column.key === "status" && status === "DRAFT" && row.rejectedReason ? (
                         <span className="flex flex-col gap-1">
@@ -183,7 +213,11 @@ function OffersView() {
                   ))}
                   <td className="px-4 py-3.5">
                     <div className="flex min-w-[260px] flex-wrap gap-2">
-                      {status === "PENDING_REVIEW" && <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />}
+                      {status === "PENDING_REVIEW" ? (
+                        <RowAction label="Examiner" onClick={() => setReviewing(row.id)} />
+                      ) : (
+                        rowStatus !== "PENDING_REVIEW" && <RowAction label="Fiche" tone="muted" onClick={() => setReviewing(row.id)} />
+                      )}
                       {row.sellerId === null && rowStatus !== "SOLD" && (
                         <Link href={`/admin/offers/${row.id}`} className="whitespace-nowrap rounded-full border border-current/20 px-2.5 py-1 text-[12px] font-medium text-[#ff8a5c] transition hover:bg-white/[0.04]">
                           Modifier

@@ -10,6 +10,9 @@ import { startShiftDigestJob } from "./lib/shift-digest.js";
 import { ensureDefaultSettings } from "./modules/settings/service.js";
 import { startProofCleanupJob } from "./modules/payments/proofs.js";
 import { startContractJobs } from "./modules/seller/contract.js";
+import { startExchangeJobs } from "./modules/exchanges/service.js";
+import { startFingerprintJobs } from "./modules/media/fingerprint.js";
+import { startChatImageJobs } from "./modules/chat-images/service.js";
 
 async function main() {
   await ensureDefaultSettings();
@@ -40,6 +43,13 @@ async function main() {
 
   // Contrats revendeur : rappel 7 jours avant la fin, puis retour à la commission.
   startContractJobs();
+
+  // Échanges : demandes et propositions expirées, vidéos effacées après conservation.
+  startExchangeJobs();
+  // Empreintes des médias déjà en ligne (repérage des fichiers en double).
+  startFingerprintJobs();
+  // Images des messages : effacées après le délai de conservation.
+  startChatImageJobs();
 
   // Réglages manquants qui rendent une fonction inopérante en production.
   if (env.NODE_ENV === "production") {

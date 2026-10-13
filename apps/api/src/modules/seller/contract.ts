@@ -17,9 +17,12 @@ type Tx = Prisma.TransactionClient;
 // commission sur chaque vente. 6 mois, 1 an ou 18 mois (prix réglables dans
 // Paramètres). Paiement par lien Wave, vérifié par l'équipe comme les autres.
 // • Payé : le compte devient vendeur s'il ne l'était pas (adhésion incluse).
-// • Pendant le contrat : 0 % de commission sur les ventes.
+// • Commission pendant le contrat, fixée à son activation : 0 % pour le premier
+//   contrat, 1 % au premier renouvellement, 2 % ensuite (pour toujours). Un
+//   contrat repris après une pause compte comme un renouvellement.
 // • Renouvelé avant la fin : le nouveau contrat démarre à la fin de l'actuel.
-// • À la fin : rappel 7 jours avant, puis retour à la commission habituelle.
+// • À la fin sans renouvellement : rappel 7 jours avant, puis retour à la
+//   commission habituelle (15 % par défaut).
 // ---------------------------------------------------------------------------
 
 export const CONTRACT_PLANS = [
@@ -31,6 +34,19 @@ export const CONTRACT_PLANS = [
 export const contractRequestSchema = z.object({ months: z.union([z.literal(6), z.literal(12), z.literal(18)]) });
 
 const REMIND_DAYS = 7;
+
+/** Taux d'un contrat selon le nombre de contrats déjà payés : 0 %, puis 1 %, puis 2 %. */
+export const CONTRACT_RATES = [0, 1, 2] as const;
+export function contractRateFor(previousPaidContracts: number): number {
+  return CONTRACT_RATES[Math.min(previousPaidContracts, CONTRACT_RATES.length - 1)]!;
+}
+
+/** Contrats déjà payés (en cours ou terminés) : base du taux du prochain contrat. */
+async function paidContracts(db: Tx | typeof prisma, userId: string, excludeId?: string): Promise<number> {
+  return db.sellerContract.count({
+    where: { userId, status: { in: ["ACTIVE", "EXPIRED"] }, ...(excludeId ? { id: { not: excludeId } } : {}) },
+  });
+}
 
 export async function contractPlans(): Promise<Array<{ months: number; price: number }>> {
   return Promise.all(
@@ -57,19 +73,19 @@ export async function runningContract(db: Tx | typeof prisma, userId: string, at
   return db.sellerContract.findFirst({
     where: { userId, status: "ACTIVE", startsAt: { lte: at }, endsAt: { gt: at } },
     orderBy: { endsAt: "desc" },
-    select: { id: true, months: true, startsAt: true, endsAt: true },
+    select: { id: true, months: true, startsAt: true, endsAt: true, commissionRate: true },
   });
 }
 
 /** État affiché sur « Devenir vendeur » et dans l'espace vendeur. */
 export async function contractState(userId: string) {
   const now = new Date();
-  const [plans, contracts, pending, kyc, seller] = await Promise.all([
+  const [plans, contracts, pending, kyc, seller, paid] = await Promise.all([
     contractPlans(),
     prisma.sellerContract.findMany({
       where: { userId, status: "ACTIVE", endsAt: { gt: now } },
       orderBy: { startsAt: "asc" },
-      select: { months: true, startsAt: true, endsAt: true },
+      select: { months: true, startsAt: true, endsAt: true, commissionRate: true },
     }),
     prisma.sellerContract.findFirst({
       where: { userId, status: "PENDING", payment: { status: { in: ["PENDING", "PROCESSING"] } } },
@@ -78,6 +94,7 @@ export async function contractState(userId: string) {
     }),
     prisma.identityVerification.findFirst({ where: { userId }, orderBy: { submittedAt: "desc" }, select: { status: true } }),
     prisma.seller.findUnique({ where: { userId }, select: { status: true } }),
+    paidContracts(prisma, userId),
   ]);
   const current = contracts.find((c) => c.startsAt! <= now) ?? null;
   const last = contracts[contracts.length - 1] ?? null;
@@ -86,8 +103,12 @@ export async function contractState(userId: string) {
     kycVerified: kyc?.status === "VERIFIED",
     sellerStatus: seller?.status ?? null,
     commissionPercent: await getIntSetting("sellerCommissionPercent", 15),
+    // Taux du prochain contrat payé (premier : 0 %, puis 1 %, puis 2 %).
+    nextContractRate: contractRateFor(paid),
     // Contrat en cours, et date de fin en comptant les renouvellements déjà payés.
-    current: current ? { months: current.months, startsAt: current.startsAt!.toISOString(), endsAt: current.endsAt!.toISOString() } : null,
+    current: current
+      ? { months: current.months, startsAt: current.startsAt!.toISOString(), endsAt: current.endsAt!.toISOString(), commissionRate: current.commissionRate }
+      : null,
     coveredUntil: last?.endsAt?.toISOString() ?? null,
     pending: pending?.payment?.transactionToken
       ? {
@@ -185,13 +206,15 @@ export async function activateContract(tx: Tx, payment: { id: string; userId: st
   });
   const startsAt = latest?.endsAt ?? now;
   const endsAt = addMonths(startsAt, contract.months);
-  await tx.sellerContract.update({ where: { id: contract.id }, data: { status: "ACTIVE", startsAt, endsAt } });
+  const commissionRate = contractRateFor(await paidContracts(tx, payment.userId, contract.id));
+  await tx.sellerContract.update({ where: { id: contract.id }, data: { status: "ACTIVE", startsAt, endsAt, commissionRate } });
 
+  const rateText = commissionRate === 0 ? "aucune commission sur vos ventes" : `${commissionRate} % de commission seulement sur vos ventes`;
   await notifyUser(payment.userId, "SYSTEM", {
     title: "Contrat revendeur actif 🤝",
     message: latest
-      ? `Renouvellement confirmé : votre contrat est prolongé jusqu’au ${dateFr(endsAt)}. Aucune commission sur vos ventes d’ici là.`
-      : `Votre contrat est actif jusqu’au ${dateFr(endsAt)} : aucune commission sur vos ventes pendant toute cette période.`,
+      ? `Renouvellement confirmé : le nouveau contrat court jusqu’au ${dateFr(endsAt)}, avec ${rateText}.`
+      : `Votre contrat est actif jusqu’au ${dateFr(endsAt)} : ${rateText} pendant toute cette période.`,
     actionUrl: "/seller",
     priority: "NORMAL",
   });
@@ -215,7 +238,7 @@ export async function runContractJobs(now = new Date()): Promise<{ reminded: num
     reminded += 1;
     await notifyUser(c.userId, "SYSTEM", {
       title: "Votre contrat revendeur se termine bientôt",
-      message: `Il prend fin le ${dateFr(c.endsAt!)}. Renouvelez-le pour continuer à vendre sans commission.`,
+      message: `Il prend fin le ${dateFr(c.endsAt!)}. Renouvelez-le pour garder une commission réduite (${contractRateFor(await paidContracts(prisma, c.userId))} %) au lieu de la commission habituelle.`,
       actionUrl: "/account/devenir-vendeur",
       priority: "NORMAL",
     });

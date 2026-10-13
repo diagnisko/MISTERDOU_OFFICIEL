@@ -22,6 +22,9 @@ export type OfferValues = {
   paymentMode: "ONE_TIME" | "INSTALLMENTS";
   installmentMonths: number | null;
   installmentDownPayment: number | null;
+  /** ID eFootball (absent sur les offres publiées avant cette règle). */
+  gameAccountId?: string | null;
+  acceptsExchange?: boolean;
 };
 
 export type EditableOffer = OfferValues & { id: string; slug: string; hasCredentials: boolean; rejectedReason?: string | null };
@@ -66,6 +69,8 @@ export function OfferForm({
   const [monthly, setMonthly] = useState(offer?.paymentMode === "INSTALLMENTS");
   const [months, setMonths] = useState(offer?.installmentMonths ? String(offer.installmentMonths) : "3");
   const [downPayment, setDownPayment] = useState(offer?.installmentDownPayment != null ? String(offer.installmentDownPayment) : "0");
+  const [gameId, setGameId] = useState(offer?.gameAccountId ?? "");
+  const [acceptsExchange, setAcceptsExchange] = useState(offer?.acceptsExchange ?? false);
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -93,6 +98,8 @@ export function OfferForm({
       return;
     }
     const body = {
+      gameAccountId: gameId.trim(),
+      acceptsExchange,
       title,
       description,
       division,
@@ -147,6 +154,9 @@ export function OfferForm({
       {reviewed && editing && <p className="text-[12.5px] leading-relaxed text-[#b8a6a1]">{t("offer.reviewNote")}</p>}
       <div className="dash-card space-y-4 p-5">
         <h2 className="text-[15px] font-semibold text-white">{t("offer.sectionAccount")}</h2>
+        <Field label={t("offer.gameId")} hint={t("offer.gameIdHint")}>
+          <input value={gameId} onChange={(e) => setGameId(e.target.value)} required minLength={4} maxLength={60} autoComplete="off" className="dash-input !pl-4" />
+        </Field>
         <Field label={t("offer.title")} hint={t("offer.titleHint")}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} required minLength={3} maxLength={120} className="dash-input !pl-4" />
         </Field>
@@ -196,6 +206,17 @@ export function OfferForm({
             </Field>
           </div>
         )}
+      </div>
+
+      <div className="dash-card space-y-4 p-5">
+        <h2 className="text-[15px] font-semibold text-white">{t("offer.sectionExchange")}</h2>
+        <label className="flex items-start gap-3 text-[13px] text-[#e9dad3]">
+          <input type="checkbox" checked={acceptsExchange} onChange={(e) => setAcceptsExchange(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#ff6a32]" />
+          <span>
+            {t("offer.acceptsExchange")}
+            <span className="block text-[11px] text-[#8f7d77]">{t("offer.acceptsExchangeHint")}</span>
+          </span>
+        </label>
       </div>
 
       <div className="dash-card space-y-4 p-5">

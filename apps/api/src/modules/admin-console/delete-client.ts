@@ -1,3 +1,4 @@
+import { HOLD_STATUSES } from "../exchanges/hold.js";
 import { prisma } from "@misterdou/db";
 import type { RoleName } from "@misterdou/db";
 import { conflict, forbidden, notFound } from "../../lib/errors.js";
@@ -33,11 +34,18 @@ export async function deleteClientAccount(userId: string, actor: Actor) {
   }
 
   // Rien en cours : commande non terminée, échéancier actif, preuve à vérifier.
-  const [openOrders, openPayments, pendingWithdrawals] = await Promise.all([
+  const [openOrders, openPayments, pendingWithdrawals, heldExchanges] = await Promise.all([
     prisma.order.count({ where: { buyerId: userId, status: { in: ["PARTIALLY_PAID", "PAID", "DELIVERED"] } } }),
     prisma.payment.count({ where: { userId, status: "PROCESSING" } }),
     user.seller ? prisma.withdrawal.count({ where: { sellerId: user.seller.id, status: { notIn: ["COMPLETED", "REJECTED", "CANCELLED"] } } }) : 0,
+    prisma.exchangeRequest.count({
+      where: {
+        status: { in: [...HOLD_STATUSES] },
+        OR: [{ clientId: userId }, ...(user.seller ? [{ sellerId: user.seller.id }] : [])],
+      },
+    }),
   ]);
+  if (heldExchanges > 0) throw conflict("ACCOUNT_BUSY", "Un échange de compte est en cours avec ce client. Terminez-le ou refusez-le avant de supprimer le compte.");
   if (openOrders > 0) throw conflict("ACCOUNT_BUSY", "Ce client a une commande en cours (paiement partiel, livraison ou réception à confirmer). Terminez-la avant de supprimer le compte.");
   if (openPayments > 0) throw conflict("ACCOUNT_BUSY", "Une preuve de paiement de ce client attend votre vérification. Traitez-la avant de supprimer le compte.");
   if (pendingWithdrawals > 0) throw conflict("ACCOUNT_BUSY", "Ce vendeur a un retrait en cours. Terminez-le avant de supprimer le compte.");
@@ -73,6 +81,11 @@ export async function deleteClientAccount(userId: string, actor: Actor) {
     // Commandes jamais payées : libérées (le compte remis en vente).
     await tx.order.updateMany({ where: { buyerId: userId, status: "PENDING_PAYMENT" }, data: { status: "CANCELLED" } });
     await tx.payment.updateMany({ where: { userId, status: "PENDING" }, data: { status: "CANCELLED" } });
+    // Demandes d'échange encore sans accord (du client, ou sur les offres du vendeur) : closes.
+    await tx.exchangeRequest.updateMany({
+      where: { status: { in: ["PENDING", "QUOTED"] }, OR: [{ clientId: userId }, ...(user.seller ? [{ sellerId: user.seller.id }] : [])] },
+      data: { status: "CANCELLED", closedAt: now, closeReason: "Compte supprimé." },
+    });
     if (user.seller) {
       await tx.seller.update({ where: { id: user.seller.id }, data: { status: "REVOKED" } });
       await tx.product.updateMany({

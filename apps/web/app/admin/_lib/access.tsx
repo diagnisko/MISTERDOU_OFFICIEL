@@ -8,7 +8,7 @@ import { createContext, useContext } from "react";
 // vue d'ensemble, recherche). Le serveur contrôle de toute façon chaque appel.
 // ---------------------------------------------------------------------------
 
-export type Permission = "KYC" | "PAYMENTS" | "WITHDRAWALS" | "SELLERS" | "PRODUCTS" | "ORDERS" | "STATS" | "SETTINGS" | "SUPPORT";
+export type Permission = "KYC" | "PAYMENTS" | "WITHDRAWALS" | "SELLERS" | "PRODUCTS" | "ORDERS" | "STATS" | "SETTINGS" | "SUPPORT" | "EXCHANGES";
 
 /** "ADMIN" : réservé à l'administrateur ; null : visible par toute l'équipe. */
 export type Requirement = Permission | "ADMIN" | null;
@@ -50,6 +50,7 @@ export const PAGE_REQUIREMENTS: Array<{ prefix: string; need: Requirement }> = [
   { prefix: "/admin/discussions", need: "SUPPORT" },
   { prefix: "/admin/messages", need: "SUPPORT" },
   { prefix: "/admin/support", need: "SUPPORT" },
+  { prefix: "/admin/echanges", need: "EXCHANGES" },
   { prefix: "/admin/team", need: "SETTINGS" },
   { prefix: "/admin/settings", need: "SETTINGS" },
   { prefix: "/admin/audit", need: "SETTINGS" },

@@ -10,6 +10,8 @@ import { requireTeamPassword } from "../../lib/step-up.js";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { MANAGER_PERMISSION_LABELS } from "@misterdou/shared";
+import { normalizeGameId } from "../offers/game-id.js";
+import { productIdsWithDuplicateMedia } from "../media/fingerprint.js";
 
 const pageQuery = z.object({ page: z.coerce.number().int().min(1).default(1), perPage: z.coerce.number().int().min(1).max(100).default(25), q: z.string().trim().max(120).optional() });
 const userStatusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]), reason: z.string().trim().min(5).max(300) });
@@ -24,7 +26,12 @@ const KYC_FILTERS: Record<string, KycStatus[] | undefined> = {
   rejected: ["REJECTED"],
   none: ["NOT_SUBMITTED"],
 };
-const offeringStatusQuery = z.object({ status: z.enum(["PENDING_REVIEW", "ACTIVE", "DRAFT", "SUSPENDED", "SOLD"]).optional() });
+const offeringStatusQuery = z.object({
+  status: z.enum(["PENDING_REVIEW", "ACTIVE", "DRAFT", "SUSPENDED", "SOLD"]).optional(),
+  gameId: z.string().trim().max(60).optional(),
+  missingGameId: z.enum(["1"]).optional(),
+  duplicates: z.enum(["1"]).optional(),
+});
 const clientFilterQuery = z.object({ kyc: z.enum(["all", "verified", "pending", "rejected", "none"]).default("all") });
 
 /**
@@ -252,14 +259,28 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
     const { page, perPage, q } = pageArgs(request.query);
     // owner=platform : offres MISTERDOU seulement (promotions de l'équipe).
     const platformOnly = (request.query as { owner?: string }).owner === "platform";
-    const { status } = offeringStatusQuery.parse(request.query);
-    const where = {
+    const { status, gameId, missingGameId, duplicates } = offeringStatusQuery.parse(request.query);
+    // Filtres anti-doublon : un ID eFootball précis, offres sans ID, médias identiques à une autre offre.
+    const sameMedia = duplicates === "1" ? await productIdsWithDuplicateMedia() : null;
+    const searchId = q ? normalizeGameId(q) : "";
+    const where: Prisma.ProductWhereInput = {
       deletedAt: null,
       ...(platformOnly ? { sellerId: null } : {}),
       ...(status ? { status } : {}),
-      ...(q ? { OR: [{ title: { contains: q, mode: "insensitive" as const } }, { slug: { contains: q, mode: "insensitive" as const } }] } : {}),
+      ...(gameId ? { gameAccountId: normalizeGameId(gameId) } : {}),
+      ...(missingGameId === "1" ? { gameAccountId: null } : {}),
+      ...(sameMedia ? { id: { in: sameMedia } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" as const } },
+              { slug: { contains: q, mode: "insensitive" as const } },
+              ...(searchId.length >= 4 ? [{ gameAccountId: { contains: searchId } }] : []),
+            ],
+          }
+        : {}),
     };
-    const [items, total, pendingReview] = await Promise.all([
+    const [items, total, pendingReview, missingIds] = await Promise.all([
       prisma.product.findMany({
         where,
         // À valider : les plus anciennes d'abord (premier arrivé, premier servi).
@@ -268,13 +289,14 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
         take: perPage,
         select: {
           id: true, slug: true, title: true, status: true, ownerType: true, sellerId: true, basePrice: true, paymentMode: true,
-          featuredPriceOverride: true, rejectedReason: true, createdAt: true, updatedAt: true,
+          featuredPriceOverride: true, rejectedReason: true, createdAt: true, updatedAt: true, gameAccountId: true, acceptsExchange: true,
           seller: { select: { user: { select: { firstName: true, lastName: true } } } },
           credential: { select: { id: true } },
         },
       }),
       prisma.product.count({ where }),
       prisma.product.count({ where: { deletedAt: null, status: "PENDING_REVIEW" } }),
+      prisma.product.count({ where: { deletedAt: null, status: { not: "SOLD" }, gameAccountId: null } }),
     ]);
     return sendOk(
       reply,
@@ -283,7 +305,7 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
         hasCredentials: credential !== null,
         sellerName: seller ? [seller.user.firstName, seller.user.lastName].filter(Boolean).join(" ") || "Vendeur" : null,
       })),
-      { page, perPage, total, pendingReview },
+      { page, perPage, total, pendingReview, missingGameIds: missingIds },
     );
   });
 

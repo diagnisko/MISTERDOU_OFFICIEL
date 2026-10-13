@@ -146,7 +146,12 @@ export async function registerSellerRoutes(app: FastifyInstance) {
 
       const contract = await contractState(auth.user.id);
       return sendOk(reply, {
-        contract: { current: contract.current, coveredUntil: contract.coveredUntil, commissionPercent: contract.commissionPercent },
+        contract: {
+          current: contract.current,
+          coveredUntil: contract.coveredUntil,
+          commissionPercent: contract.commissionPercent,
+          nextContractRate: contract.nextContractRate,
+        },
         salesByMonth,
         recentSales: sales.slice(0, 8).map((s) => ({
           id: s.id,

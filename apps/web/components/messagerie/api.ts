@@ -32,10 +32,14 @@ export function fetchMessages(
   return request<MessagePage>(`/api/v1/conversations/${id}/messages?${search.toString()}`);
 }
 
-export function sendConversationMessage(id: string, content: string): Promise<MessageItem> {
+export function sendConversationMessage(
+  id: string,
+  content: string,
+  images: Array<{ key: string; mimeType: string }> = [],
+): Promise<MessageItem> {
   return request<MessageItem>(`/api/v1/conversations/${id}/messages`, {
     method: "POST",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, images }),
   });
 }
 

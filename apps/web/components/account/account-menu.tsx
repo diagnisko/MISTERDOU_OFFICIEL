@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { displayName, initials, logoutAccount, useAccount, type AccountUser } from "@/lib/account";
 import { useT, type MessageKey } from "@/lib/i18n";
-import { IconBadgeCheck, IconCart, IconChat, IconGear, IconHome, IconLifebuoy, IconList, IconLogout, IconSpark, IconStore, IconUsers } from "@/components/dash/dash-icons";
+import { IconBadgeCheck, IconCart, IconChat, IconGear, IconHome, IconLifebuoy, IconList, IconLogout, IconSpark, IconStore, IconSwap, IconUsers } from "@/components/dash/dash-icons";
 
 export function Avatar({ user, url, size = 40 }: { user: AccountUser; url: string | null; size?: number }) {
   return url ? (
@@ -26,6 +26,7 @@ export function Avatar({ user, url, size = 40 }: { user: AccountUser; url: strin
 const ITEMS: Array<{ href: string; label: MessageKey; icon: typeof IconUsers; seller?: boolean }> = [
   { href: "/account", label: "menu.profile", icon: IconUsers },
   { href: "/account/orders", label: "menu.orders", icon: IconCart },
+  { href: "/account/echanges", label: "menu.exchanges", icon: IconSwap },
   { href: "/account/messages", label: "menu.messages", icon: IconChat },
   { href: "/seller", label: "menu.seller", icon: IconSpark, seller: true },
   { href: "/account/devenir-vendeur", label: "menu.becomeSeller", icon: IconStore, seller: false },

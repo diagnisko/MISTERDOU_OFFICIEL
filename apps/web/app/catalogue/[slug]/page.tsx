@@ -25,6 +25,7 @@ import { createOrder } from "@/lib/orders";
 import { SellerChatBox } from "@/components/chat/seller-chat-box";
 import { SellerBadge, SellerChip, toCardSeller } from "@/components/lux/lux-seller-badge";
 import { useT, type MessageKey } from "@/lib/i18n";
+import { IconSwap } from "@/components/dash/dash-icons";
 
 // Un vendeur qui ouvre sa propre offre : pas d'achat ni de discussion avec lui-même.
 function useOwnOffer(productId: string | undefined): boolean {
@@ -128,6 +129,24 @@ function BuyButton({
           {state === "error" && message}
         </p>
       )}
+    </div>
+  );
+}
+
+// Échange : le client propose son compte ; le vendeur annonce le complément.
+function ExchangeButton({ productId }: { productId: string }) {
+  const t = useT();
+  return (
+    <div>
+      <Link
+        href={`/account/echanges/nouvelle?offre=${productId}`}
+        className="lux-btn lux-btn-ghost w-full !min-h-[48px] text-[12px] uppercase tracking-[0.14em]"
+        style={{ borderRadius: 18 }}
+      >
+        <IconSwap size={16} />
+        {t("product.exchange")}
+      </Link>
+      <p className="mt-2 text-[11.5px] text-stone-400">{t("product.exchangeHint")}</p>
     </div>
   );
 }
@@ -415,6 +434,7 @@ function DetailHub() {
             {item.seller && <SellerBadge seller={item.seller} rating={item.avgRating} reviewCount={item.reviewCount} />}
 
             {team ? <TeamNotice /> : own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
+            {!own && !team && item.acceptsExchange && <ExchangeButton productId={item.id} />}
             {!own && canSplit && !split && (
               <Link href={`/catalogue/${item.slug}?mode=mensualites`} className="text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
                 {t("product.alsoMonthly")}
