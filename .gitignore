@@ -11,7 +11,7 @@ packages/db/generated/
 dist/
 .next/
 **/.next-console/
-**/.next-local/
+**/.next-local*/
 # Cloudflare (OpenNext, Wrangler)
 .open-next/
 .wrangler/

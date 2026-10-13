@@ -20,6 +20,8 @@ export type DashNavItem = {
   label: string;
   icon: ComponentType<{ className?: string; size?: number }>;
   group?: string;
+  /** Pastille (ex. messages non lus) ; rien si 0. */
+  count?: number;
 };
 
 /**
@@ -258,6 +260,11 @@ export function DashShell({
                   <Link href={item.href} aria-current={isActive(item.href) ? "page" : undefined} className="dash-nav-link">
                     <item.icon size={17} />
                     {item.label}
+                    {item.count ? (
+                      <span className="ml-auto grid min-w-[20px] place-items-center rounded-full bg-[linear-gradient(120deg,#ffa070,#ff6a32_45%,#e84724)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#1a0503]">
+                        {item.count > 99 ? "99+" : item.count}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               ))}
