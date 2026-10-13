@@ -1,5 +1,6 @@
 import type { ApiEnvelope, ApiErrorCode } from "@misterdou/shared";
 import { documentLocale, hasMessage, translate } from "./i18n-core";
+import { prepareImage } from "./media-prepare";
 
 /**
  * Message d'erreur dans la langue choisie. En français (langue de base), le
@@ -97,12 +98,23 @@ export interface UploadResult {
   purpose: string;
 }
 
+/** Poids maximum accepté par le serveur pour un fichier (voir /api/v1/uploads). */
+const UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+
 // Upload multipart (files KYC/captures) — stockage privé chiffré, clé retournée
 // puis référencée dans les soumissions (KYC, produits…).
 export async function uploadFile(file: File, purpose: string): Promise<UploadResult> {
+  // Photo ou capture d'écran (souvent un PNG de plusieurs Mo sur iPhone et iPad) :
+  // réduite en JPEG dans le téléphone avant l'envoi — plus rapide, et jamais
+  // refusée pour son poids. Un PDF part tel quel.
+  const ready = file.type.startsWith("image/") ? await prepareImage(file) : { blob: file as Blob, mime: file.type, converted: false };
+  if (ready.blob.size > UPLOAD_MAX_BYTES) {
+    throw new ApiClientError("FILE_TOO_LARGE" as ApiErrorCode, localizedError("FILE_TOO_LARGE", "Fichier trop lourd : 8 Mo au maximum."));
+  }
+  const name = ready.converted ? `${file.name.replace(/\.[^.]+$/, "") || "image"}.jpg` : file.name;
   const form = new FormData();
   form.append("purpose", purpose);
-  form.append("file", file, file.name);
+  form.append("file", ready.blob, name);
 
   let res: Response;
   try {

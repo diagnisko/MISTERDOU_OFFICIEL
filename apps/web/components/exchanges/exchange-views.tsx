@@ -241,8 +241,9 @@ export function ExchangeDetail({
     void load();
   }, [load]);
 
-  // Échange en cours : la page suit les réponses de l'autre côté.
-  useVisiblePoll(load, 15_000, {
+  // Échange en cours : la page suit les réponses de l'autre côté. Pendant la
+  // vérification du compte (code de connexion demandé), toutes les 5 secondes.
+  useVisiblePoll(load, exchange?.status === "ACCEPTED" ? 5_000 : 15_000, {
     enabled: Boolean(exchange && OPEN_STATUSES.includes(exchange.status)),
   });
 
@@ -886,15 +887,47 @@ function Credentials({ account }: { account: ClientAccount }) {
           {account.password}
         </dd>
       </div>
-      {account.code && (
-        <div className="sm:col-span-2">
-          <dt className="text-[11px] text-[#8f7d77]">{t("xch.codeInput")}</dt>
-          <dd className="select-all font-mono text-[18px] tracking-[0.2em] text-[#86efac]">
-            {account.code}
-          </dd>
-        </div>
-      )}
     </dl>
+  );
+}
+
+/**
+ * Emplacement réservé au code de connexion que le client saisit : il s'y
+ * affiche tout seul (la page se met à jour toutes les 5 secondes), sans bouton.
+ */
+function CustodyCodeBox({ e, busy, act }: { e: Exchange; busy: boolean; act: Act }) {
+  const { code, codeRequested, codeExpiresAt } = e.custody;
+  const expired = !code && codeRequested && codeExpiresAt !== null && Date.parse(codeExpiresAt) <= Date.now();
+  const waiting = !code && codeRequested && !expired;
+  const until = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const ask = () =>
+    void act(() => exchangesApi.requestCode(e.id), "Le client est prévenu : son code s’affichera ici dès qu’il l’aura saisi.");
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-black/20 p-3">
+      <p className="text-[11px] text-[#8f7d77]">Code de connexion du client</p>
+      <div className="mt-1.5 flex min-h-[44px] items-center" aria-live="polite">
+        {code ? (
+          <span className="select-all font-mono text-[22px] tracking-[0.25em] text-[#86efac]">{code}</span>
+        ) : waiting ? (
+          <span className="flex items-center gap-2 text-[13px] text-[#fcd9a5]">
+            <Spinner /> En attente du client… le code s’affichera ici tout seul.
+          </span>
+        ) : expired ? (
+          <span className="text-[13px] text-[#fca5a5]">Le code a expiré : demandez-en un nouveau si le jeu le redemande.</span>
+        ) : (
+          <span className="text-[13px] text-[#b8a6a1]">
+            Pas encore demandé. Si le jeu demande un code à la connexion, demandez-le au client.
+          </span>
+        )}
+      </div>
+      {code && codeExpiresAt && <p className="text-[11.5px] text-[#8f7d77]">Valable jusqu’à {until(codeExpiresAt)}.</p>}
+      {!waiting && (
+        <button type="button" disabled={busy} onClick={ask} className="dash-btn dash-btn-ghost mt-3 disabled:opacity-60">
+          {code || expired ? "Demander un nouveau code" : "Demander le code au client"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1020,7 +1053,8 @@ function TeamPanel({
               </li>
               <li>
                 Si le jeu demande un code, touchez « Demander le code au client
-                » : il le saisit sur sa page (valable 10 min).
+                » : il le saisit sur sa page et le code s’affiche ci-dessous tout
+                seul (valable 10 min).
               </li>
               <li>
                 Comparez avec la vidéo (code {e.proofCode}, ID {e.gameAccountId}
@@ -1044,38 +1078,7 @@ function TeamPanel({
               <Busy busy={busy}>Afficher les identifiants (tracé)</Busy>
             </button>
           )}
-          {e.status === "ACCEPTED" && (
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void act(
-                    () => exchangesApi.requestCode(e.id),
-                    "Le client est prévenu : son code s’affichera ici.",
-                  )
-                }
-                className="dash-btn dash-btn-ghost disabled:opacity-60"
-              >
-                Demander le code au client
-              </button>
-              {e.custody.codeRequested && !e.custody.codeProvided && (
-                <span className="text-[12px] text-[#fcd9a5]">
-                  Code demandé, en attente du client…
-                </span>
-              )}
-              {e.custody.codeProvided && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void reveal()}
-                  className="text-[12px] text-[#86efac] underline-offset-2 hover:underline"
-                >
-                  Code reçu : l’afficher
-                </button>
-              )}
-            </div>
-          )}
+          {e.status === "ACCEPTED" && <CustodyCodeBox e={e} busy={busy} act={act} />}
         </Card>
       )}
 

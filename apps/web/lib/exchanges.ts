@@ -56,7 +56,7 @@ export type Exchange = {
   product: { id: string; title: string; slug: string; price: number; available: boolean; imageUrl: string | null; canSplit: boolean };
   seller: string;
   client: { name: string; email: string | null } | null;
-  custody: { codeRequested: boolean; codeProvided: boolean; codeExpiresAt: string | null };
+  custody: { codeRequested: boolean; codeProvided: boolean; codeExpiresAt: string | null; code: string | null };
   order: { id: string | null; orderNumber: string; status: string; checkoutUrl: string | null; paymentUnderReview: boolean } | null;
   actions: {
     reply: boolean;

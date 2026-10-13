@@ -259,6 +259,12 @@ async function toDto(row: ExchangeRow, side: ExchangeSide) {
       codeRequested: Boolean(row.custodyCodeRequestedAt) && row.status === "ACCEPTED",
       codeProvided: Boolean(row.custodyCodeEncrypted) && (row.custodyCodeExpiresAt?.getTime() ?? 0) > now,
       codeExpiresAt: row.custodyCodeExpiresAt?.toISOString() ?? null,
+      // Le code saisi par le client s'affiche tout seul chez l'équipe (et elle seule),
+      // tant qu'il est valable : pas de bouton à toucher pendant que le jeu attend.
+      code:
+        side === "team" && row.status === "ACCEPTED" && row.custodyCodeEncrypted && (row.custodyCodeExpiresAt?.getTime() ?? 0) > now
+          ? readableCode(row.custodyCodeEncrypted)
+          : null,
     },
     order: row.order
       ? {
@@ -314,6 +320,16 @@ function summary(row: ExchangeRow, side: ExchangeSide) {
     sellerName: side === "team" ? (row.sellerId && row.product.seller ? publicName(row.product.seller.user, "Vendeur") : "MISTERDOU") : null,
     waitingFor: waitingFor(row),
   };
+}
+
+/** Code de connexion déchiffré ; illisible (clé changée…) : la page reste affichée, sans code. */
+function readableCode(encrypted: string): string | null {
+  try {
+    return decryptString(encrypted);
+  } catch (err) {
+    logger.warn({ err }, "[exchanges] code de connexion illisible");
+    return null;
+  }
 }
 
 /** Qui doit agir maintenant (pastilles des listes). */

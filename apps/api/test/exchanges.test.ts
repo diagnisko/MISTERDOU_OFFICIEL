@@ -189,7 +189,12 @@ describe("Parcours complet", () => {
     // L'équipe demande un code, le client le donne, l'équipe lit tout.
     await requestCustodyCode(ex.id, exchanges);
     expect(await titles(client)).toContain("Code de connexion demandé");
+    expect((await getExchange(ex.id, exchanges)).custody).toMatchObject({ codeRequested: true, codeProvided: false, code: null });
     await provideCustodyCode(ex.id, "482913", clientAuth);
+    // Le code apparaît directement chez l'équipe, jamais chez le vendeur ni dans la vue du client.
+    expect((await getExchange(ex.id, exchanges)).custody).toMatchObject({ codeProvided: true, code: "482913" });
+    expect((await getExchange(ex.id, sellerAuth)).custody.code).toBeNull();
+    expect((await getExchange(ex.id, clientAuth)).custody.code).toBeNull();
     expect(await revealClientAccount(ex.id, exchanges)).toMatchObject({ login: "client@jeu.com", password: "mdp-client", code: "482913" });
     expect(await prisma.auditLog.count({ where: { action: "EXCHANGE_CLIENT_ACCOUNT_REVEALED", resourceId: ex.id } })).toBe(1);
 
