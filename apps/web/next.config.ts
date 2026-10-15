@@ -8,7 +8,8 @@ const CONTENT_SECURITY_POLICY = [
   "base-uri 'self'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // + le petit script de statistiques de visites de Cloudflare (Web Analytics).
+  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
   "worker-src 'self' blob:",
   "upgrade-insecure-requests",
 ].join("; ");
