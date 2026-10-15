@@ -30,6 +30,8 @@ export interface NotifyOptions {
   push?: false | { tag?: string; emailFallback?: boolean };
   /** false : téléphone seulement, pas de ligne dans la cloche (discussion très active). */
   bell?: false;
+  /** Alerte de sécurité : l'e-mail part même si le membre a coupé les e-mails. */
+  forceEmail?: true;
 }
 
 export interface NotifyBatchEntry {
@@ -98,7 +100,7 @@ export async function notifyMany(type: NotificationType, entries: NotifyBatchEnt
           actionUrl: params.actionUrl ?? null,
         });
       }
-      const emailAllowed = explicitChannel ? params.channel === "EMAIL" : pref?.email !== false;
+      const emailAllowed = opts.forceEmail === true || (explicitChannel ? params.channel === "EMAIL" : pref?.email !== false);
       const email = userById.get(userId)?.email;
       if (emailWanted && email && emailAllowed && template) emails.push({ userId, to: email, params: { ...params, actionUrl: absoluteUrl(params.actionUrl) } });
     }

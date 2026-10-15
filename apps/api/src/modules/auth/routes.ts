@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   registerSchema,
   loginSchema,
@@ -26,6 +26,12 @@ import {
 import { resendVerificationEmail, verifyEmail, verifyEmailSchema } from "./email-verification.js";
 import { badRequest } from "../../lib/errors.js";
 import { validationError } from "../../lib/validation-messages.js";
+
+/** Pays d'origine annoncé par Cloudflare (code à deux lettres), s'il est transmis. */
+function countryOf(request: FastifyRequest): string | undefined {
+  const value = request.headers["cf-ipcountry"];
+  return typeof value === "string" && /^[A-Z]{2}$/.test(value) ? value : undefined;
+}
 
 function csrf(reply: FastifyReply) {
   setCsrfCookie(reply, randomCsrfToken());
@@ -87,7 +93,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   app.post("/auth/login", { schema: { tags: ["Auth"], summary: "Connexion (e-mail + mot de passe)" }, config: rate(5) }, async (request, reply) => {
     const input = loginSchema.parse(request.body);
-    const result = await login(input, { ip: request.ip, userAgent: request.headers["user-agent"] });
+    const result = await login(input, { ip: request.ip, userAgent: request.headers["user-agent"], country: countryOf(request) });
     setSessionCookie(reply, result.sid, env.SESSION_TTL_SECONDS);
     csrf(reply);
     await logAudit({
@@ -129,7 +135,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       .parse(request.body);
     const result = await loginAdmin(
       { ...input, trustedToken: request.cookies[TRUSTED_DEVICE_COOKIE] },
-      { ip: request.ip, userAgent: request.headers["user-agent"] },
+      { ip: request.ip, userAgent: request.headers["user-agent"], country: countryOf(request) },
     );
     if ("trustToken" in result && result.trustToken) {
       // Appareil de confiance : cookie protégé, lu uniquement par la connexion admin.

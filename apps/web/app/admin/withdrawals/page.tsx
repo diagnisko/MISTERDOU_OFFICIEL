@@ -43,7 +43,7 @@ type WithdrawalRow = {
   paymentReference: string | null;
   processingStartedAt: string | null;
   etaMinutes: number | null;
-  payout: { method: string; phoneNumber: string } | null;
+  payout: { method: string; phoneNumber: string; newNumber?: boolean } | null;
   hasProof: boolean;
   sellerConfirmedAt: string | null;
   sellerDisputedAt: string | null;
@@ -195,6 +195,11 @@ export default function WithdrawalsPage() {
                         {METHOD_LABEL[row.payout.method] ?? row.payout.method}
                       </span>
                       <span className="font-mono" dir="ltr">{row.payout.phoneNumber}</span>
+                      {row.payout.newNumber && (
+                        <span className="mt-1 block w-fit rounded-full border border-[rgba(251,191,36,0.45)] bg-[rgba(251,191,36,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#fbbf24]">
+                          Nouveau numéro
+                        </span>
+                      )}
                     </>
                   ) : (
                     "—"
@@ -325,6 +330,11 @@ function PaidModal({
           ) : null}
           , puis joignez la capture de l’envoi : le vendeur la verra et confirmera la réception.
         </p>
+        {row.payout?.newNumber && (
+          <p className="rounded-xl border border-[rgba(251,191,36,0.45)] bg-[rgba(251,191,36,0.08)] px-3.5 py-2.5 text-[13px] text-[#fcd9a5]" role="alert">
+            Ce numéro n’a jamais reçu d’argent de ce vendeur. Appelez le vendeur pour confirmer que la demande vient bien de lui avant d’envoyer : un pirate qui aurait volé son mot de passe ferait virer l’argent sur son propre numéro.
+          </p>
+        )}
         <Field label="Capture de l’envoi" hint="Image JPEG, PNG ou WebP, 8 Mo maximum." required>
           <TextInput
             required

@@ -3,6 +3,16 @@ import type { NextConfig } from "next";
 
 const API_INTERNAL = process.env.API_INTERNAL_URL ?? "http://localhost:4000";
 
+const CONTENT_SECURITY_POLICY = [
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "worker-src 'self' blob:",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   outputFileTracingRoot: path.join(__dirname, "../.."),
@@ -36,6 +46,14 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+          // Le navigateur n'interprète jamais un fichier autrement que son type annoncé.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Toujours en HTTPS pendant un an, sous-domaines compris (ignoré en local, en http).
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          // Anti-injection (production) : scripts du site seulement, aucun plugin, aucune
+          // intégration du site dans une autre page, formulaires envoyés au site seulement.
+          // Les workers « blob: » servent à la conversion des vidéos dans le navigateur.
+          ...(process.env.NODE_ENV === "production" ? [{ key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY }] : []),
         ],
       },
     ];

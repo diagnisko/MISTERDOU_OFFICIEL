@@ -627,6 +627,8 @@ export const AUDIT_ACTIONS: Record<string, { label: string; category: AuditCateg
   ADMIN_ACCESS_RESET_WITH_MFA: { label: "Accès administrateur réinitialisé", category: "team" },
   DELETE_PASSWORD_FAILED: { label: "Mot de passe faux lors d’une action protégée", category: "team" },
   SENSITIVE_DATA_ACCESS: { label: "Accès à des données sensibles", category: "team" },
+  NEW_DEVICE_LOGIN: { label: "Connexion d’un membre depuis un nouvel appareil", category: "team" },
+  TEAM_SESSIONS_REVOKED: { label: "Membre déconnecté de tous ses appareils", category: "team" },
 
   // Paramètres
   SETTINGS_CHANGE: { label: "Paramètre modifié", category: "settings" },
@@ -636,6 +638,7 @@ export const AUDIT_ACTIONS: Record<string, { label: string; category: AuditCateg
   LOGIN: { label: "Connexion d’un membre", category: "logins" },
   LOGIN_GOOGLE: { label: "Connexion d’un membre avec Google", category: "logins" },
   LOGOUT: { label: "Déconnexion", category: "logins" },
+  LOGIN_FAILED: { label: "Mauvais mot de passe (ou code) à la connexion", category: "logins" },
   PASSWORD_CHANGED: { label: "Mot de passe changé", category: "logins" },
   PASSWORD_SET: { label: "Mot de passe créé", category: "logins" },
   PASSWORD_RESET_REQUESTED: { label: "Mot de passe oublié : lien demandé", category: "logins" },

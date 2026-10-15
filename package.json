@@ -22,5 +22,12 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp": "^0.35.5",
+      "postcss": "^8.5.30",
+      "source-map-js": "^1.2.2"
+    }
   }
 }

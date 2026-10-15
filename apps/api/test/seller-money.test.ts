@@ -224,8 +224,9 @@ describe("Retraits vendeur", () => {
     expect(row.status).toBe("PENDING");
     expect(row.bankDetailsSnapshot).not.toContain("771234567");
 
+    // Premier retrait de ce vendeur : numéro jamais payé, l'équipe doit l'appeler avant d'envoyer.
     const alert = await prisma.notification.findFirst({
-      where: { userId: admin.user.id, type: "ADMIN_ALERT", title: "Nouvelle demande de retrait" },
+      where: { userId: admin.user.id, type: "ADMIN_ALERT", title: "Retrait vers un nouveau numéro" },
     });
     expect(alert).not.toBeNull();
 

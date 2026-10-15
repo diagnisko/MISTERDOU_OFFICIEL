@@ -12,6 +12,7 @@ import {
   collectInstallment,
   createManager,
   deleteManager,
+  revokeManagerSessions,
   listAuditLogs,
   listManagers,
   listPlans,
@@ -160,6 +161,15 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
       const input = managerUpdateSchema.safeParse(request.body);
       if (!input.success) throw badRequest("VALIDATION_ERROR", "Données du manager invalides.");
       return sendOk(reply, await updateManager(id, input.data, actor(request)));
+    },
+  );
+
+  app.post(
+    "/admin/managers/:id/sessions/revoke",
+    { preHandler: adminGuard, schema: secured("Déconnecter un membre de tous ses appareils — ADMIN") },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      return sendOk(reply, await revokeManagerSessions(id, actor(request)));
     },
   );
 

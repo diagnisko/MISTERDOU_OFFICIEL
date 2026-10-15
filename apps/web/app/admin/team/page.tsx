@@ -15,7 +15,7 @@ import { request } from "@/lib/api";
 import { Alert, Button, SelectInput, TextInput } from "@/components/ui";
 import { errorMessage, minutesToTime } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
-import { AdminModal, AdminPageHead, ErrorAlert, NoticeAlert, TableCard, TableEmpty, TableLoading } from "../_lib/ui";
+import { AdminModal, AdminPageHead, ConfirmDialog, ErrorAlert, NoticeAlert, TableCard, TableEmpty, TableLoading } from "../_lib/ui";
 import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
@@ -144,7 +144,8 @@ type Dialog =
   | { kind: "create" }
   | { kind: "permissions"; row: ManagerRow }
   | { kind: "shifts"; row: ManagerRow }
-  | { kind: "delete"; row: ManagerRow };
+  | { kind: "delete"; row: ManagerRow }
+  | { kind: "logout"; row: ManagerRow };
 
 export default function TeamPage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -164,6 +165,16 @@ export default function TeamPage() {
     await request(`/api/v1/admin/managers/${row.id}`, { method: "PATCH", body: JSON.stringify(payload) });
     setDialog(null);
     await list.refresh(notice);
+  }
+
+  async function logoutMember(row: ManagerRow) {
+    const result = await request<{ sessionsClosed: number }>(`/api/v1/admin/managers/${row.id}/sessions/revoke`, { method: "POST" });
+    setDialog(null);
+    await list.refresh(
+      result.sessionsClosed > 0
+        ? `${fullName(row)} : toutes ses connexions sont fermées (${result.sessionsClosed}). Un e-mail d’avertissement lui a été envoyé.`
+        : `${fullName(row)} n’avait aucune connexion ouverte.`,
+    );
   }
 
   async function deleteMember(row: ManagerRow, password: string) {
@@ -208,6 +219,7 @@ export default function TeamPage() {
               onPermissions={() => setDialog({ kind: "permissions", row })}
               onShifts={() => setDialog({ kind: "shifts", row })}
               onDelete={() => setDialog({ kind: "delete", row })}
+              onLogout={() => setDialog({ kind: "logout", row })}
             />
           ))}
         </ul>
@@ -228,6 +240,23 @@ export default function TeamPage() {
           row={dialog.row}
           onClose={() => setDialog(null)}
           onSubmit={(payload) => updateMember(dialog.row, payload, "Créneaux enregistrés.")}
+        />
+      )}
+
+      {dialog?.kind === "logout" && (
+        <ConfirmDialog
+          title="Déconnecter partout"
+          confirmLabel="Déconnecter partout"
+          danger
+          message={
+            <>
+              Fermer toutes les connexions de <strong className="text-stone-100">{fullName(dialog.row)}</strong>, sur tous ses
+              appareils ? À utiliser après une alerte de connexion suspecte : ce membre devra se reconnecter et recevra un e-mail
+              d’avertissement. Demandez-lui ensuite de changer son mot de passe.
+            </>
+          }
+          onConfirm={() => logoutMember(dialog.row)}
+          onClose={() => setDialog(null)}
         />
       )}
 
@@ -265,11 +294,13 @@ function MemberBar({
   onPermissions,
   onShifts,
   onDelete,
+  onLogout,
 }: {
   row: ManagerRow;
   onPermissions: () => void;
   onShifts: () => void;
   onDelete: () => void;
+  onLogout: () => void;
 }) {
   const name = fullName(row);
   const initials = [row.user.firstName, row.user.lastName].map((part) => part?.[0] ?? "").join("").toUpperCase() || "?";
@@ -303,7 +334,7 @@ function MemberBar({
           {row.permissions.length} permission{row.permissions.length > 1 ? "s" : ""}
           <span className={row.user.twoFactorEnabled ? "text-[#6ee7b7]" : "text-stone-500"}>
             {" · "}
-            {row.user.twoFactorEnabled ? "2FA activée" : "2FA désactivée"}
+            {row.user.twoFactorEnabled ? "double authentification activée" : "sans double authentification"}
           </span>
         </span>
         <span className="max-w-[220px] truncate text-stone-500">{presence}</span>
@@ -312,6 +343,7 @@ function MemberBar({
       <span className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">
         <BarButton onClick={onPermissions}>Permissions</BarButton>
         <BarButton onClick={onShifts}>Créneaux</BarButton>
+        <BarButton onClick={onLogout}>Déconnecter partout</BarButton>
         <BarButton onClick={onDelete} danger>
           Supprimer
         </BarButton>

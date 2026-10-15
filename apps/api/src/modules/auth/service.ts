@@ -5,6 +5,7 @@ import { createSession } from "../../lib/sessions.js";
 import { conflict, badRequest } from "../../lib/errors.js";
 import { notifyActiveAdmins } from "../../lib/notify.js";
 import { env } from "../../env.js";
+import { alertIfNewTeamDevice, assertLoginAllowed, recordLoginFailure, type LoginContext } from "../../lib/login-guard.js";
 import type { RegisterInput, LoginInput, MeDto, RoleName } from "@misterdou/shared";
 import { sendVerificationEmail } from "./email-verification.js";
 
@@ -95,7 +96,7 @@ export async function register(input: RegisterInput, ctx: { ip?: string; userAge
 
 export async function login(
   input: LoginInput,
-  ctx: { ip?: string; userAgent?: string },
+  ctx: LoginContext,
 ): Promise<{ user: MeDto; sid: string; previousLoginAt: string | null }> {
   const email = input.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({
@@ -105,15 +106,25 @@ export async function login(
 
   // Même message pour utilisateur inconnu ou mauvais mot de passe (anti-enumeration)
   const INVALID = "Identifiants invalides";
-  if (!user?.passwordHash) throw badRequest("INVALID_CREDENTIALS", INVALID);
+  // Trop d'échecs récents sur cette adresse : refus avant de tester le mot de passe.
+  await assertLoginAllowed(email, user);
+  if (!user?.passwordHash) {
+    await recordLoginFailure(email, ctx, user);
+    throw badRequest("INVALID_CREDENTIALS", INVALID);
+  }
 
   const ok = await verifyPassword(input.password, user.passwordHash);
-  if (!ok) throw badRequest("INVALID_CREDENTIALS", INVALID);
+  if (!ok) {
+    await recordLoginFailure(email, ctx, user);
+    throw badRequest("INVALID_CREDENTIALS", INVALID);
+  }
   // Administrateur : la session s'ouvre par /auth/admin/login (double authentification).
   // La page de connexion enchaîne seule sur le code à 6 chiffres.
   if (user.role.name === "ADMIN") throw badRequest("ACTION_REQUIRES_2FA", "Compte d’administration : entrez le code à 6 chiffres de votre application d’authentification.");
   if (user.status !== "ACTIVE") throw badRequest("ACCOUNT_SUSPENDED", "Compte suspendu. Contactez l'administration.");
 
+  // Membre de l'équipe sur un appareil jamais vu : lui et les administrateurs sont prévenus.
+  await alertIfNewTeamDevice(user, ctx);
   const previousLoginAt = user.lastLoginAt?.toISOString() ?? null;
   await prisma.user.update({
     where: { id: user.id },
@@ -166,7 +177,14 @@ export async function loginWithGoogle(
   const googleEmail = payload.email.toLowerCase();
 
   let user = await prisma.user.findUnique({ where: { googleSub } });
-  if (!user) user = await prisma.user.findUnique({ where: { email: googleEmail } });
+  if (!user) {
+    user = await prisma.user.findUnique({ where: { email: googleEmail } });
+    // Compte existant relié à Google seulement si Google certifie que l'adresse
+    // appartient bien à ce compte Google (sinon, prise de contrôle possible).
+    if (user && payload.email_verified !== true) {
+      throw badRequest("INVALID_CREDENTIALS", "Cette adresse n’est pas confirmée chez Google : connectez-vous avec votre e-mail et votre mot de passe.");
+    }
+  }
 
   let created = false;
   if (!user) {

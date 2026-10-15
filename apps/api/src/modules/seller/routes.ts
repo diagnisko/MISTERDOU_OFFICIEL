@@ -6,7 +6,7 @@ import { sendOk } from "../../lib/envelope.js";
 import { requireAuth } from "../../lib/auth-context.js";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { validationError } from "../../lib/validation-messages.js";
-import { deleteFile, encryptString } from "../../lib/storage.js";
+import { decryptString, deleteFile, encryptString } from "../../lib/storage.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyActiveAdmins, notifyTeam, notifyUser } from "../../lib/notify.js";
 import { getWithdrawalProofFile } from "../admin-ops/service.js";
@@ -23,6 +23,17 @@ const withdrawalBody = z.object({
 });
 
 const METHOD_LABEL = { WAVE: "Wave" } as const;
+
+/** Numéro de réception enregistré (chiffré) avec un retrait. */
+function snapshotPhone(snapshot: string | null): string | null {
+  if (!snapshot) return null;
+  try {
+    const data = JSON.parse(decryptString(snapshot)) as { phoneNumber?: unknown };
+    return typeof data.phoneNumber === "string" ? data.phoneNumber : null;
+  } catch {
+    return null;
+  }
+}
 
 const receiptBody = z.discriminatedUnion("received", [
   z.object({ received: z.literal(true) }),
@@ -240,9 +251,17 @@ export async function registerSellerRoutes(app: FastifyInstance) {
       const min = await getIntSetting("minWithdrawalAmount", 1000);
       if (input.data.amount < min) throw badRequest("VALIDATION_ERROR", `Montant minimum : ${min.toLocaleString("fr-FR")} FCFA.`);
 
-      const snapshot = encryptString(
-        JSON.stringify({ method: input.data.method, phoneNumber: input.data.phoneNumber.replace(/\s+/g, "") }),
-      );
+      // Numéro jamais payé jusqu'ici : signalé à l'équipe, qui appelle le vendeur avant
+      // d'envoyer (un pirate qui a pris la session ferait virer l'argent sur son numéro).
+      const phoneNumber = input.data.phoneNumber.replace(/\s+/g, "");
+      const paidBefore = await prisma.withdrawal.findMany({
+        where: { sellerId: seller.id, status: "COMPLETED" },
+        select: { bankDetailsSnapshot: true },
+        orderBy: { requestedAt: "desc" },
+        take: 50,
+      });
+      const newNumber = !paidBefore.some((w) => snapshotPhone(w.bankDetailsSnapshot) === phoneNumber);
+      const snapshot = encryptString(JSON.stringify({ method: input.data.method, phoneNumber, newNumber }));
       const withdrawal = await prisma.$transaction(async (tx) => {
         // Débit atomique : impossible de retirer deux fois le même argent.
         const debit = await tx.sellerBalance.updateMany({
@@ -265,21 +284,29 @@ export async function registerSellerRoutes(app: FastifyInstance) {
         action: "WITHDRAWAL_REQUESTED",
         resourceType: "Withdrawal",
         resourceId: withdrawal.id,
-        metadata: { amount: withdrawal.amount, method: input.data.method },
+        metadata: { amount: withdrawal.amount, method: input.data.method, newNumber },
         severity: "WARNING",
       });
       await notifyTeam("WITHDRAWALS", "ADMIN_ALERT", {
-        title: "Nouvelle demande de retrait",
-        message: `${withdrawal.amount.toLocaleString("fr-FR")} FCFA à envoyer par ${METHOD_LABEL[input.data.method]}.`,
+        title: newNumber ? "Retrait vers un nouveau numéro" : "Nouvelle demande de retrait",
+        message: newNumber
+          ? `${withdrawal.amount.toLocaleString("fr-FR")} FCFA à envoyer par ${METHOD_LABEL[input.data.method]} vers un numéro jamais utilisé par ce vendeur : appelez-le pour confirmer avant d’envoyer.`
+          : `${withdrawal.amount.toLocaleString("fr-FR")} FCFA à envoyer par ${METHOD_LABEL[input.data.method]}.`,
         actionUrl: "/admin/withdrawals",
-        priority: "NORMAL",
+        priority: newNumber ? "CRITICAL" : "NORMAL",
       });
-      await notifyUser(auth.user.id, "SELLER_PAYOUT_AVAILABLE", {
-        title: "Demande de retrait envoyée",
-        message: `Votre demande de ${withdrawal.amount.toLocaleString("fr-FR")} FCFA est transmise à l’équipe. Vous serez prévenu dès sa prise en charge.`,
-        actionUrl: "/seller",
-        priority: "NORMAL",
-      });
+      // Le vendeur est toujours prévenu, e-mail compris : si ce n'est pas lui, il le sait aussitôt.
+      await notifyUser(
+        auth.user.id,
+        "SECURITY_ALERT",
+        {
+          title: "Demande de retrait envoyée",
+          message: `Une demande de retrait de ${withdrawal.amount.toLocaleString("fr-FR")} FCFA vers le numéro ${METHOD_LABEL[input.data.method]} •••• ${phoneNumber.slice(-4)} vient d’être faite depuis votre compte. Si ce n’est pas vous, changez votre mot de passe tout de suite et contactez le support : l’équipe vérifie chaque retrait avant l’envoi.`,
+          actionUrl: "/seller#retraits",
+          priority: "CRITICAL",
+        },
+        { forceEmail: true },
+      );
       return sendOk(reply, { ...withdrawal, requestedAt: withdrawal.requestedAt.toISOString() });
     },
   );

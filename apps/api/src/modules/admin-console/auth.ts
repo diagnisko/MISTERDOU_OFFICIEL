@@ -8,6 +8,7 @@ import { verifyPassword } from "../../lib/password.js";
 import { logAudit } from "../../lib/audit.js";
 import { env } from "../../env.js";
 import { createTotpSecret, totpProvisioningUri, verifyTotp } from "./totp.js";
+import { alertIfNewTeamDevice, assertLoginAllowed, recordLoginFailure, type LoginContext } from "../../lib/login-guard.js";
 
 const INVALID_LOGIN = "Identifiants invalides";
 const SETTINGS_GROUP = "security";
@@ -58,17 +59,26 @@ function isTrustedToken(token: string | undefined, userId: string, passwordHash:
 
 export async function loginAdmin(
   input: { email: string; password: string; totpCode?: string; rememberDevice?: boolean; trustedToken?: string },
-  ctx: { ip?: string; userAgent?: string },
+  ctx: LoginContext,
 ) {
   const email = input.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email }, include: { role: { select: { name: true } } } });
-  if (!user?.passwordHash || (user.role.name !== "ADMIN" && user.role.name !== "STAFF") || user.status !== "ACTIVE") throw badRequest("INVALID_CREDENTIALS", INVALID_LOGIN);
-  if (!(await verifyPassword(input.password, user.passwordHash))) throw badRequest("INVALID_CREDENTIALS", INVALID_LOGIN);
+  // Trop d'échecs récents sur cette adresse : refus avant de tester le mot de passe.
+  await assertLoginAllowed(email, user);
+  if (!user?.passwordHash || (user.role.name !== "ADMIN" && user.role.name !== "STAFF") || user.status !== "ACTIVE") {
+    await recordLoginFailure(email, ctx, user);
+    throw badRequest("INVALID_CREDENTIALS", INVALID_LOGIN);
+  }
+  if (!(await verifyPassword(input.password, user.passwordHash))) {
+    await recordLoginFailure(email, ctx, user);
+    throw badRequest("INVALID_CREDENTIALS", INVALID_LOGIN);
+  }
 
   // L'équipe (STAFF) n'a pas de MFA : session standard, entrée par /admin.
   if (user.role.name === "STAFF") {
     // Connexion permise à toute heure : hors de ses créneaux, c'est l'espace de
     // gestion qui reste fermé (contrôle de chaque requête, lib/shifts.ts).
+    await alertIfNewTeamDevice(user, ctx);
     const sid = await createSession({ userId: user.id, kind: "COOKIE", ip: ctx.ip, userAgent: ctx.userAgent, ttlSeconds: env.SESSION_TTL_SECONDS });
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined } });
     await logAudit({ actorId: user.id, actorRole: "STAFF", ip: ctx.ip, userAgent: ctx.userAgent, action: "LOGIN", resourceType: "User", resourceId: user.id });
@@ -87,12 +97,14 @@ export async function loginAdmin(
       if (!input.totpCode) throw badRequest("ACTION_REQUIRES_2FA", "Entrez le code à 6 chiffres de votre application d’authentification.");
       if (!secret || !verifyTotp(secret, input.totpCode)) {
         await logAudit({ actorId: user.id, actorRole: "ADMIN", ip: ctx.ip, userAgent: ctx.userAgent, action: "ADMIN_TOTP_FAILED", resourceType: "User", resourceId: user.id, severity: "WARNING" });
+        await recordLoginFailure(email, ctx, user);
         throw badRequest("OTP_INVALID", "Code d’authentification incorrect ou expiré. Utilisez le code affiché en ce moment dans l’application.");
       }
       if (input.rememberDevice) trustToken = createTrustedToken(user.id, user.passwordHash, secret);
     }
   }
 
+  await alertIfNewTeamDevice(user, ctx);
   const ttlSeconds = setupRequired ? env.ADMIN_SETUP_SESSION_TTL_SECONDS : env.ADMIN_SESSION_TTL_SECONDS;
   const sid = await createSession({ userId: user.id, kind: "COOKIE", ip: ctx.ip, userAgent: ctx.userAgent, ttlSeconds, isAdminSession: !setupRequired });
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: ctx.ip ?? undefined } });

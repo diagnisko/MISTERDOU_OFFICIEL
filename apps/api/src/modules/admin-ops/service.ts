@@ -14,6 +14,7 @@ import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { fieldError } from "../../lib/validation-messages.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
+import { alertAdmins } from "../../lib/login-guard.js";
 import { decryptString, getFile } from "../../lib/storage.js";
 import { assertOwnedProof } from "../identity-verification/service.js";
 import { hashPassword } from "../../lib/password.js";
@@ -140,7 +141,56 @@ export async function updateSetting(key: string, value: unknown, actor: OpsActor
     metadata: { key, before: row.value, after: value },
     severity: "WARNING",
   });
+  // Toute modification prévient aussitôt TOUS les administrateurs (cloche, téléphone,
+  // e-mail) : un lien Wave ou un numéro WhatsApp remplacé en douce détournerait
+  // l'argent ou les clients.
+  if (JSON.stringify(row.value) !== JSON.stringify(value)) {
+    const author = await prisma.user.findUnique({ where: { id: actor.actorId }, select: { firstName: true, lastName: true } });
+    const who = [author?.firstName, author?.lastName].filter(Boolean).join(" ") || "Un membre de l’équipe";
+    const name = SETTING_NAMES[key] ?? row.description ?? key;
+    await alertAdmins(null, {
+      title: `Réglage modifié : ${name}`,
+      message: `${who} a changé « ${name} » : ${shownValue(row.value)} → ${shownValue(value)}. Si ce changement n’est pas voulu, remettez l’ancienne valeur dans Paramètres, puis changez le mot de passe de ce compte.`,
+      actionUrl: "/admin/settings",
+      priority: "CRITICAL",
+    });
+  }
   return { key, value };
+}
+
+/** Nom en clair des réglages, pour les alertes de modification. */
+const SETTING_NAMES: Record<string, string> = {
+  waveMerchantLink: "Lien de paiement Wave",
+  sellerCommissionPercent: "Commission sur chaque vente",
+  supportWhatsapp: "Numéro WhatsApp du support",
+  supportEmail: "E-mail du support",
+  platformName: "Nom du site",
+  currency: "Monnaie",
+  sellerRegistrationFee: "Prix pour devenir vendeur",
+  resellerContract6Price: "Contrat revendeur — 6 mois",
+  resellerContract12Price: "Contrat revendeur — 1 an",
+  resellerContract18Price: "Contrat revendeur — 18 mois",
+  payoutHoldDays: "Délai avant de libérer l’argent du vendeur",
+  minWithdrawalAmount: "Retrait minimum d’un vendeur",
+  featuredDailyRate: "Prix d’une journée de mise en avant",
+  maxInstallments: "Nombre maximum de mensualités",
+  installmentRounding: "Où placer les centimes des mensualités",
+  verificationCodeTtlMinutes: "Durée de validité d’un code de vérification",
+  unpaidOrderExpiryHours: "Délai pour payer une commande",
+  exchangeReplyHours: "Délai de réponse du vendeur (échanges)",
+  exchangeQuoteHours: "Délai de réponse du client (échanges)",
+  exchangeVideoMaxMb: "Taille maximale de la vidéo d’échange",
+  exchangeVideoRetentionDays: "Conservation des vidéos d’échange",
+  chatImageRetentionDays: "Conservation des photos des messages",
+  legalEntityName: "Nom de l’entreprise",
+  legalAddress: "Adresse de l’entreprise",
+  legalRegistration: "NINEA / RCCM",
+  legalPublisher: "Responsable de la publication",
+};
+
+function shownValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "(vide)";
+  return typeof value === "string" ? `« ${value} »` : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +462,34 @@ export async function updateManager(id: string, input: ManagerUpdateInput, actor
  * mot de passe intacts, sessions coupées) ; un compte créé pour l'équipe est
  * désactivé.
  */
+/** Ferme toutes les connexions d'un membre (après une alerte de connexion suspecte). */
+export async function revokeManagerSessions(id: string, actor: OpsActor) {
+  const profile = await prisma.managerProfile.findUnique({ where: { id }, select: { userId: true } });
+  if (!profile) throw notFound("Membre introuvable.");
+  const revoked = await prisma.session.updateMany({
+    where: { userId: profile.userId, revokedAt: null },
+    data: { revokedAt: new Date(), revokedById: actor.actorId },
+  });
+  await audit(actor, "TEAM_SESSIONS_REVOKED", {
+    resourceType: "User",
+    resourceId: profile.userId,
+    metadata: { sessionsClosed: revoked.count },
+    severity: "WARNING",
+  });
+  await notifyUser(
+    profile.userId,
+    "SECURITY_ALERT",
+    {
+      title: "Toutes vos connexions ont été fermées",
+      message: "Par sécurité, l’administrateur a fermé toutes vos connexions à MISTERDOU. Reconnectez-vous, puis changez votre mot de passe si vous ne reconnaissez pas une connexion récente.",
+      actionUrl: "/account/settings",
+      priority: "CRITICAL",
+    },
+    { forceEmail: true },
+  );
+  return { sessionsClosed: revoked.count };
+}
+
 export async function deleteManager(id: string, actor: OpsActor) {
   const profile = await prisma.managerProfile.findUnique({
     where: { id },
@@ -501,12 +579,13 @@ export async function listWithdrawals(args: WithdrawalListArgs) {
   };
 }
 
-function readPayoutDetails(snapshot: string | null): { method: string; phoneNumber: string } | null {
+function readPayoutDetails(snapshot: string | null): { method: string; phoneNumber: string; newNumber: boolean } | null {
   if (!snapshot) return null;
   try {
-    const data = JSON.parse(decryptString(snapshot)) as { method?: unknown; phoneNumber?: unknown };
+    const data = JSON.parse(decryptString(snapshot)) as { method?: unknown; phoneNumber?: unknown; newNumber?: unknown };
+    // newNumber : numéro jamais payé à ce vendeur au moment de la demande (à confirmer par téléphone).
     return typeof data.method === "string" && typeof data.phoneNumber === "string"
-      ? { method: data.method, phoneNumber: data.phoneNumber }
+      ? { method: data.method, phoneNumber: data.phoneNumber, newNumber: data.newNumber === true }
       : null;
   } catch {
     return null;

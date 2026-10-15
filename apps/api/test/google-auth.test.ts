@@ -71,10 +71,17 @@ describe("Connexion Google", () => {
     expect(count).toBe(1);
   });
 
+  it("refuse de rattacher un compte existant si Google n'a pas confirmé l'adresse", async () => {
+    const existing = await createUser(t);
+    const token = tokenFor({ sub: "p13-sub-unverified", email: existing.email, email_verified: false });
+    await expect(loginWithGoogle(token, {})).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: existing.id } })).googleSub).toBeNull();
+  });
+
   it("rattache un jeton à un compte e-mail existant sans en créer un second", async () => {
     const existing = await createUser(t);
     const before = await prisma.user.count();
-    const token = tokenFor({ sub: "p13-sub-link", email: existing.email, email_verified: false });
+    const token = tokenFor({ sub: "p13-sub-link", email: existing.email, email_verified: true });
 
     const result = await loginWithGoogle(token, {});
     expect(result.user.id).toBe(existing.id);
@@ -98,15 +105,15 @@ describe("Connexion Google", () => {
 
     const staff = await createUser(t, { role: "STAFF" });
     await expect(
-      loginWithGoogle(tokenFor({ sub: "p13-sub-staff", email: staff.email }), {}),
+      loginWithGoogle(tokenFor({ sub: "p13-sub-staff", email: staff.email, email_verified: true }), {}),
     ).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", message: "Identifiants invalides" });
   });
 
   it("accepte un vendeur et renvoie sa connexion précédente", async () => {
     const vendor = await createUser(t, { role: "VENDOR" });
-    const first = await loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email }), {});
+    const first = await loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email, email_verified: true }), {});
     expect(first.user.role).toBe("VENDOR");
-    const again = await loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email }), {});
+    const again = await loginWithGoogle(tokenFor({ sub: "p13-sub-vendor", email: vendor.email, email_verified: true }), {});
     expect(again.previousLoginAt).not.toBeNull();
     expect(again.created).toBe(false);
   });
