@@ -63,6 +63,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
 
   const item = order.items[0];
   const closed = order.status === "REFUNDED" || order.status === "CANCELLED";
+  // Mensualités dont l'apport n'est pas encore réglé : on ne parle que de l'apport.
+  const downPending =
+    order.paymentMode === "INSTALLMENTS" ? order.payments.find((p) => p.type === "INITIAL_INSTALLMENT" && p.status === "PENDING") ?? null : null;
 
   return (
     <div className="space-y-5">
@@ -111,8 +114,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
       )}
 
       {order.status === "PENDING_PAYMENT" && !order.paymentUnderReview && (
-        <Alert tone="info" title={t("order.pendingTitle")}>
-          {t("order.pendingBody")}
+        <Alert tone="info" title={downPending ? t("order.downPendingTitle") : t("order.pendingTitle")}>
+          {/* Mensualités : rien ne commence avant l'apport (pas de calendrier, pas de contrat). */}
+          {downPending ? t("order.downPendingBody", { amount: formatXof(downPending.amount) }) : t("order.pendingBody")}
           {order.checkoutUrl && (
             <Link href={order.checkoutUrl} className="mt-3 block font-semibold text-[#ff8a5c] hover:underline">
               {t("order.payNow")}

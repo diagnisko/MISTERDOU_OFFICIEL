@@ -190,6 +190,14 @@ function FinanceOverview({ seeStats, seePayments }: { seeStats: boolean; seePaym
   const [notice, setNotice] = useState<string | null>(null);
 
   const payments = useAdminList<PaymentRow>(seePayments ? `/api/v1/admin/payments${buildQuery({ page: 1, perPage: 6 })}` : null);
+  // Preuves Wave envoyées par les clients, en attente de votre vérification.
+  const [proofsToCheck, setProofsToCheck] = useState(0);
+  useEffect(() => {
+    if (!seePayments) return;
+    request<{ pendingCount: number }>("/api/v1/admin/payment-proofs?status=PENDING")
+      .then((data) => setProofsToCheck(data.pendingCount))
+      .catch(() => setProofsToCheck(0));
+  }, [seePayments]);
 
   const loadFinance = useCallback(async () => {
     if (!seeStats) return;
@@ -588,10 +596,20 @@ function FinanceOverview({ seeStats, seePayments }: { seeStats: boolean; seePaym
       {seePayments && (
         <section className="dash-card mt-4 p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[15px] font-semibold text-stone-100">Derniers paiements</h2>
-            <Link href="/admin/payments" className="text-[12px] text-[#ff8a5c] hover:underline">
-              Tout voir
-            </Link>
+            <h2 className="text-[15px] font-semibold text-stone-100">Derniers paiements reçus</h2>
+            <span className="flex flex-wrap items-center gap-3">
+              {proofsToCheck > 0 && (
+                <Link
+                  href="/admin/payments"
+                  className="rounded-full bg-[linear-gradient(120deg,#ffa070,#e84724)] px-3 py-1 text-[12px] font-semibold text-[#1a0503]"
+                >
+                  {proofsToCheck} {proofsToCheck > 1 ? "preuves" : "preuve"} à vérifier →
+                </Link>
+              )}
+              <Link href="/admin/payments" className="text-[12px] text-[#ff8a5c] hover:underline">
+                Tout voir
+              </Link>
+            </span>
           </div>
           <ErrorAlert error={payments.error} />
           <div className="dash-scroll -mx-5 mt-3 overflow-x-auto">
@@ -613,7 +631,7 @@ function FinanceOverview({ seeStats, seePayments }: { seeStats: boolean; seePaym
                 )}
                 {!payments.loading && payments.items.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="pl-5 text-[#8f7d77]">Aucun paiement enregistré.</td>
+                    <td colSpan={5} className="pl-5 text-[#8f7d77]">Aucun paiement reçu pour l’instant.</td>
                   </tr>
                 )}
                 {payments.items.map((p) => (

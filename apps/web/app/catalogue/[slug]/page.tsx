@@ -8,7 +8,7 @@ import { LuxNav } from "@/components/lux/lux-nav";
 import { LuxFooter } from "@/components/lux/lux-footer";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { cx } from "@/components/lux/lux-fx";
-import { fetchCatalogueDetail, type CatalogueDetail } from "@/lib/lux-catalogue";
+import { CatalogueUnavailableError, fetchCatalogueDetail, type CatalogueDetail } from "@/lib/lux-catalogue";
 import {
   IconArrowLeft,
   IconArrowRight,
@@ -257,7 +257,8 @@ function DetailHub() {
   const slug = params.slug as string;
   const installmentsMode = useSearchParams().get("mode") === "mensualites";
   const [item, setItem] = useState<CatalogueDetail | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error" | "gone">("loading");
+  const [goneTitle, setGoneTitle] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const requestId = useRef(0);
   const own = useOwnOffer(item?.id);
@@ -272,8 +273,13 @@ function DetailHub() {
         setItem(d);
         setStatus("ready");
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (requestId.current !== id) return;
+        if (err instanceof CatalogueUnavailableError) {
+          setGoneTitle(err.title);
+          setStatus("gone");
+          return;
+        }
         setStatus("error");
       });
   }, [slug, attempt]);
@@ -287,6 +293,31 @@ function DetailHub() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="lux-skeleton h-24 rounded-[18px]" aria-hidden />
             ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Compte acheté (ou en cours d'achat) : on le dit clairement, avec la suite.
+  if (status === "gone") {
+    return (
+      <main className="relative z-10 px-5 pt-32 md:px-8 md:pt-40">
+        <div className="mx-auto max-w-3xl">
+          <div className="lux-glass rounded-[24px] px-6 py-12 text-center sm:px-12">
+            <SectionLabel className="justify-center">{t("product.goneKicker")}</SectionLabel>
+            <h1 className="lux-serif mt-5 text-[28px] font-bold leading-tight text-stone-50 sm:text-[34px]">{t("product.goneTitle")}</h1>
+            <p className="mx-auto mt-4 max-w-xl text-[14.5px] leading-relaxed text-stone-400">
+              {goneTitle ? t("product.goneBody", { title: goneTitle }) : t("product.goneBodyNoTitle")}
+            </p>
+            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+              <Link href="/offres" className="lux-btn lux-btn-gold whitespace-nowrap px-6" style={{ borderRadius: 16 }}>
+                {t("product.goneCta")}
+              </Link>
+              <Link href="/pret-ou-prestation" className="lux-btn lux-btn-ghost whitespace-nowrap px-6" style={{ borderRadius: 16 }}>
+                {t("product.goneMonthly")}
+              </Link>
+            </div>
           </div>
         </div>
       </main>

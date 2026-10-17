@@ -20,6 +20,8 @@ import {
   formatCell,
 } from "../_lib/ui";
 import { PaymentProofsPanel } from "./payment-proofs";
+import { useAdminAccess } from "../_lib/access";
+import { PasswordConfirmDialog } from "@/components/password-confirm";
 
 // ---------------------------------------------------------------------------
 // Paiements — port de la vue « payments » de la console + remboursement.
@@ -38,6 +40,7 @@ type PaymentRow = {
   paidAt: string | null;
   createdAt: string;
   user: { email: string; firstName: string | null; lastName: string | null } | null;
+  orderId: string | null;
   order: { orderNumber: string } | null;
 };
 
@@ -56,6 +59,8 @@ export default function PaymentsPage() {
   const [perPage, setPerPage] = useState(25);
   const [busy, setBusy] = useState<string | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentRow | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<PaymentRow | null>(null);
+  const { isAdmin } = useAdminAccess();
 
   const list = useAdminList<PaymentRow>(
     `/api/v1/admin/payments${buildQuery({ page, perPage, q: search || undefined })}`,
@@ -93,9 +98,10 @@ export default function PaymentsPage() {
 
       <div className="mt-10 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="lux-kicker">Trésorerie</p>
+          <p className="lux-kicker">Paiements reçus</p>
           <p className="mt-2 text-sm text-stone-400">
-            Recherche par numéro de transaction ou référence fournisseur.
+            L’argent réellement encaissé. Les clients qui n’ont encore rien envoyé n’apparaissent pas ici : ils voient leur paiement en
+            attente dans leur espace.
           </p>
         </div>
         <SearchBar
@@ -128,15 +134,18 @@ export default function PaymentsPage() {
                     </td>
                   ))}
                   <td className="px-4 py-3.5">
-                    {refundable ? (
-                      <RowAction
-                        label="Rembourser"
-                        busy={busy === row.id}
-                        onClick={() => setRefundTarget(row)}
-                      />
-                    ) : (
-                      <span className="text-stone-600">—</span>
-                    )}
+                    <span className="flex flex-wrap gap-2">
+                      {refundable && (
+                        <RowAction
+                          label="Rembourser"
+                          busy={busy === row.id}
+                          onClick={() => setRefundTarget(row)}
+                        />
+                      )}
+                      {/* Paiement de test (simulation) : retiré de l'historique et des statistiques. */}
+                      {isAdmin && <RowAction label="Effacer (test)" tone="danger" onClick={() => setPurgeTarget(row)} />}
+                      {!refundable && !isAdmin && <span className="text-stone-600">—</span>}
+                    </span>
                   </td>
                 </tr>
               );
@@ -153,6 +162,35 @@ export default function PaymentsPage() {
           setPage(1);
         }}
       />
+
+      {purgeTarget && (
+        <PasswordConfirmDialog
+          title="Effacer ce paiement de test"
+          message={
+            purgeTarget.orderId ? (
+              <>
+                Ce paiement appartient à la commande <strong className="text-stone-100">{purgeTarget.order?.orderNumber}</strong> : toute la
+                commande de test est effacée (paiements, preuves Wave, contrat et mensualités), et disparaît des statistiques. La part du
+                vendeur est retirée de son solde. À utiliser seulement pour vos essais : un vrai paiement sert de preuve.
+              </>
+            ) : (
+              <>
+                Le paiement <strong className="text-stone-100">{purgeTarget.paymentNumber}</strong> est retiré de l’historique et des
+                statistiques. Ce qu’il a activé (adhésion, contrat revendeur, mise en avant) reste actif. À utiliser seulement pour vos
+                essais.
+              </>
+            )
+          }
+          confirmLabel="Effacer définitivement"
+          onClose={() => setPurgeTarget(null)}
+          onConfirm={async (password) => {
+            await request(`/api/v1/admin/payments/${purgeTarget.id}/test`, { method: "DELETE", body: JSON.stringify({ password }) });
+            const wasOrder = Boolean(purgeTarget.orderId);
+            setPurgeTarget(null);
+            await list.refresh(wasOrder ? "Commande de test effacée, avec ses paiements." : "Paiement de test effacé.");
+          }}
+        />
+      )}
 
       {refundTarget && (
         <FieldModal

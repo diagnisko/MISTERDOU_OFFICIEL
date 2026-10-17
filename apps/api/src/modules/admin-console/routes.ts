@@ -346,9 +346,15 @@ export async function registerAdminConsoleRoutes(app: FastifyInstance) {
   app.get("/admin/payments", async (request, reply) => {
     await requirePermission(request, "PAYMENTS");
     const { page, perPage, q } = pageArgs(request.query);
-    const where = q ? { OR: [{ paymentNumber: { contains: q, mode: "insensitive" as const } }, { providerReference: { contains: q, mode: "insensitive" as const } }] } : {};
+    // Seulement l'argent réellement encaissé (payé ou remboursé). Les paiements
+    // sans preuve (le client n'a encore rien envoyé) restent dans son espace ; les
+    // preuves à vérifier ont leur propre bloc en haut de la page Paiements.
+    const where = {
+      status: { in: ["SUCCESS" as const, "REFUNDED" as const] },
+      ...(q ? { OR: [{ paymentNumber: { contains: q, mode: "insensitive" as const } }, { providerReference: { contains: q, mode: "insensitive" as const } }] } : {}),
+    };
     const [items, total] = await Promise.all([
-      prisma.payment.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * perPage, take: perPage, select: { id: true, paymentNumber: true, providerReference: true, type: true, amount: true, currency: true, status: true, paidAt: true, createdAt: true, user: { select: { email: true, firstName: true, lastName: true } }, order: { select: { orderNumber: true } } } }),
+      prisma.payment.findMany({ where, orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }], skip: (page - 1) * perPage, take: perPage, select: { id: true, paymentNumber: true, providerReference: true, type: true, amount: true, currency: true, status: true, paidAt: true, createdAt: true, orderId: true, user: { select: { email: true, firstName: true, lastName: true } }, order: { select: { orderNumber: true } } } }),
       prisma.payment.count({ where }),
     ]);
     return sendOk(reply, items, { page, perPage, total });

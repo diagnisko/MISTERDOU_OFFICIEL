@@ -365,7 +365,9 @@ export type OrderSummary = {
 
 export async function listMyOrders(userId: string): Promise<OrderSummary[]> {
   const orders = await prisma.order.findMany({
-    where: { buyerId: userId },
+    // Une commande annulée sans aucun paiement (jamais réglée, ou compte acheté
+    // par un autre client) n'a rien à montrer : elle disparaît de la liste.
+    where: { buyerId: userId, NOT: { status: "CANCELLED", payments: { none: { status: { in: ["SUCCESS", "REFUNDED"] } } } } },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: { items: { select: { title: true, division: true, teamPower: true, coins: true, quantity: true } } },
@@ -437,7 +439,8 @@ export async function getMyOrder(orderId: string, userId: string) {
   if (!order) throw notFound("Commande introuvable");
   const hasAccess = hasAccountAccess(order);
   const [schedule, verificationCode, holdDays, review] = await Promise.all([
-    order.paymentMode === "INSTALLMENTS" ? getSchedule(order.id) : Promise.resolve(null),
+    // Apport pas encore validé : pas de contrat à montrer, seulement l'apport à payer.
+    order.paymentMode === "INSTALLMENTS" ? getSchedule(order.id).then((s) => (s?.downPaid ? s : null)) : Promise.resolve(null),
     hasAccess ? latestCodeForOrder(order.id) : Promise.resolve(null),
     getIntSetting("payoutHoldDays", 3),
     order.status === "COMPLETED" ? reviewForOrder(order.id, userId) : Promise.resolve(null),

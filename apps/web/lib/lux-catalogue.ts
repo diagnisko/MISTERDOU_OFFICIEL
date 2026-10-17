@@ -40,7 +40,7 @@ interface CatalogueEnvelope {
   ok: boolean;
   data?: CatalogueData["items"];
   meta?: CatalogueMeta;
-  error?: { message?: string };
+  error?: { code?: string; message?: string; details?: unknown };
 }
 
 const TTL_MS = 20_000;
@@ -168,10 +168,18 @@ export interface CatalogueDetail {
 interface DetailEnvelope {
   ok: boolean;
   data?: CatalogueDetail;
-  error?: { message?: string };
+  error?: { code?: string; message?: string; details?: unknown };
 }
 
 const detailCache = new Map<string, { at: number; data: CatalogueDetail }>();
+
+/** Compte qui a existé mais n'est plus en vente (acheté, ou en cours d'achat). */
+export class CatalogueUnavailableError extends Error {
+  constructor(readonly title: string | null) {
+    super("Ce compte n’est plus disponible.");
+    this.name = "CatalogueUnavailableError";
+  }
+}
 
 async function decodeDetail(res: Response, source: string, { slug, store = true }: { slug: string; store?: boolean }): Promise<CatalogueDetail> {
   let payload: DetailEnvelope;
@@ -181,6 +189,11 @@ async function decodeDetail(res: Response, source: string, { slug, store = true 
     throw new Error("fiche : réponse illisible");
   }
   if (!payload.ok || !payload.data) {
+    if (payload.error?.code === "PRODUCT_UNAVAILABLE") {
+      detailCache.delete(slug);
+      const details = payload.error.details as { title?: unknown } | undefined;
+      throw new CatalogueUnavailableError(typeof details?.title === "string" ? details.title : null);
+    }
     throw new Error(payload.error?.message ?? "fiche : introuvable");
   }
   if (store) {

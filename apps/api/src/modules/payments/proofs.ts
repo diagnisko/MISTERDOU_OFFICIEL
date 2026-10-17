@@ -9,6 +9,7 @@ import { notifyTeam, notifyUser } from "../../lib/notify.js";
 import { assertOwnedProof } from "../identity-verification/service.js";
 import { getWaveMerchantLink } from "../settings/service.js";
 import { settlePayment, type PaymentContext } from "./service.js";
+import { releaseOtherBuyers } from "../orders/fulfillment.js";
 
 // ---------------------------------------------------------------------------
 // Paiement par lien Wave Business : le client paie le montant écrit dans le
@@ -63,6 +64,7 @@ export async function submitPaymentProof(token: string, input: PaymentProofInput
       amount: true,
       type: true,
       paymentNumber: true,
+      orderId: true,
       order: { select: { items: { select: { title: true }, take: 1 } } },
       featuredPurchases: FEATURED_SELECT,
     },
@@ -136,6 +138,12 @@ export async function submitPaymentProof(token: string, input: PaymentProofInput
     actionUrl: "/admin/payments",
     priority: "CRITICAL",
   });
+
+  // Le compte est acheté : il quitte la boutique, et les commandes non payées
+  // d'autres clients sur ce compte sont retirées (ils sont prévenus).
+  if (payment.orderId) {
+    await releaseOtherBuyers(payment.orderId).catch((err: unknown) => logger.warn({ err }, "[proofs] commandes concurrentes non retirées"));
+  }
 
   return { status: "PROCESSING" as const, proof: { id: proof.id, status: proof.status, createdAt: proof.createdAt.toISOString() } };
 }

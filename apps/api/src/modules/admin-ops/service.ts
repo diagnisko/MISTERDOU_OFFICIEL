@@ -16,6 +16,7 @@ import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 import { alertAdmins } from "../../lib/login-guard.js";
 import { SITE_VIDEOS_KEY } from "../site-videos/service.js";
+import { STARTED_PLAN } from "../installments/service.js";
 import { decryptString, getFile } from "../../lib/storage.js";
 import { assertOwnedProof } from "../identity-verification/service.js";
 import { hashPassword } from "../../lib/password.js";
@@ -771,6 +772,9 @@ export interface PlanListArgs {
 export async function listPlans(args: PlanListArgs) {
   const { page, perPage } = args;
   const where: Prisma.InstallmentPlanWhereInput = {
+    // Seulement les contrats commencés (apport validé) : une commande dont
+    // l'apport n'est pas payé n'est pas un contrat.
+    AND: [STARTED_PLAN],
     ...(args.status ? { status: args.status } : {}),
     ...(args.q
       ? {

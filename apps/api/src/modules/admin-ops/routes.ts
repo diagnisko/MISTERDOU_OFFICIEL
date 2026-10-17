@@ -31,7 +31,7 @@ import {
 } from "./service.js";
 import { financeOverview, listReceivables } from "./finance.js";
 import { requireTeamPassword } from "../../lib/step-up.js";
-import { purgeTestOrder } from "./purge-order.js";
+import { purgeTestOrder, purgeTestPayment } from "./purge-order.js";
 
 const TAG = "Admin — Opérations";
 
@@ -306,6 +306,17 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
       if (!input.success) throw validationError(input.error.issues);
       const { id } = request.params as { id: string };
       return sendOk(reply, await cancelPlan(id, input.data.reason, actor(request)));
+    },
+  );
+
+  // Paiement de test (administrateur + mot de passe) : voir purgeTestPayment.
+  app.delete(
+    "/admin/payments/:id/test",
+    { preHandler: adminGuard, schema: secured("Effacer un paiement de test (statistiques comprises) — ADMIN, mot de passe exigé") },
+    async (request, reply) => {
+      await requireTeamPassword(request);
+      const { id } = request.params as { id: string };
+      return sendOk(reply, await purgeTestPayment(id, actor(request)));
     },
   );
 

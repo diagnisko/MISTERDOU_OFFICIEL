@@ -16,6 +16,45 @@ import { ERASE_CLIENT_SECRETS } from "../exchanges/lifecycle.js";
 // le journal d'audit. Refusé si l'argent du vendeur a déjà été retiré.
 // ---------------------------------------------------------------------------
 
+/**
+ * Paiement de test : celui d'une commande efface toute la commande (un paiement
+ * seul ne peut pas sortir d'un contrat sans le rendre faux) ; les autres
+ * (adhésion vendeur, contrat revendeur, mise en avant) quittent l'historique et
+ * les statistiques, ce qu'ils ont activé reste actif.
+ */
+export async function purgeTestPayment(paymentId: string, actor: OpsActor) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { id: true, orderId: true, paymentNumber: true, type: true, amount: true, status: true, proofs: { select: { screenshotKey: true } } },
+  });
+  if (!payment) throw notFound("Paiement introuvable.");
+  if (payment.orderId) {
+    const purged = await purgeTestOrder(payment.orderId, actor);
+    return { ...purged, scope: "order" as const };
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.paymentProof.deleteMany({ where: { paymentId: payment.id } });
+    await tx.installment.updateMany({ where: { paymentId: payment.id }, data: { paymentId: null } });
+    await tx.featuredProduct.updateMany({ where: { paymentId: payment.id }, data: { paymentId: null } });
+    await tx.sellerContract.updateMany({ where: { paymentId: payment.id }, data: { paymentId: null } });
+    await tx.payment.delete({ where: { id: payment.id } });
+  });
+  for (const key of payment.proofs.map((p) => p.screenshotKey).filter((k): k is string => Boolean(k))) {
+    await deleteFile(key).catch((err: unknown) => logger.warn({ err }, "[purge] capture non supprimée"));
+  }
+  await logAudit({
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
+    ip: actor.ip,
+    action: "TEST_PAYMENT_PURGED",
+    resourceType: "Payment",
+    resourceId: payment.id,
+    metadata: { paymentNumber: payment.paymentNumber, type: payment.type, amount: payment.amount, status: payment.status },
+    severity: "CRITICAL",
+  });
+  return { scope: "payment" as const, paymentNumber: payment.paymentNumber };
+}
+
 export async function purgeTestOrder(orderId: string, actor: OpsActor) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },

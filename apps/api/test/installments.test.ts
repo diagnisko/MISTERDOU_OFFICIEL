@@ -49,6 +49,14 @@ async function splitOrder(
   return { ...res, productId: product.id };
 }
 
+/** Commande en mensualités dont l'apport est validé : le contrat a commencé (rappels, retards). */
+async function startedSplitOrder(userId: string) {
+  const order = await splitOrder(userId);
+  const apport = await prisma.payment.findFirstOrThrow({ where: { orderId: order.orderId, type: "INITIAL_INSTALLMENT" } });
+  await settlePayment({ id: apport.id }, "SUCCESS", { source: "ADMIN" });
+  return order;
+}
+
 describe("Découpe d'un échéancier (buildSchedule)", () => {
   const from = new Date("2026-09-27T12:00:00.000Z");
 
@@ -236,7 +244,7 @@ describe("Règlement de la prochaine échéance", () => {
 describe("Retards et rappels (jobs)", () => {
   it("marque les échéances échues en OVERDUE et le plan en DEFAULTED", async () => {
     const user = await createUser(t, { kycVerified: true });
-    const order = await splitOrder(user.id);
+    const order = await startedSplitOrder(user.id);
     const installments = await prisma.installment.findMany({
       where: { plan: { orderId: order.orderId } },
       orderBy: { index: "asc" },
@@ -271,7 +279,7 @@ describe("Retards et rappels (jobs)", () => {
 
   it("envoie le rappel J-3 une seule fois puis se tait (anti-doublon)", async () => {
     const user = await createUser(t, { kycVerified: true });
-    const order = await splitOrder(user.id);
+    const order = await startedSplitOrder(user.id);
     const installments = await prisma.installment.findMany({
       where: { plan: { orderId: order.orderId } },
       orderBy: { index: "asc" },
@@ -302,7 +310,7 @@ describe("Retards et rappels (jobs)", () => {
 
   it("notifie les retards en critique (INSTALLMENT_OVERDUE), une seule fois", async () => {
     const user = await createUser(t, { kycVerified: true });
-    const order = await splitOrder(user.id);
+    const order = await startedSplitOrder(user.id);
     const installments = await prisma.installment.findMany({
       where: { plan: { orderId: order.orderId } },
       orderBy: { index: "asc" },

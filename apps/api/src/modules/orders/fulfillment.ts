@@ -276,3 +276,65 @@ export function startSellerPayoutJobs(): NodeJS.Timeout {
   timer.unref();
   return timer;
 }
+
+/**
+ * Compte en train d'être acheté (l'acheteur a envoyé sa preuve de paiement) :
+ * il quitte la boutique tout de suite, sans attendre la validation. Si la preuve
+ * est refusée, il revient seul (la commande n'a plus de paiement en vérification).
+ */
+export function notBeingBought(): Prisma.ProductWhereInput {
+  return { orderItems: { none: { order: { status: "PENDING_PAYMENT", payments: { some: { status: "PROCESSING" } } } } } };
+}
+
+/**
+ * Compte acheté par un client (preuve envoyée ou paiement validé) : les commandes
+ * d'autres clients restées SANS paiement sur ce même compte sont retirées
+ * (annulées, puis masquées de « Mes commandes ») et ces clients sont prévenus,
+ * au lieu de garder une commande impossible à régler.
+ */
+export async function releaseOtherBuyers(orderId: string): Promise<number> {
+  const items = await prisma.orderItem.findMany({ where: { orderId }, select: { productId: true } });
+  const productIds = [...new Set(items.map((i) => i.productId))];
+  if (productIds.length === 0) return 0;
+  const unpaid = { none: { status: { in: ["PROCESSING", "SUCCESS"] as Array<"PROCESSING" | "SUCCESS"> } } };
+  const stale = await prisma.order.findMany({
+    where: {
+      id: { not: orderId },
+      status: "PENDING_PAYMENT",
+      items: { some: { productId: { in: productIds } } },
+      payments: unpaid,
+      exchange: { is: null },
+    },
+    select: { id: true, orderNumber: true, buyerId: true, items: { select: { title: true }, take: 1 } },
+  });
+  let released = 0;
+  for (const order of stale) {
+    const done = await prisma.$transaction(async (tx) => {
+      const res = await tx.order.updateMany({ where: { id: order.id, status: "PENDING_PAYMENT", payments: unpaid }, data: { status: "CANCELLED" } });
+      if (res.count === 0) return false;
+      await tx.payment.updateMany({
+        where: { orderId: order.id, status: "PENDING" },
+        data: { status: "CANCELLED", failureReason: "Compte acheté par un autre client." },
+      });
+      const plan = await tx.installmentPlan.findUnique({ where: { orderId: order.id }, select: { id: true } });
+      if (plan) {
+        await tx.installmentPlan.update({ where: { id: plan.id }, data: { status: "CANCELLED" } });
+        await tx.installment.updateMany({ where: { planId: plan.id, status: { in: ["PENDING", "OVERDUE"] } }, data: { status: "CANCELLED" } });
+      }
+      return true;
+    });
+    if (!done) continue;
+    released += 1;
+    const title = order.items[0]?.title ?? "Ce compte";
+    await notifyUser(order.buyerId, "SYSTEM", {
+      title: "Ce compte n’est plus disponible",
+      message: `« ${title} » vient d’être acheté par un autre client : votre commande ${order.orderNumber} est retirée. D’autres comptes vous attendent.`,
+      actionUrl: "/offres",
+      priority: "NORMAL",
+    });
+  }
+  if (released > 0) {
+    await logAudit({ action: "OTHER_ORDERS_RELEASED", resourceType: "Order", resourceId: orderId, metadata: { released, productIds } });
+  }
+  return released;
+}

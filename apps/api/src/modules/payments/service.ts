@@ -11,6 +11,7 @@ import { logAudit } from "../../lib/audit.js";
 import { logger } from "../../lib/logger.js";
 import { getWaveMerchantLink, waveLinkWithAmount } from "../settings/service.js";
 import { latestProof } from "./proofs.js";
+import { releaseOtherBuyers } from "../orders/fulfillment.js";
 
 export interface PaymentContext {
   actorId?: string;
@@ -181,6 +182,10 @@ export async function settlePayment(
   });
 
   if (outcome === "SUCCESS") {
+    // Compte payé : les commandes non payées d'autres clients sur ce compte sont retirées.
+    if (payment.orderId) {
+      await releaseOtherBuyers(payment.orderId).catch((err: unknown) => logger.warn({ err }, "[payments] commandes concurrentes non retirées"));
+    }
     const deposit = payment.type === "INITIAL_INSTALLMENT";
     await notifyUser(payment.userId, "PAYMENT_CONFIRMED", {
       title: deposit ? "Apport confirmé : votre compte est disponible" : "Paiement confirmé",

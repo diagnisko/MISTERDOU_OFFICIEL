@@ -1,4 +1,5 @@
 import { notHeldByExchange } from "../exchanges/hold.js";
+import { notBeingBought } from "../orders/fulfillment.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@misterdou/db";
 import { sendPublicOk, PUBLIC_CACHE_CONTROL } from "../../lib/envelope.js";
@@ -84,14 +85,14 @@ export async function registerSeedRoutes(app: FastifyInstance) {
           prisma.productReview.aggregate({ _avg: { rating: true } }),
           getPublicMeta(),
           prisma.product.findMany({
-            where: { status: "ACTIVE", deletedAt: null, ...notHeldByExchange() },
+            where: { status: "ACTIVE", deletedAt: null, ...notHeldByExchange(), ...notBeingBought() },
             orderBy: { createdAt: "desc" },
             take: 6,
             select: homeSelect,
           }),
           // Offres dont le vendeur a payé une mise en avant encore valide.
           prisma.product.findMany({
-            where: { status: "ACTIVE", deletedAt: null, featuredUntil: { gt: now }, ...notHeldByExchange() },
+            where: { status: "ACTIVE", deletedAt: null, featuredUntil: { gt: now }, ...notHeldByExchange(), ...notBeingBought() },
             orderBy: { createdAt: "desc" },
             take: 6,
             select: homeSelect,

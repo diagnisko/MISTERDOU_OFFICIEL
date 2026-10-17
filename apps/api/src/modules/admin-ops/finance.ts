@@ -1,5 +1,6 @@
 import { prisma } from "@misterdou/db";
 import type { InstallmentStatus, Prisma } from "@misterdou/db";
+import { STARTED_PLAN } from "../installments/service.js";
 
 // ---------------------------------------------------------------------------
 // Pilotage financier de la console : chiffre d'affaires, encaissé du mois,
@@ -40,7 +41,7 @@ export async function financeOverview(now = new Date()) {
       _sum: { amount: true },
     }),
     prisma.installment.findMany({
-      where: { status: { in: OPEN }, plan: { status: OPEN_PLAN } },
+      where: { status: { in: OPEN }, plan: { status: OPEN_PLAN, ...STARTED_PLAN } },
       select: { planId: true, amountDue: true, amountPaid: true, dueDate: true, status: true },
     }),
     prisma.$queryRaw<Array<{ month: string; total: bigint }>>`
@@ -52,6 +53,7 @@ export async function financeOverview(now = new Date()) {
       SELECT to_char(date_trunc('month', "dueDate"), 'YYYY-MM') AS month, COALESCE(SUM("amountDue"), 0)::bigint AS total
       FROM "Installment"
       WHERE status <> 'CANCELLED' AND "dueDate" >= ${firstMonth} AND "dueDate" < ${current.end}
+        AND "planId" IN (SELECT id FROM "InstallmentPlan" WHERE "totalPaid" > 0 OR "downPaymentAmount" = 0)
       GROUP BY 1`,
   ]);
 
@@ -142,6 +144,7 @@ export async function listReceivables(args: ReceivableArgs, now = new Date()) {
   const q = args.q?.trim();
   const where: Prisma.InstallmentPlanWhereInput = {
     status: OPEN_PLAN,
+    AND: [STARTED_PLAN],
     ...(q
       ? {
           OR: [

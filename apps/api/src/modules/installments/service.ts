@@ -18,7 +18,7 @@
 
 import { randomBytes, randomInt } from "node:crypto";
 import { prisma } from "@misterdou/db";
-import type { Payment, RoleName } from "@misterdou/db";
+import type { Payment, Prisma, RoleName } from "@misterdou/db";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyMany, notifyUser, type NotifyParams } from "../../lib/notify.js";
@@ -144,6 +144,24 @@ export async function createInstallmentPlan(
   return { ...created, schedule: plan };
 }
 
+/**
+ * Contrat « commencé » : apport validé, ou offre sans apport. Avant, le contrat
+ * n'existe pour personne : ni pour le client (seulement « apport à payer »),
+ * ni dans « Tranches », ni dans les chiffres, ni dans les rappels et retards.
+ */
+export const STARTED_PLAN: Prisma.InstallmentPlanWhereInput = { OR: [{ totalPaid: { gt: 0 } }, { downPaymentAmount: 0 }] };
+
+/** Le contrat démarre au jour de l'apport validé : chaque échéance part de cette date. */
+async function restartScheduleFrom(tx: Tx, planId: string, from: Date) {
+  const lines = await tx.installment.findMany({ where: { planId }, select: { id: true, index: true }, orderBy: { index: "asc" } });
+  for (const line of lines) {
+    const due = new Date(from);
+    due.setMonth(due.getMonth() + line.index);
+    await tx.installment.update({ where: { id: line.id }, data: { dueDate: due } });
+  }
+  await tx.installmentPlan.update({ where: { id: planId }, data: { dueDay: from.getDate() } });
+}
+
 export async function getSchedule(orderId: string): Promise<Schedule | null> {
   const plan = await prisma.installmentPlan.findUnique({
     where: { orderId },
@@ -236,6 +254,9 @@ export async function applyDownPayment(tx: Tx, payment: Payment): Promise<{ coun
   // n'apparaît donc pas dans le tableau des mensualités. Le client peut payer
   // des mois en même temps que l'apport : le surplus est versé sur les
   // mensualités, dans l'ordre, à partir du mois ciblé.
+  // Premier apport validé : le contrat commence aujourd'hui (dates recalculées).
+  if (!alreadyCounted) await restartScheduleFrom(tx, plan.id, new Date());
+
   const surplus = alreadyCounted ? 0 : Math.max(0, payment.amount - plan.downPaymentAmount);
   if (surplus > 0 && payment.installmentId) {
     const start = await tx.installment.findUnique({ where: { id: payment.installmentId } });
@@ -515,7 +536,7 @@ export async function markOverdueInstallments(now = new Date()): Promise<number>
   const frozen = await plansFollowedElsewhere();
   const notFrozen = frozen.length ? { planId: { notIn: frozen } } : {};
   const res = await prisma.installment.updateMany({
-    where: { status: "PENDING", dueDate: { lt: now }, ...notFrozen },
+    where: { status: "PENDING", dueDate: { lt: now }, plan: STARTED_PLAN, ...notFrozen },
     data: { status: "OVERDUE" },
   });
   if (res.count > 0) {
@@ -567,7 +588,7 @@ export async function sendInstallmentReminders(now = new Date()): Promise<{ upco
   const notFrozen = frozen.length ? { planId: { notIn: frozen } } : {};
   const [dueSoon, overdueRows] = await Promise.all([
     prisma.installment.findMany({
-      where: { status: "PENDING", dueDate: { gte: now, lte: horizon }, ...notFrozen },
+      where: { status: "PENDING", dueDate: { gte: now, lte: horizon }, plan: STARTED_PLAN, ...notFrozen },
       include: { plan: { include: { order: { select: { orderNumber: true, buyerId: true } } } } },
       take: 200,
     }),

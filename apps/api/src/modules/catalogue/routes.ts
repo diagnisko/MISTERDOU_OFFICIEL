@@ -9,6 +9,7 @@ import { mediaKind, publicUrl } from "../../lib/media.js";
 import { PLATFORM_KEY, PLATFORM_PROFILE_ID, reputations, sellerCode, sellerIdentities } from "../reviews/service.js";
 import { houseAvatarUrl } from "../../lib/house.js";
 import { notHeldByExchange } from "../exchanges/hold.js";
+import { notBeingBought } from "../orders/fulfillment.js";
 
 // ---------------------------------------------------------------------------
 // Catalogue public (Phase 3) — GET /api/catalogue  &  GET /api/catalogue/:slug
@@ -189,6 +190,8 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         deletedAt: null,
         // Compte tenu par un échange en cours : hors boutique.
         ...notHeldByExchange(),
+        // Acheté (preuve envoyée) : plus en vente, même avant la validation.
+        ...notBeingBought(),
         ...(sellerId !== undefined ? { sellerId } : {}),
         ...(division ? { division } : {}),
         ...(paymentMode === "INSTALLMENTS" ? { paymentMode } : {}),
@@ -289,14 +292,20 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const { slug } = request.params as { slug: string };
       const now = new Date();
       const p = await prisma.product.findFirst({
-        where: { slug, status: "ACTIVE", deletedAt: null, ...notHeldByExchange() },
+        where: { slug, status: "ACTIVE", deletedAt: null, ...notHeldByExchange(), ...notBeingBought() },
         select: {
           ...publicSelect(now),
           description: true,
           extraInfo: true,
         },
       });
-      if (!p) return sendError(reply, 404, "NOT_FOUND", "Compte introuvable ou retiré.");
+      if (!p) {
+        // Compte qui a existé mais n'est plus en vente (acheté, en cours d'achat ou
+        // d'échange) : un message clair plutôt qu'un « introuvable ».
+        const gone = await prisma.product.findFirst({ where: { slug, deletedAt: null, status: { in: ["ACTIVE", "SOLD"] } }, select: { title: true } });
+        if (gone) return sendError(reply, 410, "PRODUCT_UNAVAILABLE", "Ce compte vient d’être acheté : il n’est plus disponible.", { title: gone.title });
+        return sendError(reply, 404, "NOT_FOUND", "Compte introuvable ou retiré.");
+      }
 
       const media = await prisma.productImage.findMany({
         where: { productId: p.id },
