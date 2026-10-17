@@ -1,16 +1,17 @@
 // Paiements plus clairs : pas de contrat avant l'apport, compte acheté retiré
-// de la boutique (et des commandes non payées des autres clients), effacement
-// d'un paiement de test.
+// de la boutique (et des commandes non payées des autres clients), suppression
+// d'un paiement.
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@misterdou/db";
-import { SUITE_STARTED_AT, buildMiniApp, cleanup, createAdmin, createProduct, createUser, track, tracker } from "./helpers.js";
+import { SUITE_STARTED_AT, buildMiniApp, cleanup, createAdmin, createProduct, createStaff, createUser, track, tracker } from "./helpers.js";
 import { createOrder, createOrderSchema, getMyOrder, listMyOrders } from "../src/modules/orders/service.js";
 import { settlePayment } from "../src/modules/payments/service.js";
 import { listPlans } from "../src/modules/admin-ops/service.js";
 import { listReceivables } from "../src/modules/admin-ops/finance.js";
-import { purgeTestPayment } from "../src/modules/admin-ops/purge-order.js";
+import { purgePayment } from "../src/modules/admin-ops/purge-order.js";
 import { releaseOtherBuyers } from "../src/modules/orders/fulfillment.js";
 import { registerCatalogueRoutes } from "../src/modules/catalogue/routes.js";
+import { registerAdminOpsRoutes } from "../src/modules/admin-ops/routes.js";
 
 const t = tracker();
 
@@ -102,7 +103,7 @@ describe("Compte acheté", () => {
   });
 });
 
-describe("Effacer un paiement de test", () => {
+describe("Supprimer un paiement", () => {
   it("un paiement de commande efface toute la commande ; un autre paiement disparaît seul", async () => {
     const { user: admin } = await createAdmin(t);
     const actor = { actorId: admin.id, actorRole: "ADMIN" as const };
@@ -110,7 +111,7 @@ describe("Effacer un paiement de test", () => {
     const { order, apport } = await monthlyOrder(product);
     await settlePayment({ id: apport.id }, "SUCCESS", { source: "ADMIN" });
 
-    expect((await purgeTestPayment(apport.id, actor)).scope).toBe("order");
+    expect((await purgePayment(apport.id, actor)).scope).toBe("order");
     expect(await prisma.order.findUnique({ where: { id: order.orderId } })).toBeNull();
     expect(await prisma.installmentPlan.count({ where: { orderId: order.orderId } })).toBe(0);
 
@@ -118,7 +119,46 @@ describe("Effacer un paiement de test", () => {
     const fee = await prisma.payment.create({
       data: { userId: seller.id, paymentNumber: `PAY-TEST-${Date.now()}`, type: "SELLER_REGISTRATION_FEE", amount: 1000, currency: "XOF", provider: "WAVE_LINK", status: "SUCCESS", paidAt: new Date() },
     });
-    expect((await purgeTestPayment(fee.id, actor)).scope).toBe("payment");
+    expect((await purgePayment(fee.id, actor)).scope).toBe("payment");
     expect(await prisma.payment.findUnique({ where: { id: fee.id } })).toBeNull();
+  });
+});
+
+describe("Supprimer un paiement depuis la console", () => {
+  it("exige le mot de passe administrateur : sans lui, ou s'il est faux, rien n'est supprimé", async () => {
+    const admin = await createAdmin(t);
+    const client = await createUser(t);
+    const payment = await prisma.payment.create({
+      data: { userId: client.id, paymentNumber: `PAY-SUPPR-${Date.now()}`, type: "SELLER_REGISTRATION_FEE", amount: 1000, currency: "XOF", provider: "WAVE_LINK", status: "SUCCESS", paidAt: new Date() },
+    });
+    const app = await buildMiniApp({ auth: admin.session }, async (instance) => {
+      await instance.register(registerAdminOpsRoutes, { prefix: "/api/v1" });
+    });
+    const url = `/api/v1/admin/payments/${payment.id}`;
+
+    const missing = await app.inject({ method: "DELETE", url, payload: {} });
+    expect(missing.json().error.code).toBe("PASSWORD_REQUIRED");
+    const wrong = await app.inject({ method: "DELETE", url, payload: { password: "pas-le-bon" } });
+    expect(wrong.json().error).toMatchObject({ code: "INVALID_PASSWORD", message: "Mot de passe incorrect : rien n’a été fait." });
+    expect(await prisma.payment.count({ where: { id: payment.id } })).toBe(1);
+
+    const ok = await app.inject({ method: "DELETE", url, payload: { password: "MotDePasse123!" } });
+    expect(ok.statusCode).toBe(200);
+    expect(await prisma.payment.count({ where: { id: payment.id } })).toBe(0);
+    await app.close();
+
+    // Un membre de l'équipe (non administrateur) ne peut pas supprimer, même avec son mot de passe.
+    const staff = await createStaff(t, ["PAYMENTS"]);
+    const other = await prisma.payment.create({
+      data: { userId: client.id, paymentNumber: `PAY-SUPPR2-${Date.now()}`, type: "SELLER_REGISTRATION_FEE", amount: 1000, currency: "XOF", provider: "WAVE_LINK", status: "SUCCESS", paidAt: new Date() },
+    });
+    const staffApp = await buildMiniApp({ auth: staff.session }, async (instance) => {
+      await instance.register(registerAdminOpsRoutes, { prefix: "/api/v1" });
+    });
+    const refused = await staffApp.inject({ method: "DELETE", url: `/api/v1/admin/payments/${other.id}`, payload: { password: "MotDePasse123!" } });
+    expect(refused.statusCode).toBe(403);
+    expect(await prisma.payment.count({ where: { id: other.id } })).toBe(1);
+    await prisma.payment.delete({ where: { id: other.id } });
+    await staffApp.close();
   });
 });

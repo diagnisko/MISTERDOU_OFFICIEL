@@ -142,8 +142,8 @@ export default function PaymentsPage() {
                           onClick={() => setRefundTarget(row)}
                         />
                       )}
-                      {/* Paiement de test (simulation) : retiré de l'historique et des statistiques. */}
-                      {isAdmin && <RowAction label="Effacer (test)" tone="danger" onClick={() => setPurgeTarget(row)} />}
+                      {/* Suppression définitive (administrateur, mot de passe exigé). */}
+                      {isAdmin && <RowAction label="Supprimer" tone="danger" onClick={() => setPurgeTarget(row)} />}
                       {!refundable && !isAdmin && <span className="text-stone-600">—</span>}
                     </span>
                   </td>
@@ -165,29 +165,29 @@ export default function PaymentsPage() {
 
       {purgeTarget && (
         <PasswordConfirmDialog
-          title="Effacer ce paiement de test"
+          title="Supprimer ce paiement"
           message={
             purgeTarget.orderId ? (
               <>
-                Ce paiement appartient à la commande <strong className="text-stone-100">{purgeTarget.order?.orderNumber}</strong> : toute la
-                commande de test est effacée (paiements, preuves Wave, contrat et mensualités), et disparaît des statistiques. La part du
-                vendeur est retirée de son solde. À utiliser seulement pour vos essais : un vrai paiement sert de preuve.
+                Ce paiement est lié à la commande <strong className="text-stone-100">{purgeTarget.order?.orderNumber}</strong>. La commande
+                est supprimée avec l’ensemble de ses paiements, preuves Wave, contrat et mensualités : elle n’apparaîtra plus dans
+                l’historique ni dans les statistiques, et la part du vendeur est retirée de son solde. Cette action est définitive.
               </>
             ) : (
               <>
-                Le paiement <strong className="text-stone-100">{purgeTarget.paymentNumber}</strong> est retiré de l’historique et des
-                statistiques. Ce qu’il a activé (adhésion, contrat revendeur, mise en avant) reste actif. À utiliser seulement pour vos
-                essais.
+                Le paiement <strong className="text-stone-100">{purgeTarget.paymentNumber}</strong> est supprimé de l’historique et des
+                statistiques. Les services qu’il a activés (adhésion, contrat revendeur, mise en avant) restent actifs. Cette action est
+                définitive.
               </>
             )
           }
-          confirmLabel="Effacer définitivement"
+          confirmLabel="Supprimer définitivement"
           onClose={() => setPurgeTarget(null)}
           onConfirm={async (password) => {
-            await request(`/api/v1/admin/payments/${purgeTarget.id}/test`, { method: "DELETE", body: JSON.stringify({ password }) });
+            await request(`/api/v1/admin/payments/${purgeTarget.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
             const wasOrder = Boolean(purgeTarget.orderId);
             setPurgeTarget(null);
-            await list.refresh(wasOrder ? "Commande de test effacée, avec ses paiements." : "Paiement de test effacé.");
+            await list.refresh(wasOrder ? "Paiement supprimé, avec sa commande." : "Paiement supprimé.");
           }}
         />
       )}

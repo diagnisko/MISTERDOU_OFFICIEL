@@ -29,7 +29,7 @@ describe("Effacer une commande de test", () => {
     const app = await buildMiniApp({ auth: admin.session }, async (i) => {
       await i.register(registerAdminOpsRoutes, { prefix: "/api/v1" });
     });
-    const url = `/api/v1/admin/orders/${order.orderId}/test`;
+    const url = `/api/v1/admin/orders/${order.orderId}`;
     expect((await app.inject({ method: "DELETE", url, payload: {} })).json().error.code).toBe("PASSWORD_REQUIRED");
     const ok = await app.inject({ method: "DELETE", url, payload: { password: "MotDePasse123!" } });
     expect(ok.statusCode).toBe(200);

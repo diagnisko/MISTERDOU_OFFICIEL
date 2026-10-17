@@ -113,7 +113,7 @@ export default function AdminOrdersPage() {
                       ) : (
                         <span className="text-stone-600">—</span>
                       )}
-                      {isAdmin && <RowAction label="Effacer" tone="danger" onClick={() => setPurging(row)} />}
+                      {isAdmin && <RowAction label="Supprimer" tone="danger" onClick={() => setPurging(row)} />}
                     </span>
                   </td>
                 </tr>
@@ -125,20 +125,21 @@ export default function AdminOrdersPage() {
 
       {purging && (
         <PasswordConfirmDialog
-          title="Effacer cette commande"
+          title="Supprimer cette commande"
           message={
             <>
-              La commande <strong className="text-stone-100">{purging.orderNumber}</strong> est effacée avec ses paiements, preuves Wave,
-              échéancier et notifications : elle disparaît des statistiques. La part du vendeur est retirée de son solde et le compte
-              est désactivé (à supprimer ou remettre en vente dans « Offres »).
+              La commande <strong className="text-stone-100">{purging.orderNumber}</strong> est supprimée avec ses paiements, preuves
+              Wave, contrat et notifications : elle n’apparaîtra plus dans l’historique ni dans les statistiques. La part du vendeur est
+              retirée de son solde et le compte est désactivé (à supprimer ou remettre en vente dans « Offres »). Cette action est
+              définitive.
             </>
           }
-          confirmLabel="Effacer définitivement"
+          confirmLabel="Supprimer définitivement"
           onClose={() => setPurging(null)}
           onConfirm={async (password) => {
-            await request(`/api/v1/admin/orders/${purging.id}/test`, { method: "DELETE", body: JSON.stringify({ password }) });
+            await request(`/api/v1/admin/orders/${purging.id}`, { method: "DELETE", body: JSON.stringify({ password }) });
             setPurging(null);
-            await list.refresh("Commande de test effacée.");
+            await list.refresh("Commande supprimée.");
           }}
         />
       )}

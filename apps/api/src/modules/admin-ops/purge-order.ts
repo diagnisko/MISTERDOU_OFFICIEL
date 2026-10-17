@@ -7,7 +7,7 @@ import type { OpsActor } from "./service.js";
 import { ERASE_CLIENT_SECRETS } from "../exchanges/lifecycle.js";
 
 // ---------------------------------------------------------------------------
-// Effacement d'une COMMANDE DE TEST (administrateur, mot de passe exigé) :
+// Suppression d'une commande (administrateur, mot de passe exigé) :
 // la commande et tout ce qui en dépend disparaissent des statistiques —
 // paiements et preuves Wave, échéancier, codes de vérification, avis du client
 // sur ce compte, notifications de la commande. La part du vendeur est retirée
@@ -17,19 +17,20 @@ import { ERASE_CLIENT_SECRETS } from "../exchanges/lifecycle.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Paiement de test : celui d'une commande efface toute la commande (un paiement
- * seul ne peut pas sortir d'un contrat sans le rendre faux) ; les autres
- * (adhésion vendeur, contrat revendeur, mise en avant) quittent l'historique et
- * les statistiques, ce qu'ils ont activé reste actif.
+ * Suppression d'un paiement (administrateur, mot de passe vérifié par la route) :
+ * celui d'une commande supprime toute la commande (un paiement seul ne peut pas
+ * sortir d'un contrat sans le rendre faux) ; les autres (adhésion vendeur,
+ * contrat revendeur, mise en avant) quittent l'historique et les statistiques,
+ * ce qu'ils ont activé reste actif.
  */
-export async function purgeTestPayment(paymentId: string, actor: OpsActor) {
+export async function purgePayment(paymentId: string, actor: OpsActor) {
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
     select: { id: true, orderId: true, paymentNumber: true, type: true, amount: true, status: true, proofs: { select: { screenshotKey: true } } },
   });
   if (!payment) throw notFound("Paiement introuvable.");
   if (payment.orderId) {
-    const purged = await purgeTestOrder(payment.orderId, actor);
+    const purged = await purgeOrder(payment.orderId, actor);
     return { ...purged, scope: "order" as const };
   }
   await prisma.$transaction(async (tx) => {
@@ -55,7 +56,7 @@ export async function purgeTestPayment(paymentId: string, actor: OpsActor) {
   return { scope: "payment" as const, paymentNumber: payment.paymentNumber };
 }
 
-export async function purgeTestOrder(orderId: string, actor: OpsActor) {
+export async function purgeOrder(orderId: string, actor: OpsActor) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
@@ -116,14 +117,14 @@ export async function purgeTestOrder(orderId: string, actor: OpsActor) {
       data: {
         orderId: null,
         ...(order.exchange && order.exchange.status !== "COMPLETED"
-          ? { status: "CANCELLED" as const, closedAt: new Date(), closeReason: "Commande de test effacée.", ...ERASE_CLIENT_SECRETS }
+          ? { status: "CANCELLED" as const, closedAt: new Date(), closeReason: "Commande supprimée par l’administration.", ...ERASE_CLIENT_SECRETS }
           : {}),
       },
     });
     await tx.orderItem.deleteMany({ where: { orderId: order.id } });
     await tx.order.delete({ where: { id: order.id } });
 
-    // Le compte « vendu » par ce test n'est plus en vente d'office : à remettre en vente ou supprimer.
+    // Le compte « vendu » par cette commande n'est plus en vente d'office : à remettre en vente ou supprimer.
     await tx.product.updateMany({ where: { id: { in: productIds }, status: "SOLD" }, data: { status: "SUSPENDED" } });
   });
 

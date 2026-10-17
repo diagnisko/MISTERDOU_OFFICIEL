@@ -31,7 +31,7 @@ import {
 } from "./service.js";
 import { financeOverview, listReceivables } from "./finance.js";
 import { requireTeamPassword } from "../../lib/step-up.js";
-import { purgeTestOrder, purgeTestPayment } from "./purge-order.js";
+import { purgeOrder, purgePayment } from "./purge-order.js";
 
 const TAG = "Admin — Opérations";
 
@@ -309,25 +309,25 @@ export async function registerAdminOpsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Paiement de test (administrateur + mot de passe) : voir purgeTestPayment.
+  // Suppression d'un paiement : administrateur + mot de passe (voir purgePayment).
   app.delete(
-    "/admin/payments/:id/test",
-    { preHandler: adminGuard, schema: secured("Effacer un paiement de test (statistiques comprises) — ADMIN, mot de passe exigé") },
+    "/admin/payments/:id",
+    { preHandler: adminGuard, schema: secured("Supprimer un paiement (historique et statistiques) — ADMIN, mot de passe exigé") },
     async (request, reply) => {
       await requireTeamPassword(request);
       const { id } = request.params as { id: string };
-      return sendOk(reply, await purgeTestPayment(id, actor(request)));
+      return sendOk(reply, await purgePayment(id, actor(request)));
     },
   );
 
-  // Commande de test : effacée avec tout ce qui en dépend (administrateur + mot de passe).
+  // Suppression d'une commande avec tout ce qui en dépend (administrateur + mot de passe).
   app.delete(
-    "/admin/orders/:id/test",
-    { preHandler: adminGuard, schema: secured("Effacer une commande de test (statistiques comprises) — ADMIN, mot de passe exigé") },
+    "/admin/orders/:id",
+    { preHandler: adminGuard, schema: secured("Supprimer une commande (historique et statistiques) — ADMIN, mot de passe exigé") },
     async (request, reply) => {
       await requireTeamPassword(request);
       const { id } = request.params as { id: string };
-      return sendOk(reply, await purgeTestOrder(id, actor(request)));
+      return sendOk(reply, await purgeOrder(id, actor(request)));
     },
   );
 

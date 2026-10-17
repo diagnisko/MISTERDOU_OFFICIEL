@@ -4,7 +4,7 @@ import { prisma } from "@misterdou/db";
 import { cleanup, createAdmin, createProduct, createUser, track, tracker } from "./helpers.js";
 import { createOrder, createOrderSchema } from "../src/modules/orders/service.js";
 import { settlePayment } from "../src/modules/payments/service.js";
-import { purgeTestOrder } from "../src/modules/admin-ops/purge-order.js";
+import { purgeOrder } from "../src/modules/admin-ops/purge-order.js";
 
 const t = tracker();
 
@@ -23,7 +23,7 @@ describe("Effacer une commande de test en mensualités", () => {
     await settlePayment({ id: apport.id }, "SUCCESS", { source: "ADMIN" as never });
     expect((await prisma.order.findUniqueOrThrow({ where: { id: order.orderId } })).status).toBe("PARTIALLY_PAID");
 
-    await purgeTestOrder(order.orderId, { actorId: admin.id, actorRole: "ADMIN" });
+    await purgeOrder(order.orderId, { actorId: admin.id, actorRole: "ADMIN" });
     expect(await prisma.order.findUnique({ where: { id: order.orderId } })).toBeNull();
     expect(await prisma.installmentPlan.count({ where: { orderId: order.orderId } })).toBe(0);
     expect(await prisma.payment.count({ where: { id: apport.id } })).toBe(0);
