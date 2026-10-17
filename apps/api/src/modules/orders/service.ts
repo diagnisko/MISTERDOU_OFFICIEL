@@ -86,6 +86,7 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
       paymentMode: true,
       installmentDownPayment: true,
       installmentMonths: true,
+      installmentPrice: true,
       sellerId: true,
       seller: { select: { userId: true } },
       ...promoRelationSelect(now),
@@ -119,7 +120,12 @@ export async function createOrder(input: CreateOrderInput, ctx: { actorId: strin
 
   // Prix DEBITÉ calculé serveur : promotion à fenêtre active prioritaire,
   // puis promo permanente, puis prix de base. Même code que le catalogue.
-  const { price: unitPrice, promotionId } = resolvePrice(product);
+  // En mensualités : le prix total fixé pour les mensualités, sans promotion (la
+  // promotion porte sur le prix comptant). Ancienne offre sans ce prix : comme comptant.
+  const cash = resolvePrice(product);
+  const installmentTotal = input.paymentMode === "INSTALLMENTS" ? product.installmentPrice : null;
+  const unitPrice = installmentTotal ?? cash.price;
+  const promotionId = installmentTotal !== null ? null : cash.promotionId;
   const totalAmount = unitPrice * input.quantity;
   const discountAmount = Math.max(0, product.basePrice - unitPrice) * input.quantity;
 

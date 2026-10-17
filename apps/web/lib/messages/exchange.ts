@@ -13,7 +13,7 @@ export const fr = {
   "offer.sectionExchange": "Échange",
   "offer.acceptsExchange": "J’accepte d’échanger ce compte",
   "offer.gameIdInvalid": "De 4 à 40 lettres ou chiffres (celui affiché sur le profil dans le jeu).",
-  "offer.downTooHigh": "L’apport doit être plus petit que le prix.",
+  "offer.downTooHigh": "L’apport doit être plus petit que le prix en mensualités.",
   "offer.monthsMin": "2 mois au minimum.",
   "offer.acceptsExchangeHint":
     "Les clients pourront proposer leur compte ; vous leur direz combien ajouter, ou vous refuserez. Changer seulement ce réglage ne renvoie pas l’offre en validation.",
@@ -160,7 +160,7 @@ export const en: Translations<typeof fr> = {
   "offer.sectionExchange": "Swap",
   "offer.acceptsExchange": "I accept to swap this account",
   "offer.gameIdInvalid": "4 to 40 letters or digits (the one shown on the in-game profile).",
-  "offer.downTooHigh": "The down payment must be lower than the price.",
+  "offer.downTooHigh": "The down payment must be lower than the instalment price.",
   "offer.monthsMin": "At least 2 months.",
   "offer.acceptsExchangeHint":
     "Clients can offer their account; you tell them how much to add, or decline. Changing only this setting does not send the offer back for review.",

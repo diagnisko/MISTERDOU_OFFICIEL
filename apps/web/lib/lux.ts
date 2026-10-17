@@ -12,6 +12,8 @@ export type LuxPaymentMode = "ONE_TIME" | "INSTALLMENTS";
  * ce qui sera débité.
  */
 export interface LuxSchedule {
+  /** Prix total en mensualités (peut dépasser le prix comptant). */
+  total?: number;
   months: number;
   downPayment: number;
   monthlyAmount: number;

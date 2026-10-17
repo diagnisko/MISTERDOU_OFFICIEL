@@ -23,6 +23,8 @@ export type OfferValues = {
   paymentMode: "ONE_TIME" | "INSTALLMENTS";
   installmentMonths: number | null;
   installmentDownPayment: number | null;
+  /** Prix total en mensualités (null : le même que comptant). */
+  installmentPrice?: number | null;
   /** ID eFootball (absent sur les offres publiées avant cette règle). */
   gameAccountId?: string | null;
   acceptsExchange?: boolean;
@@ -72,6 +74,9 @@ export function OfferForm({
   const [monthly, setMonthly] = useState(offer?.paymentMode === "INSTALLMENTS");
   const [months, setMonths] = useState(offer?.installmentMonths ? String(offer.installmentMonths) : "3");
   const [downPayment, setDownPayment] = useState(offer?.installmentDownPayment != null ? String(offer.installmentDownPayment) : "0");
+  // Prix total en mensualités : suit le prix comptant tant qu'on ne l'a pas changé à la main.
+  const [monthlyPrice, setMonthlyPrice] = useState(offer?.installmentPrice != null ? String(offer.installmentPrice) : "");
+  const [monthlyPriceEdited, setMonthlyPriceEdited] = useState(offer?.installmentPrice != null && offer.installmentPrice !== offer.basePrice);
   const [gameId, setGameId] = useState(offer?.gameAccountId ?? "");
   const [acceptsExchange, setAcceptsExchange] = useState(offer?.acceptsExchange ?? false);
   const [loginId, setLoginId] = useState("");
@@ -88,6 +93,8 @@ export function OfferForm({
 
   const editing = Boolean(offer);
   const priceValue = toInt(price);
+  const shownMonthlyPrice = monthlyPriceEdited ? monthlyPrice : price;
+  const monthlyPriceValue = toInt(shownMonthlyPrice);
 
   /** Contrôle avant l'envoi : une erreur par champ, en français simple. */
   function check(): Record<string, string> {
@@ -110,8 +117,10 @@ export function OfferForm({
     if (monthly) {
       whole(months, "installmentMonths");
       if (!found.installmentMonths && toInt(months) < 2) found.installmentMonths = t("offer.monthsMin");
+      whole(shownMonthlyPrice, "installmentPrice");
+      if (!found.installmentPrice && !found.basePrice && monthlyPriceValue < priceValue) found.installmentPrice = t("offer.monthlyPriceLow");
       if (downPayment.trim() !== "") whole(downPayment, "installmentDownPayment");
-      if (!found.installmentDownPayment && !found.basePrice && (toInt(downPayment) || 0) >= priceValue) {
+      if (!found.installmentDownPayment && !found.installmentPrice && (toInt(downPayment) || 0) >= monthlyPriceValue) {
         found.installmentDownPayment = t("offer.downTooHigh");
       }
     }
@@ -144,6 +153,7 @@ export function OfferForm({
       paymentMode: monthly ? "INSTALLMENTS" : "ONE_TIME",
       installmentMonths: monthly ? toInt(months) : null,
       installmentDownPayment: monthly ? toInt(downPayment) || 0 : null,
+      installmentPrice: monthly ? monthlyPriceValue : null,
       ...(credentialsGiven ? { credentials: { loginId: loginId.trim(), password } } : {}),
     };
     setBusy(true);
@@ -234,6 +244,30 @@ export function OfferForm({
         </label>
         {monthly && (
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field
+                label={t("offer.monthlyPrice")}
+                hint={
+                  Number.isInteger(monthlyPriceValue) && monthlyPriceValue > priceValue && priceValue > 0
+                    ? t("offer.monthlyPriceMore", { amount: formatXof(monthlyPriceValue - priceValue) })
+                    : t("offer.monthlyPriceHint")
+                }
+                error={err.installmentPrice}
+              >
+                <input
+                  name="installmentPrice"
+                  value={shownMonthlyPrice}
+                  onChange={(e) => {
+                    setMonthlyPrice(e.target.value);
+                    setMonthlyPriceEdited(true);
+                    errors.clear("installmentPrice");
+                  }}
+                  inputMode="numeric"
+                  aria-invalid={Boolean(err["installmentPrice"])}
+                  className={`dash-input !pl-4 ${invalidCls(err["installmentPrice"])}`}
+                />
+              </Field>
+            </div>
             <Field label={t("offer.months")} error={err.installmentMonths}>
               <input name="installmentMonths" value={months} onChange={edit("installmentMonths", setMonths)} inputMode="numeric" aria-invalid={Boolean(err["installmentMonths"])} className={`dash-input !pl-4 ${invalidCls(err["installmentMonths"])}`} />
             </Field>

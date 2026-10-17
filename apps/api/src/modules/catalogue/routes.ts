@@ -35,6 +35,7 @@ const SELECT_PUBLIC = {
   paymentMode: true,
   installmentMonths: true,
   installmentDownPayment: true,
+  installmentPrice: true,
   publishedAt: true,
   createdAt: true,
   acceptsExchange: true,
@@ -98,19 +99,26 @@ function isFeatured(p: SortableProduct, now: Date): boolean {
  * de francs — et le client verrait « 4 100 » sur la fiche, « 4 200 » au
  * moment de payer. Une seule source de vérité, ici.
  */
+/**
+ * Échéancier affiché : calculé sur le prix total en mensualités fixé par le
+ * vendeur (sans promotion), ou sur le prix comptant pour une ancienne offre.
+ */
 function scheduleFor(p: {
   installmentMonths: number | null;
   installmentDownPayment: number | null;
+  installmentPrice: number | null;
 }, price: number) {
   if (p.installmentMonths === null || p.installmentMonths < 2) return null;
-  const down = Math.max(0, Math.min(p.installmentDownPayment ?? 0, price));
-  const plan = buildSchedule({ total: price, downPayment: down, months: p.installmentMonths, from: new Date(0) });
+  const total = p.installmentPrice ?? price;
+  const down = Math.max(0, Math.min(p.installmentDownPayment ?? 0, total));
+  const plan = buildSchedule({ total, downPayment: down, months: p.installmentMonths, from: new Date(0) });
   return {
+    total,
     months: p.installmentMonths,
     downPayment: plan.downPayment,
     monthlyAmount: plan.monthly,
     lastMonthAmount: plan.last,
-    restAmount: price - plan.downPayment,
+    restAmount: total - plan.downPayment,
   };
 }
 
@@ -162,10 +170,9 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
       const page = parseIntSafe(q.page, 1, 1, MAX_PAGES);
       const perPage = parseIntSafe(q.perPage, DEFAULT_PER_PAGE, 4, 48);
       const division = q.division?.trim() || undefined;
-      // « Offres » = tout, payé en un seul coup. « Prêt ou prestation » =
-      // uniquement ce qui est éligible au paiement en tranches. Filtre demandé
-      // explicitement, sinon l'offre apparaît dans les deux pages et l'acheteur
-      // voit deux prix différents pour le même compte.
+      // « Offres » (comptant) = TOUTES les offres : chacune s'achète en une fois,
+      // même celles ouvertes aux mensualités. « Mensualités » = uniquement les
+      // offres où le vendeur a coché les mensualités.
       const paymentMode: "ONE_TIME" | "INSTALLMENTS" | undefined =
         q.paymentMode === "ONE_TIME" || q.paymentMode === "INSTALLMENTS" ? q.paymentMode : undefined;
 
@@ -184,7 +191,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         ...notHeldByExchange(),
         ...(sellerId !== undefined ? { sellerId } : {}),
         ...(division ? { division } : {}),
-        ...(paymentMode ? { paymentMode } : {}),
+        ...(paymentMode === "INSTALLMENTS" ? { paymentMode } : {}),
         ...(search
           ? minPower !== null
             ? { teamPower: { gte: minPower } }
@@ -235,6 +242,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
           paymentMode: p.paymentMode,
           installmentMonths: p.installmentMonths,
           installmentDownPayment: p.installmentDownPayment,
+          installmentPrice: p.paymentMode === "INSTALLMENTS" ? (p.installmentPrice ?? price) : null,
           canSplit: p.installmentMonths !== null,
           acceptsExchange: p.acceptsExchange,
           isFeatured: isFeatured(p, now),
@@ -312,6 +320,7 @@ export async function registerCatalogueRoutes(app: FastifyInstance) {
         paymentMode: p.paymentMode,
         installmentMonths: p.installmentMonths,
         installmentDownPayment: p.installmentDownPayment,
+        installmentPrice: p.paymentMode === "INSTALLMENTS" ? (p.installmentPrice ?? price) : null,
         canSplit: p.installmentMonths !== null,
         acceptsExchange: p.acceptsExchange,
         isFeatured: isFeatured(p, now),

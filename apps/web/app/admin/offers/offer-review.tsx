@@ -26,6 +26,7 @@ type Review = {
   paymentMode: "ONE_TIME" | "INSTALLMENTS";
   installmentMonths: number | null;
   installmentDownPayment: number | null;
+  installmentPrice: number | null;
   rejectedReason: string | null;
   createdAt: string;
   updatedAt: string;
@@ -101,7 +102,7 @@ export function OfferReviewModal({ productId, onClose, onDone }: { productId: st
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Fact label="Prix" value={formatXof(offer.basePrice)} />
+            <Fact label="Prix comptant" value={formatXof(offer.basePrice)} />
             <Fact label="Puissance" value={`${offer.teamPower.toLocaleString("fr-FR")} OVR`} />
             <Fact label="Pièces" value={offer.coins.toLocaleString("fr-FR")} />
             <Fact label="Division" value={offer.division} />
@@ -109,7 +110,7 @@ export function OfferReviewModal({ productId, onClose, onDone }: { productId: st
           <p className="text-[13px] text-stone-300">
             Paiement :{" "}
             {offer.paymentMode === "INSTALLMENTS"
-              ? `mensualités — apport ${formatXof(offer.installmentDownPayment ?? 0)} puis ${offer.installmentMonths} mois`
+              ? `comptant, et aussi en mensualités — ${formatXof(offer.installmentPrice ?? offer.basePrice)} au total, apport ${formatXof(offer.installmentDownPayment ?? 0)} puis ${offer.installmentMonths} mois`
               : "comptant"}
             {" · "}
             Identifiants {offer.hasCredentials ? "enregistrés ✓" : "manquants ✗"}

@@ -147,6 +147,8 @@ export interface CatalogueDetail {
   paymentMode: "ONE_TIME" | "INSTALLMENTS";
   installmentMonths: number | null;
   installmentDownPayment: number | null;
+  /** Prix total en mensualités (offre ouverte aux mensualités), sinon null. */
+  installmentPrice?: number | null;
   canSplit: boolean;
   schedule: LuxSchedule | null;
   isFeatured: boolean;

@@ -229,6 +229,8 @@ model Product {
   paymentMode            PaymentMode        @default(ONE_TIME)
   installmentDownPayment Int?
   installmentMonths      Int?
+  /// Prix total quand l'acheteur paie en mensualités (≥ prix comptant). Vide : même prix que comptant.
+  installmentPrice       Int?
   featuredPriceOverride  Int?
   status                 ProductStatus      @default(DRAFT)
   publishedAt            DateTime?

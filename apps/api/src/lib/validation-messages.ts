@@ -23,6 +23,7 @@ const FIELD_LABELS: Record<string, string> = {
   discountPercent: "Réduction",
   paymentMode: "Mode de paiement",
   installmentMonths: "Nombre de mensualités",
+  installmentPrice: "Prix en mensualités",
   installmentDownPayment: "Apport",
   gameAccountId: "ID eFootball",
   acceptsExchange: "Échange accepté",
@@ -65,7 +66,7 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 /** Champs exprimés en francs CFA (le minimum s'affiche « 500 FCFA »). */
-const MONEY_FIELDS = new Set(["basePrice", "price", "promoPrice", "installmentDownPayment", "amount", "topUpAmount"]);
+const MONEY_FIELDS = new Set(["basePrice", "price", "promoPrice", "installmentDownPayment", "installmentPrice", "amount", "topUpAmount"]);
 
 const fmt = (n: number | bigint) => new Intl.NumberFormat("fr-FR").format(Number(n));
 

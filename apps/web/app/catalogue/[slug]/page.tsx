@@ -319,9 +319,11 @@ function DetailHub() {
   if (!item) return null;
 
   // Règle : depuis « Offres », achat comptant ; les tranches ne se prennent
-  // que depuis la page des mensualités (?mode=mensualites).
+  // que depuis la version mensualités de la fiche (?mode=mensualites), qui
+  // affiche le prix total en mensualités fixé par le vendeur.
   const canSplit = item.paymentMode === "INSTALLMENTS";
   const split = canSplit && installmentsMode;
+  const monthlyTotal = item.schedule?.total ?? item.installmentPrice ?? item.price;
   const tier = divisionTier(item.division);
   const glow = TIER_GLOW[tier] ?? TIER_GLOW.bronze;
   const isPromo = item.promoPrice !== null && item.promoPrice < item.price;
@@ -403,7 +405,9 @@ function DetailHub() {
             </div>
 
             <div className="flex items-baseline gap-4">
-              {isPromo ? (
+              {split ? (
+                <span className="lux-serif text-[36px] font-bold text-stone-100 tabular-nums">{formatFcfa(monthlyTotal)}</span>
+              ) : isPromo ? (
                 <>
                   <span className="text-[16px] text-stone-400 line-through decoration-stone-600">{formatFcfa(item.price)}</span>
                   <span className="lux-serif text-[36px] font-bold text-[var(--lux-gold-light)] tabular-nums">
@@ -422,8 +426,11 @@ function DetailHub() {
             {split && item.installmentDownPayment !== null && (
               <p className="text-[13px] leading-relaxed text-stone-400">
                 {t("product.downPayment", {
-                  down: formatFcfa(item.installmentDownPayment),
-                  monthly: formatFcfa(Math.round((item.price - item.installmentDownPayment) / Math.max(1, item.installmentMonths ?? 1))),
+                  down: formatFcfa(item.schedule?.downPayment ?? item.installmentDownPayment),
+                  monthly: formatFcfa(
+                    item.schedule?.monthlyAmount ??
+                      Math.round((monthlyTotal - item.installmentDownPayment) / Math.max(1, item.installmentMonths ?? 1)),
+                  ),
                   months: item.installmentMonths ?? 0,
                 })}
               </p>
@@ -436,8 +443,22 @@ function DetailHub() {
             {team ? <TeamNotice /> : own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
             {!own && !team && item.acceptsExchange && <ExchangeButton productId={item.id} />}
             {!own && canSplit && !split && (
-              <Link href={`/catalogue/${item.slug}?mode=mensualites`} className="text-[12.5px] text-[var(--lux-gold-light)] underline-offset-2 hover:underline">
-                {t("product.alsoMonthly")}
+              // Bouton bien visible : le même compte se paie aussi en plusieurs fois.
+              <Link
+                href={`/catalogue/${item.slug}?mode=mensualites`}
+                className="lux-btn lux-btn-ghost w-full flex-col !items-center !gap-0.5 py-3 text-center [text-transform:none]"
+                style={{ borderRadius: 16 }}
+              >
+                <span className="text-[13px] font-semibold text-[var(--lux-gold-light)]">{t("product.alsoMonthlyButton")}</span>
+                {item.schedule && (
+                  <span className="text-[11.5px] font-normal text-stone-400">
+                    {item.schedule.downPayment > 0
+                      ? t("card.downThen", { down: formatFcfa(item.schedule.downPayment), months: item.schedule.months })
+                      : t("card.monthsOf", { months: item.schedule.months, amount: formatFcfa(item.schedule.monthlyAmount) })}
+                    {" · "}
+                    {t("product.monthlyTotal", { total: formatFcfa(monthlyTotal) })}
+                  </span>
+                )}
               </Link>
             )}
             {split && (

@@ -111,7 +111,10 @@ export function ProductCard({
         )}
 
         <div className="flex items-baseline gap-3">
-          {product.promoPrice !== null && product.promoPrice < product.basePrice ? (
+          {installments && product.schedule?.total ? (
+            // Page Mensualités : le prix total payé en plusieurs fois.
+            <span className="lux-serif text-[24px] font-bold text-stone-100 tabular-nums">{formatFcfa(product.schedule.total)}</span>
+          ) : product.promoPrice !== null && product.promoPrice < product.basePrice ? (
             <>
               <span className="text-[13px] text-stone-400 line-through decoration-stone-600">{formatFcfa(product.basePrice)}</span>
               <span className="lux-serif text-[24px] font-bold text-[var(--lux-gold-light)] tabular-nums">
@@ -125,16 +128,23 @@ export function ProductCard({
 
         <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-stone-400">
           <IconDiamond className="h-3.5 w-3.5 text-[var(--lux-gold)]" aria-hidden />
-          {product.schedule ? (
+          {installments && product.schedule ? (
             product.schedule.downPayment > 0
               ? t("card.downThen", { down: formatFcfa(product.schedule.downPayment), months: product.schedule.months })
               : t("card.monthsOf", { months: product.schedule.months, amount: formatFcfa(product.schedule.monthlyAmount) })
-          ) : product.paymentMode === "INSTALLMENTS" && product.installmentMonths ? (
+          ) : installments && product.installmentMonths ? (
             t("card.upTo", { months: product.installmentMonths ?? 0 })
           ) : (
             t("card.cash")
           )}
         </span>
+        {/* Page Comptant : l'offre se paie aussi en plusieurs fois. */}
+        {!installments && product.paymentMode === "INSTALLMENTS" && Boolean(product.installmentMonths) && (
+          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[var(--lux-gold-light)]">
+            <IconDiamond className="h-3.5 w-3.5" aria-hidden />
+            {t("card.alsoMonthly")}
+          </span>
+        )}
         {product.acceptsExchange && (
           <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[var(--lux-gold-light)]">
             <IconSwap size={14} />

@@ -39,6 +39,8 @@ const baseFields = {
   paymentMode: z.enum(["ONE_TIME", "INSTALLMENTS"]),
   installmentMonths: z.number().int().min(2).max(24).optional().nullable(),
   installmentDownPayment: z.number().int().min(0).optional().nullable(),
+  // Prix total en mensualités (au moins le prix comptant) ; absent : le même que comptant.
+  installmentPrice: z.number().int().min(500).max(50_000_000).optional().nullable(),
   // ID du compte dans eFootball : obligatoire, unique sur le site (voir game-id.ts).
   gameAccountId: z.string().trim().min(1, "ID eFootball obligatoire").max(60),
   acceptsExchange: z.boolean().default(false),
@@ -76,15 +78,20 @@ export function parseOffer<T>(schema: z.ZodType<T>, body: unknown): T {
 
 /** Règles de paiement : mensualités cohérentes avec le prix et le plafond du site. */
 async function paymentTerms(input: UpdateOfferInput) {
-  if (input.paymentMode === "ONE_TIME") return { installmentMonths: null, installmentDownPayment: null };
+  if (input.paymentMode === "ONE_TIME") return { installmentMonths: null, installmentDownPayment: null, installmentPrice: null };
   const max = await getIntSetting("maxInstallments", 8);
   const months = input.installmentMonths ?? null;
   if (months === null || months < 2 || months > max) {
     throw fieldError("installmentMonths", `Entre 2 et ${max} mois.`);
   }
+  // Payer en plusieurs fois peut coûter un peu plus cher, jamais moins cher.
+  const total = input.installmentPrice ?? input.basePrice;
+  if (total < input.basePrice) {
+    throw fieldError("installmentPrice", "Le prix en mensualités ne peut pas être plus bas que le prix comptant.");
+  }
   const down = input.installmentDownPayment ?? 0;
-  if (down >= input.basePrice) throw fieldError("installmentDownPayment", "L’apport doit être plus petit que le prix.");
-  return { installmentMonths: months, installmentDownPayment: down };
+  if (down >= total) throw fieldError("installmentDownPayment", "L’apport doit être plus petit que le prix en mensualités.");
+  return { installmentMonths: months, installmentDownPayment: down, installmentPrice: total };
 }
 
 function slugFor(title: string): string {
@@ -225,6 +232,7 @@ const CONTENT_SELECT = {
   paymentMode: true,
   installmentMonths: true,
   installmentDownPayment: true,
+  installmentPrice: true,
   gameAccountId: true,
 } as const;
 
@@ -239,6 +247,7 @@ type OfferContent = {
   paymentMode: string;
   installmentMonths: number | null;
   installmentDownPayment: number | null;
+  installmentPrice: number | null;
   gameAccountId: string | null;
 };
 
@@ -267,6 +276,7 @@ export async function getOfferForEdit(productId: string, owner: OfferOwner) {
       paymentMode: true,
       installmentMonths: true,
       installmentDownPayment: true,
+      installmentPrice: true,
       rejectedReason: true,
       gameAccountId: true,
       acceptsExchange: true,
@@ -297,6 +307,7 @@ export async function updateOffer(productId: string, input: UpdateOfferInput, ow
       paymentMode: data.paymentMode,
       installmentMonths: terms.installmentMonths,
       installmentDownPayment: terms.installmentDownPayment,
+      installmentPrice: terms.installmentPrice,
       gameAccountId: data.gameAccountId,
     });
   const review = owner.kind === "seller" && (changed || product.status !== "ACTIVE");
@@ -392,6 +403,7 @@ export async function getOfferForReview(productId: string) {
       paymentMode: true,
       installmentMonths: true,
       installmentDownPayment: true,
+      installmentPrice: true,
       rejectedReason: true,
       gameAccountId: true,
       acceptsExchange: true,
