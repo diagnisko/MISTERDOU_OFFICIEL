@@ -29,6 +29,7 @@ import { registerPushRoutes } from "./modules/push/routes.js";
 import { registerTeamChatRoutes } from "./modules/team-chat/routes.js";
 import { registerExchangeRoutes } from "./modules/exchanges/routes.js";
 import { registerChatImageRoutes } from "./modules/chat-images/routes.js";
+import { registerSiteVideoRoutes } from "./modules/site-videos/routes.js";
 import { env } from "./env.js";
 import { isDev, REDACT_PATHS } from "./lib/logger.js";
 
@@ -163,6 +164,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       await registerReviewRoutes(api);
       await registerExchangeRoutes(api);
       await registerChatImageRoutes(api);
+      await registerSiteVideoRoutes(api);
     },
     { prefix: API_PREFIX },
   );

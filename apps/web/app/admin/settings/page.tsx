@@ -7,6 +7,7 @@ import { errorMessage } from "../_lib/api";
 import { useAdminList } from "../_lib/hooks";
 import { AdminPageHead, ErrorAlert, NoticeAlert, TableCard, TableEmpty, TableLoading } from "../_lib/ui";
 import { SETTING_LABELS, groupLabel } from "./labels";
+import { VideosCard } from "./videos-card";
 
 // ---------------------------------------------------------------------------
 // Paramètres — GET /admin/settings → [{ key, value, valueType, group,
@@ -114,6 +115,8 @@ export default function SettingsPage() {
 
       <ErrorAlert error={list.error} />
       <NoticeAlert notice={list.notice} />
+
+      <VideosCard />
 
       {list.loading ? (
         <div className="mt-8">

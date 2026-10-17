@@ -15,6 +15,7 @@ import { fieldError } from "../../lib/validation-messages.js";
 import { logAudit } from "../../lib/audit.js";
 import { notifyUser } from "../../lib/notify.js";
 import { alertAdmins } from "../../lib/login-guard.js";
+import { SITE_VIDEOS_KEY } from "../site-videos/service.js";
 import { decryptString, getFile } from "../../lib/storage.js";
 import { assertOwnedProof } from "../identity-verification/service.js";
 import { hashPassword } from "../../lib/password.js";
@@ -101,7 +102,14 @@ export async function listSettings() {
     orderBy: [{ group: "asc" }, { key: "asc" }],
     // Les clés internes (secrets MFA chiffrés) ne sont JAMAIS exposées en lecture.
     // …ni les repères de la reprise de l'ancien site (« legacy. »), gérés par l'outil de copie.
-    where: { AND: [{ key: { not: { startsWith: INTERNAL_SETTINGS_PREFIX } } }, { key: { not: { startsWith: "legacy." } } }] },
+    // …ni les vidéos de « Comment ça marche », qui ont leur propre carte dans Paramètres.
+    where: {
+      AND: [
+        { key: { not: { startsWith: INTERNAL_SETTINGS_PREFIX } } },
+        { key: { not: { startsWith: "legacy." } } },
+        { key: { not: SITE_VIDEOS_KEY } },
+      ],
+    },
     select: { key: true, value: true, valueType: true, group: true, description: true, updatedById: true, updatedAt: true },
   });
 }
@@ -110,7 +118,7 @@ export async function updateSetting(key: string, value: unknown, actor: OpsActor
   // Verrou : on ne peut pas réécrire un secret interne (ex. secret TOTP d'un
   // administrateur) depuis l'API de paramètres — sinon un opérateur SETTINGS
   // pourrait rendre la MFA illisible et verrouiller la connexion admin.
-  if (key.startsWith(INTERNAL_SETTINGS_PREFIX)) throw notFound("Ce réglage n’existe pas (ou plus) : rechargez la page.");
+  if (key.startsWith(INTERNAL_SETTINGS_PREFIX) || key === SITE_VIDEOS_KEY) throw notFound("Ce réglage n’existe pas (ou plus) : rechargez la page.");
   const row = await prisma.settings.findUnique({ where: { key } });
   if (!row) throw notFound("Ce réglage n’existe pas (ou plus) : rechargez la page.");
   if (!matchesValueType(row.valueType, value)) {

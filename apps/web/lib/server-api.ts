@@ -1,4 +1,5 @@
 import type { LuxSeed } from "./lux";
+import type { SiteVideo } from "./site-videos";
 
 // Appels à l'API depuis le serveur du site (composants serveur).
 // - Sur Cloudflare : par la liaison de service « API » (sans passer par Internet).
@@ -30,4 +31,15 @@ export async function fetchSeedServer(): Promise<LuxSeed> {
   const payload = (await res.json()) as { ok: boolean; data?: LuxSeed };
   if (!payload.ok || !payload.data) throw new Error("seed: échec");
   return payload.data;
+}
+
+/** Vidéos de la page « Comment ça marche » ; liste vide si l'API ne répond pas. */
+export async function fetchSiteVideosServer(): Promise<SiteVideo[]> {
+  try {
+    const res = await serverApiFetch("/api/v1/site/videos", { headers: { Accept: "application/json" }, cache: "no-store" });
+    const payload = (await res.json()) as { ok: boolean; data?: SiteVideo[] };
+    return payload.ok && Array.isArray(payload.data) ? payload.data : [];
+  } catch {
+    return [];
+  }
 }

@@ -633,6 +633,8 @@ export const AUDIT_ACTIONS: Record<string, { label: string; category: AuditCateg
   // Paramètres
   SETTINGS_CHANGE: { label: "Paramètre modifié", category: "settings" },
   SETTING_COMMISSION_RESTORED_15: { label: "Commission remise à 15 %", category: "settings" },
+  SITE_VIDEO_ADDED: { label: "Vidéo ajoutée à « Comment ça marche »", category: "settings" },
+  SITE_VIDEO_REMOVED: { label: "Vidéo retirée de « Comment ça marche »", category: "settings" },
 
   // Connexions et comptes des membres (masqué de « Tout », onglet dédié)
   LOGIN: { label: "Connexion d’un membre", category: "logins" },

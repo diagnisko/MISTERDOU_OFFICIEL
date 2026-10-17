@@ -7,7 +7,8 @@ import { MemberSwitch } from "@/components/lux/lux-member-switch";
 import { SectionLabel } from "@/components/lux/lux-fx";
 import { IconArrowRight, IconShield } from "@/components/lux/lux-icons";
 import { formatInt } from "@/lib/lux";
-import { fetchSeedServer } from "@/lib/server-api";
+import { fetchSeedServer, fetchSiteVideosServer } from "@/lib/server-api";
+import { VideoShowcase } from "@/components/lux/lux-video-showcase";
 import { getServerT } from "@/lib/i18n-server";
 import type { MessageKey } from "@/lib/i18n-core";
 
@@ -25,6 +26,8 @@ export default async function CommentCaMarchePage() {
   // Chiffres réels (serveur) plutôt qu'une illustration : si l'API tombe, on
   // masque la ligne plutôt que d'afficher un « 0 ».
   let chiffres: { inStock: number; rating: number } | null = null;
+  // Vidéos choisies dans Paramètres : affichées en premier (rien si aucune).
+  const videos = await fetchSiteVideosServer();
   try {
     const seed = await fetchSeedServer();
     chiffres = { inStock: seed.stats.productsInStock, rating: seed.stats.avgRating };
@@ -40,6 +43,17 @@ export default async function CommentCaMarchePage() {
 
         <main className="relative z-10 px-5 pt-32 md:px-8 md:pt-40">
           <div className="mx-auto max-w-4xl">
+            <VideoShowcase
+              videos={videos}
+              labels={{
+                kicker: t("howp.videoKicker"),
+                featured: t("howp.videoFeatured"),
+                numbered: (n) => t("howp.videoNumbered", { n }),
+                short: t("howp.videoShort"),
+                hint: t("howp.videoHint"),
+                fallbackTitle: t("howp.videoFallback"),
+              }}
+            />
             <SectionLabel>{t("howp.kicker")}</SectionLabel>
             <h1 className="lux-h2 mt-5 text-stone-100">
               {t("howp.title")}
