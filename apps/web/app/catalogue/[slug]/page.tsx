@@ -442,25 +442,6 @@ function DetailHub() {
 
             {team ? <TeamNotice /> : own ? <OwnOfferNotice /> : <BuyButton productId={item.id} paymentMode={split ? "INSTALLMENTS" : "ONE_TIME"} />}
             {!own && !team && item.acceptsExchange && <ExchangeButton productId={item.id} />}
-            {!own && canSplit && !split && (
-              // Bouton bien visible : le même compte se paie aussi en plusieurs fois.
-              <Link
-                href={`/catalogue/${item.slug}?mode=mensualites`}
-                className="lux-btn lux-btn-ghost w-full flex-col !items-center !gap-0.5 py-3 text-center [text-transform:none]"
-                style={{ borderRadius: 16 }}
-              >
-                <span className="text-[13px] font-semibold text-[var(--lux-gold-light)]">{t("product.alsoMonthlyButton")}</span>
-                {item.schedule && (
-                  <span className="text-[11.5px] font-normal text-stone-400">
-                    {item.schedule.downPayment > 0
-                      ? t("card.downThen", { down: formatFcfa(item.schedule.downPayment), months: item.schedule.months })
-                      : t("card.monthsOf", { months: item.schedule.months, amount: formatFcfa(item.schedule.monthlyAmount) })}
-                    {" · "}
-                    {t("product.monthlyTotal", { total: formatFcfa(monthlyTotal) })}
-                  </span>
-                )}
-              </Link>
-            )}
             {split && (
               <Link href={`/catalogue/${item.slug}`} className="text-[12.5px] text-stone-400 underline-offset-2 hover:underline">
                 {t("product.preferCash")}
@@ -505,7 +486,23 @@ function DetailHub() {
           </div>
         )}
 
-        <div className="mt-12">
+        {!own && canSplit && !split && (
+          // En bas de la fiche, juste avant « Tout le catalogue » : même style que
+          // « Discuter avec le vendeur », centré, sans toucher les bords (marges sur
+          // téléphone, largeur limitée sur grand écran). Ouvre la version mensualités.
+          <div className="mt-12 flex justify-center px-3 sm:px-0">
+            <Link
+              href={`/catalogue/${item.slug}?mode=mensualites`}
+              className="lux-btn lux-btn-ghost group/btn w-full max-w-[400px] !min-h-[48px] whitespace-nowrap text-[12.5px] uppercase tracking-[0.14em] min-[360px]:max-sm:!px-4 min-[360px]:max-sm:!text-[11.5px] min-[360px]:max-sm:!tracking-[0.1em] max-[359px]:!px-3 max-[359px]:!text-[10.5px] max-[359px]:!tracking-[0.04em]"
+              style={{ borderRadius: 18 }}
+            >
+              {t("product.alsoMonthlyButton")}
+              <IconArrowRight className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:translate-x-1" aria-hidden />
+            </Link>
+          </div>
+        )}
+
+        <div className={!own && canSplit && !split ? "mt-8" : "mt-12"}>
           <Link href="/catalogue" className="lux-btn lux-btn-ghost" style={{ borderRadius: 16 }}>
             <IconArrowLeft className="h-4 w-4" aria-hidden />
             {t("product.allCatalogue")}
